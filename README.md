@@ -25,6 +25,7 @@
 | 7장 | 격자 기초 — 기저, 기본 영역, q-ary 격자, 연속 최소값, Minkowski, 쌍대 격자 |
 | 8장 | 격자 문제와 난이도 — SVP·CVP·BDD·uSVP, Babai 알고리즘, 복잡도 지도 |
 | 9장 | LLL 완전 정복 — Gauss 축소, LLL 증명, 종료성, GSA |
+| 10장 | BKZ, 열거, 체 — δ_β 유도, 열거 노드 수, 체의 60° 규칙과 2^0.292n, core-SVP |
 | 11장 | 대수적 정수론 입문 — 원분체, 정규 임베딩, 노름, 이데알과 류수, 이데알 격자, 소수 분해와 NTT |
 | 12장 | Ring-LWE 와 Module-LWE — 구조화 행렬, 탐색→결정, Module-LWE 와 ML-KEM 파라미터, Ring/Module-SIS, 약한 인스턴스 |
 | 14장 | LWE — 탐색⇔결정, 최악→평균 환원, Regev 암호, 임베딩 공격 |
@@ -34,6 +35,7 @@
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
 | 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
+| Lab 4 | BKZ 와 체를 직접 돌려 보기 — 열거 BKZ, Gauss sieve, fpylll 비교 |
 
 전체 26장 계획은 사이트의 [전체 커리큘럼](https://mumusecure.github.io/all-about-pqc/guide/curriculum/) 참고.
 

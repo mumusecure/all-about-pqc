@@ -45,6 +45,7 @@ export default defineConfig({
           { label: '7장. 격자 기초', slug: 'ch07-lattices' },
           { label: '8장. 격자 문제와 난이도', slug: 'ch08-lattice-problems' },
           { label: '9장. LLL 완전 정복', slug: 'ch09-lll' },
+          { label: '10장. BKZ, 열거, 체', slug: 'ch10-bkz-sieving' },
         ]},
         { label: '3부 · 대수적 격자', items: [
           { label: '11장. 대수적 정수론 입문', slug: 'ch11-algebraic-nt' },
@@ -62,6 +63,7 @@ export default defineConfig({
         { label: '실습', items: [
           { label: 'Lab 1. LLL로 토이 LWE 공격하기', slug: 'labs/lab01-lll-lwe-attack' },
           { label: 'Lab 3. ML-KEM 을 바닥부터 구현하기', slug: 'labs/lab03-mlkem' },
+          { label: 'Lab 4. BKZ 와 체를 직접 돌려 보기', slug: 'labs/lab04-bkz-sieve' },
         ]},
       ],
     }),
