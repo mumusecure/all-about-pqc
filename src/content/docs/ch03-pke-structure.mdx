@@ -96,7 +96,7 @@ $Q_G$ 는 공격자의 해시 질의 수, $\delta$ 는 기반 PKE 의 복호 실
 
 ### 4.2 ML-KEM 의 FO 구조 (FIPS 203)
 
-ML-KEM 은 IND-CPA PKE 인 **K-PKE**(Module-LWE 기반, 16장) 위에 FO 를 얹은 것입니다. 해시는 $G$ = SHA3-512, $H$ = SHA3-256, $J$ = SHAKE256 입니다.
+ML-KEM 은 IND-CPA PKE 인 **K-PKE**(Module-LWE 기반, [16장](../ch16-mlkem/)) 위에 FO 를 얹은 것입니다. 해시는 $G$ = SHA3-512, $H$ = SHA3-256, $J$ = SHAKE256 입니다.
 
 - **Encaps**: 무작위 32바이트 $m$ → $(K, r) = G(m \,\|\, H(ek))$ → $c = \mathsf{K\text{-}PKE.Encrypt}(ek, m; r)$ → $(K, c)$.
 - **Decaps**: $m' = \mathsf{K\text{-}PKE.Decrypt}(dk_{\mathrm{PKE}}, c)$ → $(K', r') = G(m' \,\|\, h)$ → $\bar K = J(z \,\|\, c)$ → $c' = \mathsf{K\text{-}PKE.Encrypt}(ek, m'; r')$ → $c \ne c'$ 이면 $\bar K$, 아니면 $K'$.
@@ -230,7 +230,7 @@ $2^{64}\cdot2^{-164} = 2^{-100}$ 으로 무시할 만합니다. $2^{64}\cdot2^{-
 - 서명은 해시 후 서명(FN-DSA)과 Fiat–Shamir(ML-DSA) 두 갈래다.
 - 하이브리드 키 교환은 두 공유 비밀을 KDF 로 묶어 둘 중 하나만 안전해도 안전하다.
 - 증명된 안전성은 상수 시간 구현이 있어야 현실이 된다.
-- 다음: 4장에서 Fiat–Shamir 와 영지식을, 16장에서 K-PKE 의 내부(Module-LWE, NTT, 압축)를 다룬다.
+- 다음: 4장에서 Fiat–Shamir 와 영지식을, [16장](../ch16-mlkem/)에서 K-PKE 의 내부(Module-LWE, NTT, 압축)를 다룬다.
 
 ## 참고문헌
 

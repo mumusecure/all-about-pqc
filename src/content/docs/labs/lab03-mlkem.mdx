@@ -1,0 +1,104 @@
+---
+title: "Lab 3. ML-KEM 을 바닥부터 구현하기"
+description: Python 표준 라이브러리(hashlib 의 SHA-3·SHAKE)만으로 FIPS 203 ML-KEM 을 구현하고, 복호 실패 확률을 정확히 계산하며, 상수 시간 압축을 직접 만든다.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+<div class="goals">
+
+**목표**: 16장의 알고리즘을 실제로 돌아가는 코드와 한 줄씩 대응시키고, 파라미터를 바꿨을 때 정확성($\delta$)이 어떻게 무너지는지 숫자로 보여 주는 1쪽 보고서를 만든다.
+
+**선수**: [16장 ML-KEM 해부](../../ch16-mlkem/), [3장](../../ch03-pke-structure/)의 FO 변환. **소요 시간**: 3~5시간.
+
+</div>
+
+<Aside type="caution" title="교육용 구현">
+이 코드는 상수 시간이 아니고 부채널 대책도 없습니다. 실제 시스템에는 검증된 구현(예: mlkem-native, libcrux, liboqs)을 쓰세요.
+</Aside>
+
+## 준비
+
+<Steps>
+
+1. 저장소를 받습니다(이미 받았다면 생략).
+
+   ```bash
+   git clone https://github.com/mumusecure/all-about-pqc
+   cd all-about-pqc/labs
+   ```
+
+2. 자체 검사를 실행합니다. Python 3.9 이상, 외부 패키지 없음.
+
+   ```bash
+   python3 lab03_mlkem.py
+   ```
+
+   이렇게 나오면 성공입니다.
+
+   ```text
+   ML-KEM-512: ek 800 B, dk 1632 B, ct 768 B — 복원 ✅, 변조 시 암묵적 거부 ✅
+   ML-KEM-768: ek 1184 B, dk 2400 B, ct 1088 B — 복원 ✅, 변조 시 암묵적 거부 ✅
+   ML-KEM-1024: ek 1568 B, dk 3168 B, ct 1568 B — 복원 ✅, 변조 시 암묵적 거부 ✅
+   NTT 곱 = xⁿ + 1 에서의 교과서식 곱 ✅
+   고정 입력 회귀값 (ML-KEM-768): 04182bace5128633 ✅
+   ```
+
+3. 복호 실패 확률을 계산합니다(몇 초).
+
+   ```bash
+   python3 lab03_mlkem.py --failure
+   ```
+
+   ```text
+   ML-KEM-512: δ ≈ 2^-139.1
+   ML-KEM-768: δ ≈ 2^-165.2
+   ML-KEM-1024: δ ≈ 2^-175.2
+   ```
+
+</Steps>
+
+## 과제
+
+**과제 1. 코드 읽기.** 파일의 함수 이름 옆 주석에 FIPS 203 알고리즘 번호가 있습니다. `kpke_keygen`, `kpke_encrypt`, `kpke_decrypt`, `decaps_internal` 을 16장 4절·7절의 수식과 한 줄씩 대응시키세요. 특히 다음을 찾으세요.
+
+- 행렬 성분을 `rho + bytes([j, i])` 로 뽑는 곳과, 암호화에서 전치를 읽는 곳
+- PRF 카운터 $N$ 이 $0, \dots, 2k$ 로 쓰이는 순서
+- 재암호화 비교 `c == c2` (실제 구현은 왜 이렇게 쓰면 안 되는가?)
+
+**과제 2. 적합성 검사 (선택).** 회귀값은 "코드가 바뀌었는지"만 알려 줍니다. FIPS 203 과 **바이트 단위로** 같은지는 NIST 의 ACVP 테스트 벡터(GitHub 의 `usnistgov/ACVP-Server` 저장소에 ML-KEM keyGen·encapDecap JSON 파일이 있습니다)로 확인합니다. `keygen_internal(d, z)` 와 `encaps_internal(ek, m)` 이 벡터의 `ek`, `dk`, `c`, `k` 를 재현하는지 검사하는 스크립트를 쓰세요. 하나라도 틀리면 어디가 다른지(바이트 순서? 행렬 인덱스? 카운터?) 추적하는 과정이 가장 큰 공부입니다.
+
+**과제 3. 정확성의 경계.** `PARAMS` 에 사용자 파라미터를 추가하거나 `failure_probability` 를 직접 불러, 다음 표를 채우세요.
+
+| 바꾼 것 (ML-KEM-768 기준) | 암호문 크기 | $\log_2 \delta$ |
+|---|---|---|
+| 기본 | 1088 | |
+| $d_u = 9$ | | |
+| $d_v = 3$ | | |
+| $\eta_1 = 3$ | | |
+| $k = 4$, 나머지 그대로 | | |
+
+어느 손잡이가 "바이트당" 가장 비싼지 결론을 내리세요(16장 연습 6).
+
+**과제 4. 이론과 관측.** `--noise 768 --trials 200` 으로 잡음을 모아 표준편차를 구하고, 16장 표의 76.5 와 비교하세요. $\eta_1$ 을 크게(예: 8) 바꿔 실제 복호 실패가 나오는 지점을 찾고, `failure_probability` 의 예측과 맞는지 보세요.
+
+**과제 5. 상수 시간 압축 (KyberSlash).** `compress(x, 1)` 을 나눗셈 없이 계산하는 함수를 쓰세요.
+
+```python
+def compress1_ct(x):
+    return ((((x << 1) + 1665) * 80635) >> 28) & 1
+
+assert all(compress1_ct(x) == compress(x, 1) for x in range(Q))
+```
+
+80635 가 어디서 왔는지 설명하고(16장 연습 10), 같은 방법으로 `compress(x, 4)` 와 `compress(x, 10)` 의 나눗셈 없는 버전을 만드세요. 상수와 시프트 양을 어떻게 골라야 모든 입력에서 맞는지가 핵심입니다.
+
+<Aside type="tip" title="포트폴리오로 만들기">
+과제 2·3·5 를 묶어 "FIPS 203 을 읽고 구현해 테스트 벡터로 검증했고, 파라미터의 정확성 여유를 계산했으며, 실제 취약점(KyberSlash)의 수정을 재현했다"는 1쪽 보고서로 정리하세요. 구현·검증 계열 연구실에서 바로 통하는 경험입니다.
+</Aside>
+
+## 생각해 볼 질문
+
+1. `sample_ntt` 는 필요한 바이트 수가 운에 따라 다릅니다. 이것은 시간 누출인데도 괜찮은 이유는?
+2. dk 에 $\hat s$ (NTT 영역, 계수당 12 비트)를 저장하는 대신 $s$ (계수당 3 비트면 충분)를 저장하면 무엇을 얻고 무엇을 잃나요?
+3. 이 구현의 `decaps_internal` 에서 시간이 비밀에 따라 달라질 수 있는 곳을 모두 찾아보세요.
