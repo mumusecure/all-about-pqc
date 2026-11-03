@@ -1,0 +1,355 @@
+---
+title: 6장. 수학 도구상자 II — 선형대수와 확률
+description: 노름과 내적, 행렬식과 부피, Gram-Schmidt, ℤ_q 위의 선형대수, 기대값과 분산, 꼬리 부등식, 통계적 거리, 이산 가우시안과 평활 파라미터, 고차원 기하와 Gaussian heuristic.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import GSOArea from '../../components/GSOArea.tsx';
+import NoiseSum from '../../components/NoiseSum.tsx';
+import HighDim from '../../components/HighDim.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 노름·내적·사영을 계산하고, 행렬식이 부피라는 사실과 $\operatorname{vol} = \prod_i \|b_i^*\|$ 을 증명할 수 있다.
+2. 독립 확률변수 합의 기대값·분산을 계산하고, Chebyshev·Hoeffding 부등식으로 꼬리 확률을 묶을 수 있다.
+3. **가우시안 근사가 언제 상한이 아닌지** 알고, 복호 실패 확률을 정확히 계산하는 방법(합성곱)을 설명할 수 있다.
+4. 통계적 거리를 정의하고, 그것이 "어떤 공격자도 구별할 수 없는 정도"를 뜻함을 증명할 수 있다.
+5. 이산 가우시안 $D_{\mathbb{Z},s}$, 평활 파라미터의 의미를 알고, 고차원 기하로부터 Gaussian heuristic 을 유도할 수 있다.
+
+**선수 지식**: [2장](../ch02-algebra/)의 $\mathbb{Z}_q$, 벡터와 행렬의 기본 연산, 고등학교 확률.
+
+</div>
+
+## 1. 직관: 격자 암호 = 선형대수 + 노이즈
+
+<span class="layer-tag">직관</span>
+
+14장의 LWE 를 다시 보면 $b = As + e$ 입니다. 앞의 $As$ 는 **선형대수**(행렬, 벡터, 일차결합)이고, 뒤의 $e$ 는 **확률**(작은 무작위 노이즈)입니다. 격자 암호의 거의 모든 질문은 이 둘로 쪼개집니다.
+
+- **선형대수 쪽 질문**: 이 격자의 부피는? 기저가 얼마나 "직교"에 가까운가? 가장 짧은 벡터는 대략 얼마나 짧은가?
+- **확률 쪽 질문**: 노이즈를 여러 번 더하면 얼마나 커지는가? 복호에 실패할 확률은 $2^{-128}$ 보다 작은가? 암호문이 무작위와 얼마나 비슷한가?
+
+이 장은 두 도구상자를 차례로 채웁니다. 7~9장의 격자, 14장의 LWE, 16장의 ML-KEM 이 모두 이 위에 서 있습니다.
+
+## 2. 선형대수
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 내적, 노름, 사영
+
+$\mathbb{R}^n$ 의 벡터 $u, v$ 에 대해 내적 $\langle u, v\rangle = \sum_i u_i v_i$, 노름은 세 가지를 자주 씁니다.
+
+$$
+\|v\|_2 = \sqrt{\langle v, v\rangle}, \qquad \|v\|_1 = \sum_i |v_i|, \qquad \|v\|_\infty = \max_i |v_i| .
+$$
+
+$\|\cdot\|$ 처럼 첨자가 없으면 $\ell_2$ 입니다. 격자 문제(SVP)는 주로 $\ell_2$, 노이즈의 크기 제한(ML-DSA 의 거절 조건 등)은 $\ell_\infty$ 로 말합니다. 이들 사이에는 $\|v\|_\infty \le \|v\|_2 \le \sqrt n\, \|v\|_\infty$ 가 성립합니다.
+
+**정리 6.1 (Cauchy–Schwarz).** $|\langle u, v\rangle| \le \|u\|\,\|v\|$.
+
+*증명.* $v \ne 0$ 이라 하고 실수 $t$ 에 대해 $0 \le \|u - tv\|^2 = \|u\|^2 - 2t\langle u,v\rangle + t^2\|v\|^2$. 이 이차식이 음이 아니므로 판별식 $4\langle u,v\rangle^2 - 4\|u\|^2\|v\|^2 \le 0$. $\blacksquare$
+
+**사영.** $v$ 를 $u$ 방향으로 사영하면 $\frac{\langle v, u\rangle}{\|u\|^2}u$, 그 나머지 $v - \frac{\langle v, u\rangle}{\|u\|^2}u$ 는 $u$ 에 수직입니다. 이 계수 $\frac{\langle v,u\rangle}{\|u\|^2}$ 가 9장에서 본 $\mu$ 입니다.
+
+### 2.2 기저, 행렬, 행렬식
+
+일차독립인 벡터 $b_1, \dots, b_n$ 을 **행** 으로 쌓은 행렬을 $B$ 라 합니다(이 교과서의 규약). $n = d$ (정방)이면
+
+$$
+|\det B| = \text{$b_1, \dots, b_n$ 이 만드는 평행다면체의 부피}.
+$$
+
+$n < d$ 이면 $B$ 가 정방이 아니므로 대신 **Gram 행렬** $G = BB^\top$ (성분 $G_{ij} = \langle b_i, b_j\rangle$)을 써서 $\operatorname{vol} = \sqrt{\det G}$ 로 정의합니다.
+
+핵심 성질 두 가지:
+
+- **곱셈성**: $\det(UB) = \det U \cdot \det B$. 그래서 $\det U = \pm 1$ 인 정수 행렬(**유니모듈러**)을 곱해도 부피는 변하지 않습니다. 7장에서 이것이 "같은 격자의 다른 기저"의 정확한 의미가 됩니다.
+- **전단 불변성**: 한 행에 다른 행의 배수를 더해도 행렬식은 그대로입니다. 아래 위젯에서 직접 확인하세요.
+
+<GSOArea client:visible />
+
+### 2.3 Gram-Schmidt 와 부피
+
+9장에서 쓴 Gram-Schmidt 직교화를 다시 정리합니다.
+
+$$
+b_1^* = b_1, \qquad b_i^* = b_i - \sum_{j<i}\mu_{ij}\, b_j^*, \qquad \mu_{ij} = \frac{\langle b_i, b_j^*\rangle}{\|b_j^*\|^2}.
+$$
+
+행렬로 쓰면 $B = M B^*$ 입니다. 여기서 $M$ 은 대각성분이 1 이고 $(i, j)$ 성분이 $\mu_{ij}$ 인 **하삼각 행렬**, $B^*$ 는 행 $b_i^*$ 들이 서로 직교하는 행렬입니다.
+
+**정리 6.2.** $\operatorname{vol}(B) = \prod_i \|b_i^*\|$.
+
+*증명.* $\det(BB^\top) = \det(M)\det(B^*B^{*\top})\det(M^\top) = \det(B^*B^{*\top})$ ($\det M = 1$). $B^*B^{*\top}$ 는 대각성분이 $\|b_i^*\|^2$ 인 대각행렬이다. $\blacksquare$
+
+**따름정리 6.3 (Hadamard 부등식).** $\operatorname{vol}(B) \le \prod_i \|b_i\|$, 등호는 $b_i$ 들이 직교할 때.
+
+*증명.* $b_i = b_i^* + (\text{앞 벡터들의 생성공간의 원소})$ 이고 두 성분이 직교하므로 $\|b_i^*\| \le \|b_i\|$. $\blacksquare$
+
+$\prod_i \|b_i\| / \operatorname{vol}$ 을 **직교성 결함** 이라 부르며, 기저의 "나쁨"을 재는 척도입니다(9장 위젯에서 이미 보았습니다).
+
+### 2.4 ℤ_q 위의 선형대수
+
+$q$ 가 소수이면 $\mathbb{Z}_q = \mathbb{F}_q$ 는 체이므로(2장) 가우스 소거, 랭크, 역행렬, 핵(kernel)이 실수에서와 똑같이 작동합니다. 두 가지를 기억해 둡니다.
+
+- 무작위 $n\times n$ 행렬 $A \leftarrow \mathbb{F}_q^{n\times n}$ 이 가역일 확률은 $\prod_{i=1}^n (1 - q^{-i}) \ge 1 - \frac{1}{q-1}$ 로, 1 에 매우 가깝습니다.
+- **노이즈가 없는** 연립방정식 $As = b$ 는 $O(n^3)$ 에 풀립니다. LWE 의 어려움은 *오로지* 노이즈 $e$ 에서 나옵니다.
+
+## 3. 확률의 기본
+
+<span class="layer-tag">정식화</span>
+
+확률변수 $X$ 의 **기대값** $\mathbb{E}[X] = \sum_x x\Pr[X = x]$, **분산** $\operatorname{Var}(X) = \mathbb{E}[(X - \mathbb{E}X)^2] = \mathbb{E}[X^2] - (\mathbb{E}X)^2$.
+
+**사실 6.4.**
+
+1. (선형성) 항상 $\mathbb{E}[X + Y] = \mathbb{E}X + \mathbb{E}Y$. 독립일 필요가 없습니다.
+2. $X, Y$ 가 독립이면 $\operatorname{Var}(X + Y) = \operatorname{Var}X + \operatorname{Var}Y$.
+3. $X, Y$ 가 독립이고 $\mathbb{E}X = 0$ 이면 $\operatorname{Var}(XY) = \mathbb{E}[X^2]\,\mathbb{E}[Y^2]$.
+
+**예: 중심 이항분포.** ML-KEM 의 노이즈는 $\mathrm{CBD}_\eta = \sum_{i=1}^\eta (a_i - b_i)$ 입니다($a_i, b_i$ 는 독립 공정 동전). 각 $a_i - b_i$ 는 $\{-1, 0, 1\}$ 을 확률 $\frac14, \frac12, \frac14$ 로 가지므로 분산은 $\frac12$, 따라서 $\operatorname{Var}(\mathrm{CBD}_\eta) = \eta/2$ 입니다. $\eta = 2$ 이면 값은 $\{-2,\dots,2\}$, 확률은 $(1, 4, 6, 4, 1)/16$ 입니다.
+
+**예: Regev 암호의 노이즈.** 14장에서 복호 시 남는 노이즈는 $e^\top r = \sum_{i=1}^m e_i r_i$ 였습니다. $e_i \leftarrow \mathrm{CBD}_2$, $r_i \leftarrow \{0,1\}$ 이면 사실 6.4 에 의해
+
+$$
+\operatorname{Var}(e_i r_i) = \mathbb{E}[e_i^2]\,\mathbb{E}[r_i^2] = 1 \cdot \tfrac12, \qquad \operatorname{Var}(e^\top r) = \tfrac m2 .
+$$
+
+14장에서 "표준편차는 대략 $\sigma\sqrt{m/2}$"라고 했던 것의 정확한 근거입니다.
+
+## 4. 꼬리 부등식: 실패 확률 2⁻¹²⁸ 을 어떻게 보장하나
+
+<span class="layer-tag">정식화</span>
+
+분산은 평균적인 크기를 알려 주지만, 암호에 필요한 것은 **아주 드문 사건의 확률** 입니다. 복호 실패 확률이 $2^{-128}$ 이하인지 같은 질문이죠.
+
+**정리 6.5 (Markov, Chebyshev).** $X \ge 0$ 이면 $\Pr[X \ge t] \le \mathbb{E}X / t$. 일반적으로 $\Pr[|X - \mathbb{E}X| \ge t] \le \operatorname{Var}(X)/t^2$.
+
+*증명.* Markov: $\mathbb{E}X \ge \mathbb{E}[X \cdot \mathbb{1}_{X\ge t}] \ge t\Pr[X \ge t]$. Chebyshev: $(X - \mathbb{E}X)^2$ 에 Markov 를 적용. $\blacksquare$
+
+Chebyshev 는 다항식으로만 줄어들어서 암호에는 너무 약합니다. 지수적으로 줄어드는 상한이 필요합니다.
+
+**정리 6.6 (Hoeffding).** $X_1, \dots, X_k$ 가 독립이고 $X_i \in [a, b]$, $S = \sum X_i$ 이면
+
+$$
+\Pr\big[|S - \mathbb{E}S| \ge t\big] \le 2\exp\!\left(-\frac{2t^2}{k(b-a)^2}\right).
+$$
+
+*증명 스케치.* 임의의 $\lambda > 0$ 에 대해 Markov 를 $e^{\lambda S}$ 에 적용하면 $\Pr[S \ge t] \le e^{-\lambda t}\prod_i \mathbb{E}[e^{\lambda X_i}]$ (**Chernoff 기법**, 독립성 사용). Hoeffding 보조정리 $\mathbb{E}[e^{\lambda X_i}] \le e^{\lambda^2(b-a)^2/8}$ 를 대입하고 $\lambda$ 를 최적화한다. $\blacksquare$
+
+진짜 정규분포 $N(0, \sigma^2)$ 이라면 $\Pr[|X| > t] \le 2e^{-t^2/(2\sigma^2)}$ 이 성립합니다. 그래서 $2^{-128}$ 을 보장하려면 대략 $t \ge 13.3\sigma$ 가 필요합니다($t^2/2\sigma^2 = 128\ln 2$).
+
+<Aside type="caution" title="중심극한정리는 꼬리를 보장하지 않는다">
+"노이즈를 많이 더하면 정규분포가 되니까 $2e^{-t^2/2\sigma^2}$ 를 쓰면 된다"는 추론은 **틀릴 수 있습니다**. 중심극한정리는 분포의 *가운데* 가 정규분포에 가까워진다는 정리이지, $2^{-80}$ 같은 먼 꼬리까지 맞는다는 보장이 아닙니다. 예를 들어 Regev 노이즈 $\sum_{i=1}^{64} e_i r_i$ ($\sigma^2 = 32$)에서 $t = 64.25$ ($q = 257$ 의 $q/4$) 를 넘을 확률은
+
+- **정확한 값**(합성곱으로 계산): 약 $2^{-84.3}$
+- **가우시안 근사**: 약 $2^{-92.1}$, 실제보다 **약 200배 작게** 추정합니다.
+- **Hoeffding 상한**: 약 $2^{-10.6}$, 항상 맞지만 매우 느슨합니다.
+
+그래서 ML-KEM(Kyber) 설계에서는 복호 실패 확률을 근사식이 아니라 **노이즈 분포를 합성곱으로 정확히 계산하는 방식** 으로 구합니다. 아래 위젯이 바로 그 계산을 합니다.
+</Aside>
+
+<NoiseSum client:visible />
+
+해볼 실험:
+
+1. 'e·r (Regev)', $k = 64$ 에서 $t$ 를 끝까지 올려 보세요. 정확값(파랑)이 가우시안 근사(점선)보다 위에 있는 구간이 나타납니다.
+2. 'CBD₂' 로 바꾸면 반대로 근사가 실제보다 크게(보수적으로) 나옵니다. **분포의 모양(첨도)에 따라 근사의 방향이 달라집니다.**
+3. $k$ 를 1 → 1024 로 올리며 위 그래프가 정규분포 곡선에 붙는 것을 보세요(중심극한정리).
+
+<Quiz
+  client:visible
+  question="e₁, …, e₁₀₀ 이 독립이고 각각 CBD₂ 를 따를 때, 합 S = Σeᵢ 의 표준편차는?"
+  options={['1', '10', '100', '√200']}
+  answer={1}
+  explanation="Var(CBD₂) = η/2 = 1 이고 독립이므로 Var(S) = 100, 표준편차는 10 입니다. 노이즈를 k 개 더하면 크기는 k 가 아니라 √k 배로 자랍니다. 이것이 격자 암호에서 노이즈를 관리할 수 있는 이유입니다."
+/>
+
+## 5. 통계적 거리: "구별할 수 없다"의 정량화
+
+<span class="layer-tag">정식화</span>
+
+**정의 6.7.** 같은 집합 위의 두 분포 $X, Y$ 의 **통계적 거리** 는
+
+$$
+\Delta(X, Y) = \frac12\sum_a \big|\Pr[X = a] - \Pr[Y = a]\big| = \max_{T} \big|\Pr[X \in T] - \Pr[Y \in T]\big| .
+$$
+
+**정리 6.8.** 어떤 (계산 능력 무제한의) 판별자 $\mathcal{D}$ 에 대해서도 $\big|\Pr[\mathcal{D}(X) = 1] - \Pr[\mathcal{D}(Y) = 1]\big| \le \Delta(X, Y)$.
+
+*증명.* 결정적 판별자는 집합 $T = \{a : \mathcal{D}(a) = 1\}$ 로 정해지므로 정의의 두 번째 식에서 바로 나온다. 무작위 판별자는 결정적 판별자들의 평균이다. $\blacksquare$
+
+**성질.** (1) 삼각부등식. 이로부터 **하이브리드 논법**: $X = H_0, H_1, \dots, H_k = Y$ 이면 $\Delta(X, Y) \le \sum_i \Delta(H_{i-1}, H_i)$. (2) **데이터 처리 부등식**: 임의의 함수 $f$ 에 대해 $\Delta(f(X), f(Y)) \le \Delta(X, Y)$. (3) 독립 곱에 대해 $\Delta((X_1, X_2), (Y_1, Y_2)) \le \Delta(X_1, Y_1) + \Delta(X_2, Y_2)$.
+
+**무시 가능(negligible).** 함수 $\varepsilon(\lambda)$ 가 모든 다항식 $p$ 에 대해 충분히 큰 $\lambda$ 에서 $\varepsilon(\lambda) < 1/p(\lambda)$ 이면 무시 가능하다고 합니다(예: $2^{-\lambda}$). 두 분포족의 통계적 거리가 무시 가능하면 **통계적으로 구별 불가능** 하다고 합니다. 14장 Regev 암호 증명의 "잔여 해시 보조정리" 단계가 바로 이 개념이었고, 1장에서 계산적 구별 불가능성으로 일반화합니다.
+
+## 6. 이산 가우시안
+
+<span class="layer-tag">정식화</span>
+
+격자 암호의 이론은 거의 모두 **격자 위의 가우시안 분포** 로 쓰입니다.
+
+**정의 6.9.** $s > 0$ 에 대해 $\rho_s(x) = \exp(-\pi\|x\|^2/s^2)$. 격자 $\mathcal{L}$ 위의 **이산 가우시안** $D_{\mathcal{L}, s}$ 는
+
+$$
+\Pr[X = x] = \frac{\rho_s(x)}{\rho_s(\mathcal{L})}, \qquad x \in \mathcal{L}, \quad \rho_s(\mathcal{L}) = \sum_{y \in \mathcal{L}} \rho_s(y).
+$$
+
+<Aside type="caution" title="표기의 함정: s 와 σ">
+$\rho_s(x) = e^{-\pi x^2/s^2} = e^{-x^2/(2\sigma^2)}$ 로 맞추면 $\sigma = s/\sqrt{2\pi}$ 입니다. 논문마다 "가우시안 파라미터"가 $s$ 인지 $\sigma$ 인지, Regev 처럼 "폭 $\alpha q$"인지 다릅니다. **논문을 읽을 때 가장 먼저 확인할 것** 중 하나입니다. $D_{\mathbb{Z},s}$ 의 표준편차는 $s$ 가 충분히 크면 $s/\sqrt{2\pi}$ 에 매우 가깝습니다(이 교과서의 `tests/prob.test.ts` 가 수치로 확인합니다).
+</Aside>
+
+**평활 파라미터 (smoothing parameter).** 격자 $\mathcal{L}$ 과 작은 $\varepsilon > 0$ 에 대해, 연속 가우시안 노이즈를 격자로 "접었을 때" 거의 균등해지는 최소 폭을 $\eta_\varepsilon(\mathcal{L})$ 라 합니다. 정식 정의는 쌍대 격자를 써서 $\rho_{1/s}(\mathcal{L}^* \setminus \{0\}) \le \varepsilon$ 인 최소 $s$ 입니다(7장에서 쌍대 격자를 배운 뒤 다시 봅니다). 직관은 이렇습니다.
+
+- $s \gg \eta_\varepsilon(\mathcal{L})$: 가우시안이 격자의 기본 영역 여러 개에 퍼져서, "어느 격자점 근처인가"라는 정보가 지워집니다.
+- $s \ll \eta_\varepsilon(\mathcal{L})$: 가우시안이 한 격자점 근처에 뭉쳐 있어서, 가장 가까운 격자점을 알아낼 수 있습니다.
+
+Micciancio–Regev(2004)는 $\eta_\varepsilon(\mathcal{L}) \le \sqrt{\ln(2n(1 + 1/\varepsilon))/\pi}\cdot\lambda_n(\mathcal{L})$ 을 보였고, 이 양이 14장 Regev 환원의 근사 인자 계산과 GPV 서명(17장)의 안전성 증명에서 핵심 역할을 합니다.
+
+**꼬리 (Banaszczyk).** 원점 중심 $D_{\mathcal{L},s}$ 에서 뽑은 $x$ 는 $\Pr[\|x\| > s\sqrt n] \le 2^{-n}$ 을 만족합니다. 고차원 가우시안은 길이가 대략 $s\sqrt n$ 을 넘지 않는다는 뜻이고, 이것이 다음 절의 "길이 집중" 현상과 이어집니다.
+
+## 7. 고차원 기하와 Gaussian heuristic
+
+<span class="layer-tag">정식화</span>
+
+<HighDim client:visible />
+
+위젯이 보여 주는 두 사실은 증명할 수 있습니다.
+
+- **길이 집중.** $x \leftarrow N(0, I_n)$ 이면 $\|x\|^2 = \sum x_i^2$ 은 기대값 $n$, 분산 $2n$ 이므로 $\|x\| \approx \sqrt n \pm O(1)$. 상대 오차가 $1/\sqrt{2n}$ 으로 줄어듭니다. 14장 공격 실험에서 "숨은 벡터 $(e,-s,1)$ 의 길이 $\approx \sigma\sqrt{m+n}$"이라고 했던 것의 근거입니다.
+- **공의 부피.** $V_n = \pi^{n/2}/\Gamma(\frac n2 + 1)$ 은 $n = 5$ 근처에서 최대가 된 뒤 초지수적으로 0 에 갑니다. Stirling 근사로 $V_n^{1/n} \approx \sqrt{2\pi e/n}$ 입니다.
+
+**Gaussian heuristic.** "무작위" 격자 $\mathcal{L}$ 에서 반지름 $r$ 인 공 안의 격자점 개수는 대략 $V_n r^n / \operatorname{vol}(\mathcal{L})$ (공의 부피를 기본 영역의 부피로 나눈 것)입니다. 이 값이 1 이 되는 $r$ 이 최단 벡터 길이의 예측값입니다.
+
+$$
+\lambda_1(\mathcal{L}) \approx \mathrm{GH}(\mathcal{L}) = \left(\frac{\operatorname{vol}(\mathcal{L})}{V_n}\right)^{1/n} \approx \sqrt{\frac{n}{2\pi e}}\;\operatorname{vol}(\mathcal{L})^{1/n}.
+$$
+
+14장 임베딩 공격의 "gap = GH ÷ ‖숨은 벡터‖"가 바로 이 식입니다. 이것은 정리가 아니라 **휴리스틱** 이지만, 무작위 격자에서 실험적으로 매우 잘 맞고 암호해석의 비용 모델 전체가 이 위에 서 있습니다(10장, 18장).
+
+<Quiz
+  client:visible
+  question="두 분포의 통계적 거리가 Δ(X, Y) = 2⁻⁸⁰ 일 때 옳은 것은?"
+  options={[
+    '계산 능력이 제한된 공격자만 둘을 거의 구별할 수 없다',
+    '계산 능력이 무제한인 공격자도 구별 이득이 2⁻⁸⁰ 을 넘을 수 없다',
+    'X 와 Y 는 같은 분포다',
+    '2⁸⁰ 개의 표본을 보면 반드시 구별할 수 있다',
+  ]}
+  answer={1}
+  explanation="정리 6.8: 통계적 거리는 어떤 판별자(무제한 계산 능력 포함)의 구별 이득도 묶습니다. 이것이 '계산적' 구별 불가능성(1장)보다 강한 '통계적' 구별 불가능성입니다. 표본을 여러 개 보면 이득이 커질 수 있지만(독립 곱의 성질), 2⁸⁰ 개로 반드시 구별된다는 보장은 없습니다."
+/>
+
+## 8. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **증명 기법의 진화.** 통계적 거리 대신 **Rényi 발산** 을 쓰면 많은 격자 암호 증명이 더 촘촘해지고 파라미터를 줄일 수 있습니다(Bai–Langlois–Lepoint–Stehlé–Steinfeld, Asiacrypt 2015 / J. Cryptology 2018). "어떤 거리로 분포를 비교하느냐"가 실제 키 크기를 바꾸는 연구 주제입니다.
+- **가우시안 샘플링은 구현의 지뢰밭.** 이산 가우시안을 상수 시간으로 정확하게 뽑는 것은 어렵고, 실제로 BLISS 서명은 가우시안 샘플러의 캐시 타이밍 누출로 비밀키가 복구되었습니다(Groot Bruinderink–Hülsing–Lange–Yarom, *Flush, Gauss, and Reload*, CHES 2016). ML-KEM 이 이항분포를 고른 이유, FN-DSA 구현이 까다로운 이유가 여기 있습니다.
+- **복호 실패와 공격.** 실패 확률 분석은 정확성만의 문제가 아닙니다. 실패를 일부러 유도하는 암호문을 만들어 비밀을 알아내는 **복호 실패 공격**(20장)이 있어서, 실패 확률 계산의 정확도 자체가 안전성 문제입니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **M. Mitzenmacher, E. Upfal**, *Probability and Computing* (2판). Chernoff·Hoeffding 부등식 장. 암호 연구자의 확률 기본기.
+2. **D. Micciancio, O. Regev**, *Worst-case to Average-case Reductions Based on Gaussian Measures*, FOCS 2004 / SIAM J. Comput. 2007. 평활 파라미터를 도입한 논문. 2~3절만 먼저 읽으세요.
+3. **C. Gentry, C. Peikert, V. Vaikuntanathan**, *Trapdoors for Hard Lattices and New Cryptographic Constructions*, STOC 2008. 격자 위 가우시안 샘플링과 그 응용(17장 FN-DSA 의 이론적 뿌리).
+4. **S. Bai, A. Langlois, T. Lepoint, D. Stehlé, R. Steinfeld**, *Improved Security Proofs in Lattice-Based Cryptography: Using the Rényi Divergence Rather Than the Statistical Distance*, Asiacrypt 2015.
+
+## 연습문제
+
+**★ 1.** $v = (3, -4, 12)$ 의 $\|v\|_1, \|v\|_2, \|v\|_\infty$ 를 구하고 $\|v\|_\infty \le \|v\|_2 \le \sqrt 3\,\|v\|_\infty$ 를 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$\|v\|_1 = 19$, $\|v\|_2 = \sqrt{9 + 16 + 144} = 13$, $\|v\|_\infty = 12$. $12 \le 13 \le 12\sqrt3 \approx 20.8$.
+
+</details>
+
+**★ 2.** $b_1 = (4, 1)$, $b_2 = (2, 3)$ 에 대해 $\det B$, $\mu_{21}$, $b_2^*$ 를 구하고 $|\det B| = \|b_1\|\,\|b_2^*\|$ 를 확인하세요. (위젯의 초기값입니다.)
+
+<details>
+<summary>해설</summary>
+
+$\det = 4\cdot3 - 1\cdot2 = 10$. $\mu_{21} = (8 + 3)/17 = 11/17$. $b_2^* = (2,3) - \frac{11}{17}(4,1) = (\frac{-10}{17}, \frac{40}{17})$, $\|b_2^*\| = \frac{10}{17}\sqrt{17} = \frac{10}{\sqrt{17}}$. $\|b_1\|\,\|b_2^*\| = \sqrt{17}\cdot\frac{10}{\sqrt{17}} = 10$.
+
+</details>
+
+**★ 3.** $\mathrm{CBD}_2$ 의 확률이 $(1, 4, 6, 4, 1)/16$ 임을 동전 네 개로 직접 세어 보이고, 분산이 1 임을 계산하세요.
+
+<details>
+<summary>해설</summary>
+
+$a_1 + a_2 - b_1 - b_2 = (a_1 + a_2) + (2 - b_1 - b_2) - 2$ 이고 괄호 두 개의 합은 공정 동전 4 개의 앞면 수와 같은 분포이므로 $\mathrm{Bin}(4, \frac12) - 2$. 확률은 $\binom{4}{k}/16 = (1,4,6,4,1)/16$. 분산은 $\mathrm{Bin}(4,\frac12)$ 의 분산 $4\cdot\frac14 = 1$.
+
+</details>
+
+**★★ 4.** $\mathrm{CBD}_1$ 과 $\{-1, 0, 1\}$ 균등분포의 통계적 거리를 구하세요. 그리고 판별 이득이 정확히 그 값이 되는 판별자를 하나 제시하세요.
+
+<details>
+<summary>해설</summary>
+
+$\mathrm{CBD}_1 = (\frac14, \frac12, \frac14)$, 균등 $= (\frac13,\frac13,\frac13)$. $\Delta = \frac12\left(\frac1{12} + \frac16 + \frac1{12}\right) = \frac16$. 판별자 "$x = 0$ 이면 1 을 출력"은 $\Pr = \frac12$ 대 $\frac13$ 으로 이득 $\frac16$ 을 얻습니다(최대 이득 집합 $T = \{0\}$).
+
+</details>
+
+**★★ 5.** Regev 노이즈 $S = \sum_{i=1}^{64} e_i r_i$ ($e_i \leftarrow \mathrm{CBD}_2$, $r_i \leftarrow \{0,1\}$)에 대해 $\Pr[|S| > 64.25]$ 의 Chebyshev 상한과 Hoeffding 상한을 계산하고, 4절의 정확한 값($\approx 2^{-84.3}$)과 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+$\operatorname{Var}S = 32$. Chebyshev: $32/64.25^2 \approx 7.8\times10^{-3} \approx 2^{-7}$. Hoeffding ($e_ir_i \in [-2, 2]$, $b - a = 4$): $2\exp(-2\cdot 64.25^2/(64\cdot16)) = 2e^{-8.06} \approx 6.3\times10^{-4} \approx 2^{-10.6}$. 둘 다 참이지만 정확한 값보다 $2^{70}$ 배 이상 느슨합니다. 암호 파라미터를 정할 때 정확한 계산이 필요한 이유입니다.
+
+</details>
+
+**★★ 6.** 정리 6.2 의 증명에서 $B = MB^*$ 가 성립함을 Gram-Schmidt 의 정의로부터 보이고, Hadamard 부등식의 등호 조건을 증명하세요.
+
+<details>
+<summary>해설</summary>
+
+정의를 $b_i = b_i^* + \sum_{j<i}\mu_{ij}b_j^*$ 로 바꿔 쓰면 이것이 정확히 $B = MB^*$ 의 $i$ 번째 행입니다. 등호: $\prod\|b_i^*\| = \prod\|b_i\|$ 이려면 모든 $i$ 에서 $\|b_i^*\| = \|b_i\|$, 즉 $\sum_{j<i}\mu_{ij}b_j^* = 0$, 즉 모든 $\mu_{ij} = 0$ 이어야 하고 이는 $b_i$ 들이 서로 직교한다는 뜻입니다.
+
+</details>
+
+**★★ 7.** 데이터 처리 부등식 $\Delta(f(X), f(Y)) \le \Delta(X, Y)$ 를 증명하세요. 이것이 "암호문을 어떻게 가공해도 구별 이득은 늘지 않는다"는 말과 어떻게 연결되나요?
+
+<details>
+<summary>해설</summary>
+
+$\Delta(f(X), f(Y)) = \max_T |\Pr[f(X) \in T] - \Pr[f(Y)\in T]| = \max_T|\Pr[X \in f^{-1}(T)] - \Pr[Y \in f^{-1}(T)]| \le \Delta(X, Y)$. 공격자가 관찰값에 어떤 처리 $f$ 를 해도 원래 분포 사이의 거리보다 더 큰 이득을 얻을 수 없다는 뜻입니다.
+
+</details>
+
+**★★★ 8.** Stirling 근사 $\ln\Gamma(x+1) \approx x\ln x - x$ 를 써서 $V_n^{1/n} \approx \sqrt{2\pi e/n}$ 을 유도하고, 이로부터 Gaussian heuristic 의 두 번째 식을 얻으세요. $n = 100$ 에서 두 식의 차이는 몇 % 인가요? (`src/lib/prob.ts` 의 `logBallVolume` 으로 계산해 볼 수 있습니다.)
+
+<details>
+<summary>해설</summary>
+
+$\ln V_n = \frac n2\ln\pi - \ln\Gamma(\frac n2 + 1) \approx \frac n2\ln\pi - \frac n2\ln\frac n2 + \frac n2 = \frac n2\ln\frac{2\pi e}{n}$. 따라서 $V_n^{1/n} \approx \sqrt{2\pi e/n}$, $\left(\operatorname{vol}/V_n\right)^{1/n} \approx \sqrt{n/(2\pi e)}\operatorname{vol}^{1/n}$. Stirling 의 보정항 $\frac12\ln(2\pi x)$ 때문에 $n = 100$ 에서도 수 % 정도 차이가 납니다. 정밀한 비용 추정에서는 정확한 $V_n$ 을 씁니다.
+
+</details>
+
+**★★★ 9.** Hoeffding 보조정리 $\mathbb{E}[e^{\lambda X}] \le e^{\lambda^2(b-a)^2/8}$ ($\mathbb{E}X = 0$, $X \in [a,b]$)를 증명하고, 정리 6.6 의 증명을 완성하세요.
+
+<details>
+<summary>힌트</summary>
+
+$e^{\lambda x}$ 의 볼록성으로 $e^{\lambda X} \le \frac{b - X}{b - a}e^{\lambda a} + \frac{X - a}{b - a}e^{\lambda b}$. 기대값을 취한 뒤 $\phi(u) = \ln(\ldots)$ 로 두고 $\phi(0) = \phi'(0) = 0$, $\phi'' \le \frac14$ 를 보여 테일러 전개를 하세요. 마지막으로 $\lambda = 4t/(k(b-a)^2)$ 를 대입합니다.
+
+</details>
+
+**★★★ 10. (구현 · ML-KEM 미리보기)** `src/lib/prob.ts` 의 `convolvePower`, `pmfProduct` 를 이용해 ($\eta = 2$, $q = 3329$ 일 때) "$\mathrm{CBD}_2 \times \mathrm{CBD}_2$ 곱 $2kn$ 개의 합"이 $q/4$ 를 넘을 확률을 $k = 2, 3, 4$, $n = 256$ 에 대해 계산하세요. ML-KEM 명세의 실제 실패 확률(예: ML-KEM-768 은 약 $2^{-164}$)보다 훨씬 작게 나올 것입니다. 무엇이 빠졌을까요? (힌트: 16장의 **압축(rounding) 오차**)
+
+## 요약
+
+- 노름: $\ell_2$ (격자 문제), $\ell_\infty$ (노이즈 제한). 사영 계수가 Gram-Schmidt 의 $\mu$.
+- $\operatorname{vol} = \sqrt{\det BB^\top} = \prod\|b_i^*\| \le \prod\|b_i\|$ (Hadamard). 유니모듈러 변환과 전단은 부피를 보존한다.
+- 독립 노이즈 $k$ 개의 합은 크기가 $\sqrt k$ 배로 자란다. $\operatorname{Var}(\mathrm{CBD}_\eta) = \eta/2$.
+- 실패 확률은 꼬리 부등식으로 묶는다. **가우시안 근사는 상한이 아닐 수 있으므로**, 실제 설계에서는 분포를 합성곱으로 정확히 계산한다.
+- 통계적 거리는 무제한 공격자의 구별 이득을 묶는다. 하이브리드 논법과 데이터 처리 부등식이 증명의 기본 도구다.
+- 이산 가우시안 $D_{\mathcal{L},s}$ 와 평활 파라미터는 격자 환원 증명의 언어다. 표기 $s$ 와 $\sigma = s/\sqrt{2\pi}$ 에 주의할 것.
+- 고차원에서 무작위 벡터의 길이는 한 값에 몰리고, 공의 부피로부터 Gaussian heuristic $\lambda_1 \approx \sqrt{n/2\pi e}\operatorname{vol}^{1/n}$ 이 나온다.
+- 다음: 7장에서 드디어 격자를 정식으로 정의한다.
