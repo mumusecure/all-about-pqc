@@ -1,0 +1,245 @@
+---
+title: 12장. Ring-LWE 와 Module-LWE
+description: 구조화된 LWE 의 정의(표본 하나 = 구조화된 LWE 표본 n 개), 탐색⇔결정과 CRT 슬롯, 이데알 격자로부터의 최악→평균 환원, Module-LWE 와 ML-KEM 의 파라미터, Ring/Module-SIS 와 기약 다항식이 필요한 이유, 약한 인스턴스와 근에서의 값 공격.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import StructureMatrix from '../../components/StructureMatrix.tsx';
+import RootAttack from '../../components/RootAttack.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. Ring-LWE 와 Module-LWE 를 정의하고, 각 표본이 "구조화된 행렬을 가진 LWE 표본 여러 개"임을 행렬로 보일 수 있다.
+2. 탐색 ⇒ 결정 환원이 CRT 슬롯과 갈루아 자기동형을 어떻게 쓰는지 설명할 수 있다.
+3. Ring/Module-LWE 의 최악→평균 환원이 **어떤 격자 문제**(이데알·모듈 격자의 SVP)에 기대는지, 그리고 그 문제가 일반 격자 SVP 보다 쉬울 수 있다는 사실이 무엇을 뜻하는지 말할 수 있다.
+4. ML-KEM 의 파라미터 $(n, k, q, \eta)$ 를 Module-LWE 의 언어로 읽고, 모듈 구조를 택한 이유를 설명할 수 있다.
+5. Ring-SIS 와 Module-SIS 를 정의하고, 변환 다항식이 기약이어야 하는 이유를 충돌 공격과 근에서의 값 공격으로 보일 수 있다.
+
+**선수 지식**: [14장](../ch14-lwe/)(LWE, 탐색⇔결정), [11장](../ch11-algebraic-nt/)(원분체, 정규 임베딩, 소수 분해), [2장](../ch02-algebra/)(CRT, $\mathbb{Z}_q[x]/(x^n+1)$), [7장](../ch07-lattices/)(q-ary 격자, SIS).
+
+</div>
+
+## 1. 직관: 행렬 대신 다항식 하나
+
+<span class="layer-tag">직관</span>
+
+14장의 LWE 는 $b = As + e$ 에서 $A$ 가 $m \times n$ 개의 **독립된** 무작위 수였습니다. 안전하려면 $n$ 이 수백이어야 하니, $A$ 에만 수십만 개의 수가 들어가고 $As$ 계산에 $O(n^2)$ 시간이 듭니다.
+
+**Ring-LWE** 의 아이디어는 $A$ 를 **다항식 하나의 곱셈 행렬** 로 바꾸는 것입니다. $a \in R_q = \mathbb{Z}_q[x]/(x^n+1)$ 을 곱하는 사상은 $n\times n$ 행렬이지만, 그 행렬은 $a$ 의 계수 $n$ 개로 완전히 정해집니다(15장의 $\operatorname{rot}(a)$). 그러면
+
+- 표본 **하나** $(a, b = as + e)$ 가 LWE 표본 **$n$ 개** 의 역할을 하고,
+- 곱셈 $as$ 는 NTT(2장)로 $O(n\log n)$ 에 끝납니다.
+
+**Module-LWE** 는 그 중간입니다. $A$ 를 $R_q$ 원소들로 된 작은 $k\times k$ 행렬로 둡니다. $k = 1$ 이면 Ring-LWE, $n = 1$ 이면 일반 LWE 입니다. ML-KEM 과 ML-DSA 가 이것을 씁니다.
+
+<StructureMatrix client:visible />
+
+## 2. 정식화
+
+<span class="layer-tag">정식화</span>
+
+이 장에서 $R = \mathbb{Z}[x]/(x^n+1)$ ($n$ 은 2의 거듭제곱, 11장의 2의 거듭제곱 원분체의 정수환), $R_q = R/qR$ 입니다. "작은" 원소는 계수가 작은 원소이고, 11장 정리 11.3 에 의해 이 환에서는 계수 기하와 정규 임베딩 기하가 $\sqrt n$ 배만 다르므로 어느 쪽으로 정의해도 같습니다.
+
+### 2.1 Ring-LWE
+
+**정의 12.1 (Ring-LWE, Lyubashevsky–Peikert–Regev 2010).** 비밀 $s \in R_q$ (작은 비밀을 쓰는 정규형이 표준)와 오차 분포 $\chi$ (작은 원소)에 대해, Ring-LWE 분포는
+
+$$
+(a, \; b = a\cdot s + e) \in R_q \times R_q, \qquad a \leftarrow R_q \text{ 균등}, \; e \leftarrow \chi .
+$$
+
+**탐색**: 표본 여러 개로 $s$ 찾기. **결정**: 표본을 $R_q \times R_q$ 의 균등 분포와 구별하기.
+
+**행렬로 보면.** $M_a$ 를 $a$ 의 곱셈 행렬(열 $j$ = $x^ja$ 의 계수)이라 하면 $b = M_a s + e$ 입니다. 즉 Ring-LWE 표본 하나는 행렬이 $M_a$ 인 LWE 표본 $n$ 개입니다. 따라서 14장의 모든 공격(임베딩, 쌍대)이 그대로 적용되고, 차원은 $n$ (표본 $\ell$ 개면 $A = [M_{a_1}; \dots; M_{a_\ell}]$)입니다.
+
+### 2.2 탐색 ⇒ 결정: CRT 슬롯
+
+$q \equiv 1 \pmod{2n}$ 인 소수이면 11장 6절에 의해 $R_q \cong \mathbb{Z}_q^n$ (근 $\omega_1, \dots, \omega_n$ 에서의 값, CRT 슬롯)입니다. 이 동형 아래서 Ring-LWE 표본은
+
+$$
+b(\omega_j) = a(\omega_j)\,s(\omega_j) + e(\omega_j) \pmod q, \qquad j = 1, \dots, n,
+$$
+
+즉 슬롯마다 비밀이 $s(\omega_j) \in \mathbb{Z}_q$ 하나인 "1차원 LWE" 입니다. LPR 의 탐색 ⇒ 결정 환원은 대략 다음과 같습니다.
+
+1. 결정 판별자로 **한 슬롯** 의 값 $s(\omega_1)$ 을 14장 정리 14.2 처럼 추측·검증한다(슬롯 하나는 $q$ 개 후보).
+2. **갈루아 자기동형** $\sigma_k : x \mapsto x^k$ 은 슬롯들을 치환하고 오차 분포를 보존한다(11장). 그래서 같은 판별자로 다른 슬롯들도 차례로 구할 수 있다.
+
+여기서 "오차 분포가 갈루아 작용에 불변"이 핵심이고, 그래서 오차를 **정규 임베딩에서 대칭적으로** (구형 가우시안 등) 정의하는 것이 중요합니다. 이 조건이 깨진 환에서 어떤 일이 생기는지가 5절의 주제입니다.
+
+### 2.3 최악→평균 환원과 그 의미
+
+**정리 12.2 (LPR 2010; Peikert–Regev–Stephens-Davidowitz 2017, 비공식).** 적절한 파라미터에서, 결정 Ring-LWE 를 푸는 알고리즘이 있으면 그 수체의 **이데알 격자** 에 대한 근사 SVP 를 (양자) 다항 시간에 푸는 알고리즘이 있다. PRS 2017 은 이를 임의의 수체와 임의의 모듈러스로 확장했다.
+
+14장 정리 14.3 과 같은 구조지만, 기반 문제가 **일반 격자** 가 아니라 **이데알 격자** 의 SVP 라는 점이 다릅니다. 그리고 11장·5장에서 보았듯 이데알 격자의 SVP 는 일반 격자보다 쉬울 수 있습니다(큰 근사 인자에서 양자 다항 시간 알고리즘이 있음, Cramer–Ducas–Wesolowski 2017).
+
+<Aside type="caution" title="환원의 방향을 조심하라">
+"이데알 SVP 가 쉬워질 수 있다"는 것이 "Ring-LWE 가 쉽다"는 뜻은 **아닙니다**. 환원은 "Ring-LWE ≥ 이데알 SVP" 방향이므로, 이데알 SVP 가 쉬워지면 Ring-LWE 의 **이론적 보증이 약해질** 뿐입니다. 지금까지 이데알 SVP 공격들은 Ring-LWE 의 실제 파라미터를 깨지 못했고, Ring-LWE 와 Module-LWE 의 구체적 안전성은 여전히 일반 격자 공격(18장)의 비용으로 평가됩니다.
+</Aside>
+
+### 2.4 Module-LWE
+
+**정의 12.3 (Module-LWE).** 랭크 $k$ 에 대해 비밀 $s \in R_q^k$, 표본 $(a, b = \langle a, s\rangle + e) \in R_q^k \times R_q$. 행렬로 모으면 $A \in R_q^{k\times k}$ 에 대해 $b = As + e \in R_q^k$.
+
+Module-LWE 는 차원 $nk$ 의 LWE 이고, 행렬 $A$ 는 $k^2$ 개의 다항식(수 $k^2n$ 개)으로 정해집니다. Langlois–Stehlé(2015)는 **모듈 격자** 의 근사 SVP 로부터의 최악→평균 환원을 보였고, Albrecht–Deo(2017)는 랭크 $k$, 차수 $n$ 의 Module-LWE 가 (모듈러스를 키운) 차수 $nk$ 의 Ring-LWE 로 환원됨을 보였습니다. 모듈 격자에는 이데알 격자 공격이 통하지 않는다는 점에서, Module-LWE 는 Ring-LWE 보다 **구조가 덜한** 가정입니다.
+
+**ML-KEM 의 파라미터 (FIPS 203).** 모두 $n = 256$, $q = 3329$ 입니다.
+
+| 파라미터 세트 | $k$ | LWE 차원 $nk$ | $\eta_1$ (비밀·오차) | $\eta_2$ | 캡슐화 키 크기 | NIST 등급 |
+|---|---|---|---|---|---|---|
+| ML-KEM-512 | 2 | 512 | 3 | 2 | 800 바이트 | 1 |
+| ML-KEM-768 | 3 | 768 | 2 | 2 | 1184 바이트 | 3 |
+| ML-KEM-1024 | 4 | 1024 | 2 | 2 | 1568 바이트 | 5 |
+
+키 크기 1184 바이트 = $k\cdot n\cdot 12$ 비트($= 3\cdot256\cdot12/8 = 1152$ 바이트의 $b$) + 32 바이트 시드($A$ 를 생성). 구조가 없는 LWE KEM 인 FrodoKEM-640 은 공개키가 약 9.6KB 로 열 배 이상 큽니다.
+
+**왜 모듈인가.** (1) 환 하나($n = 256$)와 NTT 코드 하나로 $k$ 만 바꿔 세 보안 등급을 만든다. (2) Ring-LWE 로 같은 차원을 얻으려면 $n = 512, 768, 1024$ 짜리 서로 다른 환이 필요한데, 768 은 2의 거듭제곱이 아니다. (3) 구조가 덜해 이데알 격자 공격의 위험에서 한 걸음 떨어져 있다.
+
+<Quiz
+  client:visible
+  question="ML-KEM-768 의 Module-LWE 를 '보통 LWE'로 펼치면 비밀 벡터의 차원은?"
+  options={['256', '3', '768', '3329']}
+  answer={2}
+  explanation="비밀은 R_q 의 원소 k = 3 개이고 각각 계수 n = 256 개이므로, 보통 LWE 로 보면 차원 nk = 768 입니다. 이것이 18장에서 공격 비용을 계산할 때 쓰는 차원입니다."
+/>
+
+## 3. Ring-SIS 와 Module-SIS
+
+<span class="layer-tag">정식화</span>
+
+**정의 12.4 (Ring-SIS / Module-SIS).** $a_1, \dots, a_m \leftarrow R_q$ 이 주어질 때, 모두 0 은 아닌 **짧은** $z_1, \dots, z_m \in R$ 로 $\sum_i a_iz_i \equiv 0 \pmod q$ 를 찾아라. (Module-SIS 는 $A \in R_q^{k\times m}$, $Az \equiv 0$.)
+
+7장의 SIS ($\Lambda_q^\perp(A)$ 의 짧은 벡터)를 구조화한 것으로, 해시 함수 $h_a(z) = \sum a_iz_i$ 의 충돌 저항성과 같습니다. **ML-DSA 의 위조 불가능성은 Module-SIS 계열 가정** (정확히는 SelfTargetMSIS)과 Module-LWE 에 기댑니다(17장).
+
+### 3.1 변환 다항식은 기약이어야 한다
+
+Micciancio(2002)는 $\mathbb{Z}[x]/(x^n - 1)$ 위의 이런 함수가 **일방향** 임을 보였지만, Lyubashevsky–Micciancio 와 Peikert–Rosen(2006)은 이 환에서는 **충돌을 쉽게 찾을 수 있음** 을 지적하고, $x^n + 1$ 같은 **기약** 다항식을 쓰면 충돌 저항성까지 최악 경우 가정으로 증명됨을 보였습니다.
+
+**이유.** $x^n - 1 = (x - 1)(1 + x + \cdots + x^{n-1})$ 이 쪼개지므로 영인자가 생깁니다. $v = 1 + x + \cdots + x^{n-1}$ 은 짧은 원소이고 $x\cdot v = v$ 이므로, 임의의 $a$ 에 대해 $a\cdot v = a(1)\cdot v$ 입니다. 그러면 $z_i = c_iv$ 로 두면
+
+$$
+\sum_i a_iz_i = \Big(\sum_i a_i(1)\,c_i\Big)\cdot v,
+$$
+
+이고 $\sum_i a_i(1)c_i \equiv 0$ 인 작은 정수 $c_i$ 는 $\mathbb{Z}_q$ 위의 **1차원** SIS 라서 쉽게 찾아집니다. 문제 전체가 차원 1 로 무너지는 것입니다(연습문제 4). 기약 다항식 $x^n + 1$ 에는 이런 영인자가 없습니다.
+
+## 4. 공격의 지형
+
+<span class="layer-tag">정식화</span>
+
+- **일반 격자 공격.** Ring/Module-LWE 를 차원 $nk$ 의 LWE 로 펼쳐 14·18장의 임베딩·쌍대 공격을 씁니다. 표준 파라미터의 구체적 안전성 추정은 모두 이 방식입니다. 대수 구조를 이용해 이보다 크게 빠른 공격은 Module-LWE 에 대해 알려져 있지 않습니다.
+- **약한 인스턴스.** 수체·모듈러스·오차 분포의 조합이 나쁘면, 구조를 이용한 공격이 통하는 경우가 실제로 있습니다. Elias–Lauter–Ozman–Stange(CRYPTO 2015), Castryck–Iliashenko–Vercauteren(Eurocrypt 2016) 등은 오차를 다항식 계수에서 정의했는데 그 환의 정규 임베딩과 맞지 않는 경우, 어떤 근에서 오차의 값이 작게 남아 비밀이 새는 예를 보였습니다. Peikert(2016)의 *How (Not) to Instantiate Ring-LWE* 가 이를 정리했고, 교훈은 **오차를 정규 임베딩(또는 그와 동등한 기하)에서 정의하라** 는 것입니다.
+
+가장 단순한 형태를 직접 보겠습니다. 기약이 아닌 $x^n - 1$ 은 근 $r = 1$ 을 가지고, 거기서 오차의 값은 $e(1) = \sum_i e_i$ 로 작게 남습니다.
+
+<RootAttack client:visible />
+
+이 교과서의 실험(n = 16, q = 97, σ = 1, 표본 40개)에서는 $x^n - 1$ 에서 10번 중 9번 이상 $s(1)$ 을 정확히 찾았고, $x^n + 1$ 에서는 찍는 것과 같은 수준이었습니다(`tests/rlwe.test.ts`). 15장의 원래 NTRU 와 NIST 의 NTRU-HPS 도 $x^n - 1$ 을 쓰지만, 비밀의 형태를 고정하거나 $\Phi_n = (x^n - 1)/(x - 1)$ 몫에서 다루는 식으로 이 정보가 쓸모없도록 설계되어 있습니다.
+
+## 5. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **Ring-LWE 와 Module-LWE 의 간격.** 모듈 랭크를 늘리면 구조가 줄어 "더 안전"하다고 여겨지지만, 그 차이를 정량적으로 보이는 것은 어렵습니다. 반대 방향(Module-LWE ≤ Ring-LWE)의 환원(Albrecht–Deo)은 모듈러스를 키우는 손실이 있습니다.
+- **모듈 격자의 축소.** Module-SIS·Module-LWE 의 구조적 안전성을 이해하려면 "모듈 격자를 그 구조를 이용해 축소할 수 있는가"가 핵심 질문입니다. 13장의 module-LLL(Lee–Pellet-Mary–Stehlé–Wallet 2019)이 이 방향의 출발점입니다.
+- **변형들.** 다항식 환 대신 수체의 정수환에서 정의하는 문제와 다항식 LWE 의 관계(Rosca–Stehlé–Wallet, Eurocrypt 2018), 여러 환을 한꺼번에 피하는 Middle-Product LWE(Roşca–Sakzad–Stehlé–Steinfeld, CRYPTO 2017), 오차 대신 반올림을 쓰는 Module-LWR(Saber, SMAUG-T) 같은 변형이 연구되고 있습니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **V. Lyubashevsky, C. Peikert, O. Regev**, *On Ideal Lattices and Learning with Errors over Rings*, Eurocrypt 2010 (J. ACM 2013). Ring-LWE 원 논문. 정의와 탐색⇒결정 절을 먼저.
+2. **A. Langlois, D. Stehlé**, *Worst-Case to Average-Case Reductions for Module Lattices*, Des. Codes Cryptogr. 2015. Module-LWE 의 이론적 근거.
+3. **C. Peikert**, *How (Not) to Instantiate Ring-LWE*, SCN 2016. 약한 인스턴스의 정리와 올바른 설정.
+4. **C. Peikert, O. Regev, N. Stephens-Davidowitz**, *Pseudorandomness of Ring-LWE for Any Ring and Modulus*, STOC 2017.
+5. **NIST FIPS 203**, 파라미터 세트 표와 K-PKE 정의. 16장 준비.
+
+## 연습문제
+
+**★ 1.** $n = 4$, $q = 17$, $R_q = \mathbb{Z}_{17}[x]/(x^4+1)$ 에서 $a = 1 + 2x + 3x^2 + 4x^3$ 의 곱셈 행렬 $M_a$ 를 쓰세요. 몇 개의 수로 정해지나요?
+
+<details>
+<summary>해설</summary>
+
+열 $j$ 는 $x^ja$ 의 계수입니다: 열 0 $(1, 2, 3, 4)$, 열 1 $(-4, 1, 2, 3)$, 열 2 $(-3, -4, 1, 2)$, 열 3 $(-2, -3, -4, 1)$ (mod 17 로 음수는 $q$ 를 더함). 16 개 성분이 $a$ 의 계수 4 개로 정해집니다(negacyclic 행렬).
+
+</details>
+
+**★ 2.** ML-KEM-512, 768, 1024 의 캡슐화 키 크기를 $k\cdot n\cdot\lceil\log_2 q\rceil/8 + 32$ 바이트로 계산해 표와 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+$\lceil\log_2 3329\rceil = 12$. $k = 2$: $2\cdot256\cdot12/8 + 32 = 768 + 32 = 800$. $k = 3$: $1152 + 32 = 1184$. $k = 4$: $1536 + 32 = 1568$. 표와 일치합니다.
+
+</details>
+
+**★★ 3.** $q \equiv 1 \pmod{2n}$ 일 때, Ring-LWE 표본을 CRT 슬롯으로 바꾸면 각 슬롯이 "비밀이 $\mathbb{Z}_q$ 원소 하나인 LWE" 가 됨을 보이세요. 왜 슬롯 하나만 보면 쉽게 풀리지 **않나요**? (힌트: 그 슬롯의 오차 $e(\omega_j)$ 는 작은가?)
+
+<details>
+<summary>해설</summary>
+
+평가 준동형으로 $b(\omega_j) = a(\omega_j)s(\omega_j) + e(\omega_j)$. 하지만 $\omega_j$ 는 $\mathbb{Z}_q$ 에서 "큰" 수이므로 $e(\omega_j) = \sum_ie_i\omega_j^i$ 는 $\mathbb{Z}_q$ 전체에 퍼진 값이 되어 작지 않습니다. 그래서 슬롯 하나는 오차가 균등한 무의미한 식이고, 결정 판별자가 없으면 정보를 주지 않습니다. 탐색⇒결정 환원은 판별자를 이용해 이 슬롯을 "검사"하는 것입니다.
+
+</details>
+
+**★★ 4.** 3.1절의 논증을 완성하세요: $R = \mathbb{Z}_q[x]/(x^n - 1)$ 에서 $a_1, \dots, a_m$ 이 주어질 때, $m \approx \log_2 q$ 이면 계수가 $\{-1, 0, 1\}$ 인 Ring-SIS 해를 쉽게 찾을 수 있음을 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$z_i = c_iv$, $v = \sum_jx^j$, $c_i \in \{-1,0,1\}$ 로 두면 $\sum a_iz_i = (\sum a_i(1)c_i)v$. 정수 $a_i(1) \bmod q$ 에 대해 $\sum c_ia_i(1) \equiv 0$ 인 0 아닌 $c \in \{-1,0,1\}^m$ 은, $m > \log_2 q$ 이면 비둘기집 원리로 존재합니다($2^m > q$ 개의 부분합 중 두 개가 같으면 그 차가 해). 작은 $m$ 에서는 LLL 로도 찾을 수 있습니다. $z_i = c_iv$ 의 계수는 $\{-1,0,1\}$ 이므로 짧은 해입니다.
+
+</details>
+
+**★★ 5.** 위젯의 근에서의 값 공격에서 $x^n - 1$ 일 때 정답 $g = s(1)$ 의 점수와 오답의 점수를 각각 근사하세요. ($e(1) \sim$ 평균 0, 표준편차 $\sigma\sqrt n$; 오답이면 $b(1) - a(1)g$ 는 거의 균등)
+
+<details>
+<summary>해설</summary>
+
+정답: $b(1) - a(1)s(1) = e(1)$ 이고 $|e(1)| \le 3\sigma\sqrt n$ 일 확률은 약 99.7%, 위젯의 임계값이 $3\sigma\sqrt n$ 이므로 점수 ≈ 1. 오답: 거의 균등이라 점수 ≈ $(2\cdot\text{임계값} + 1)/q$. $n = 16$, $\sigma = 1$, $q = 97$ 이면 임계값 12, 오답 점수 ≈ $25/97 \approx 0.26$. 표본이 많을수록 두 점수의 차이가 뚜렷해집니다. $\sigma$ 를 키우면 오답 점수도 커져(임계값 증가) 구별이 어려워집니다.
+
+</details>
+
+**★★ 6.** Module-LWE 에서 $k = 1$ 이면 Ring-LWE, $n = 1$ 이면 LWE 가 됨을 정의 12.3 으로 확인하고, "차원 768 을 얻는 세 가지 방법"(LWE $n = 768$, Ring-LWE $n = 768$, Module-LWE $n = 256, k = 3$)의 장단점을 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+LWE: 구조 없음, 가장 보수적이지만 $A$ 계산 $O(n^2)$, 키·계산이 큼(FrodoKEM 류). Ring-LWE $n = 768$: 768 은 2의 거듭제곱이 아니라 $x^{768} + 1$ 은 원분 다항식이 아님. 다른 원분체($x^{768} - x^{384} + 1$, NTRU+ 의 환)를 써야 하고, 구조가 가장 강함. Module-LWE: 환 하나로 NTT 재사용, 구조가 중간. ML-KEM 이 택한 절충입니다.
+
+</details>
+
+**★★★ 7.** 정리 12.2 의 탐색⇒결정 환원에서 갈루아 자기동형이 슬롯을 **전이적으로** 치환해야(어떤 슬롯이든 다른 슬롯으로 보내는 $\sigma_k$ 가 있어야) 하는 이유를 설명하고, $x^n + 1$ 에서 실제로 그런지 확인하세요. (힌트: 근 $\omega^{2j+1}$ 들과 홀수 $k$ 의 곱셈)
+
+**★★★ 8. (구현)** `src/lib/rlwe.ts` 로 Ring-LWE 표본을 만들고, 15장·14장의 임베딩 공격(`embeddingAttack`)을 행렬 $M_a$ 를 써서 적용해 보세요. 같은 전체 차원에서 Ring-LWE 와 무작위 LWE 의 공격 성공 경계가 다른가요? (결과가 비슷하게 나온다면, 그것이 "구조가 일반 격자 공격을 돕지 않는다"는 관찰의 작은 증거입니다.)
+
+**★★★ 9. (읽기)** Peikert, *How (Not) to Instantiate Ring-LWE* 를 읽고, 약한 인스턴스들이 공통으로 가진 "잘못된 설정"이 무엇인지, 그리고 2의 거듭제곱 원분체에서 계수 오차가 왜 안전한지를 11장 정리 11.3 과 연결해 설명하세요.
+
+## 요약
+
+- Ring-LWE: $(a, as + e)$, $a \in R_q$. 표본 하나 = 곱셈 행렬 $M_a$ 를 가진 LWE 표본 $n$ 개. 곱셈은 NTT 로 $O(n\log n)$.
+- 탐색⇒결정은 CRT 슬롯과 갈루아 자기동형으로 증명되며, 오차가 정규 임베딩에서 대칭이어야 한다.
+- 최악→평균 환원의 기반은 **이데알 격자** SVP 다. 그것이 쉬워져도 Ring-LWE 가 깨지는 것은 아니지만 이론적 보증은 약해진다.
+- Module-LWE: $A \in R_q^{k\times k}$, 차원 $nk$. 모듈 격자 SVP 에 기대며 구조가 덜하다. ML-KEM: $n = 256$, $q = 3329$, $k = 2, 3, 4$, 키 800/1184/1568 바이트.
+- Ring/Module-SIS 는 구조화된 SIS 이고 ML-DSA 의 기반이다. 변환 다항식이 기약이 아니면($x^n - 1$) 충돌과 근에서의 값 공격이 생긴다.
+- 실제 안전성은 차원 $nk$ 의 일반 격자 공격 비용으로 평가한다(18장).
+- 다음: [16장](../guide/curriculum/)에서 ML-KEM 의 K-PKE 를 해부한다(13장 module-LLL 은 5부 전에 다룬다).
+
+## 참고문헌
+
+- D. Micciancio, *Generalized compact knapsacks, cyclic lattices, and efficient one-way functions*, FOCS 2002; Comput. Complexity 16, 2007.
+- V. Lyubashevsky, D. Micciancio, *Generalized compact knapsacks are collision resistant*, ICALP 2006.
+- C. Peikert, A. Rosen, *Efficient collision-resistant hashing from worst-case assumptions on cyclic lattices*, TCC 2006.
+- V. Lyubashevsky, C. Peikert, O. Regev, *On ideal lattices and learning with errors over rings*, Eurocrypt 2010; J. ACM 60(6), 2013.
+- Z. Brakerski, C. Gentry, V. Vaikuntanathan, *(Leveled) fully homomorphic encryption without bootstrapping*, ITCS 2012.
+- A. Langlois, D. Stehlé, *Worst-case to average-case reductions for module lattices*, Des. Codes Cryptogr. 75, 2015.
+- Y. Elias, K. Lauter, E. Ozman, K. Stange, *Provably weak instances of Ring-LWE*, CRYPTO 2015.
+- W. Castryck, I. Iliashenko, F. Vercauteren, *Provably weak instances of Ring-LWE revisited*, Eurocrypt 2016.
+- C. Peikert, *How (not) to instantiate Ring-LWE*, SCN 2016.
+- C. Peikert, O. Regev, N. Stephens-Davidowitz, *Pseudorandomness of Ring-LWE for any ring and modulus*, STOC 2017.
+- M. Albrecht, A. Deo, *Large modulus Ring-LWE ≥ Module-LWE*, Asiacrypt 2017.
+- M. Roşca, A. Sakzad, D. Stehlé, R. Steinfeld, *Middle-product learning with errors*, CRYPTO 2017.
+- M. Roşca, D. Stehlé, A. Wallet, *On the Ring-LWE and Polynomial-LWE problems*, Eurocrypt 2018.
+- NIST, [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final), 2024.

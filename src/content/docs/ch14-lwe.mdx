@@ -181,7 +181,7 @@ Regev 원형은 공개키가 $m(n+1)\log q$ 비트로 크고, 암호문 하나�
 | 개선 | 아이디어 | 이어지는 장 |
 |---|---|---|
 | **LPR 형태** (Lindner–Peikert 2011) | 무작위 부분집합 $r$ 대신 *짧은 벡터* $r$ 와 추가 오차: $u = A^\top r + e_1$, $v = b^\top r + e_2 + \mu\lfloor q/2\rfloor$. 공개키를 $n\times n$ 로 줄일 수 있음 | ML-KEM 의 직접적 원형 (16장) |
-| **구조화 (Ring/Module-LWE)** | $A$ 를 다항식 환 위의 작은 행렬로: 키가 $\tilde O(n)$ 으로, 연산은 NTT 로 빠르게 | 12장, 16장 |
+| **구조화 (Ring/Module-LWE)** | $A$ 를 다항식 환 위의 작은 행렬로: 키가 $\tilde O(n)$ 으로, 연산은 NTT 로 빠르게 | [12장](../ch12-ring-module-lwe/), 16장 |
 | **LWR** (Banerjee–Peikert–Rosen 2012) | 오차를 더하는 대신 결정적으로 반올림: $b = \lfloor (p/q)\, As \rceil$ | SMAUG-T 등 (16장) |
 
 ## 4. 공격 미리보기: LWE 는 격자 문제다

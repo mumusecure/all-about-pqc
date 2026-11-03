@@ -48,6 +48,7 @@ export default defineConfig({
         ]},
         { label: '3부 · 대수적 격자', items: [
           { label: '11장. 대수적 정수론 입문', slug: 'ch11-algebraic-nt' },
+          { label: '12장. Ring-LWE 와 Module-LWE', slug: 'ch12-ring-module-lwe' },
         ]},
         { label: '4부 · 격자 암호 설계', items: [
           { label: '14장. LWE', slug: 'ch14-lwe' },
