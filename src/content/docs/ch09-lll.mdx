@@ -1,0 +1,320 @@
+---
+title: 9장. LLL 완전 정복
+description: 격자 축소의 출발점인 LLL 알고리즘을 2차원 Gauss 축소에서 시작해 정의, 근사 보장 증명, 종료성·복잡도 분석, 실제 성능(GSA)과 연구 동향까지 다룬다.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import LatticePlayground from '../../components/LatticePlayground.tsx';
+import GSAProfile from '../../components/GSAProfile.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 같은 격자가 "좋은 기저"와 "나쁜 기저"를 가질 수 있음을 이해하고, 기저의 질을 수치로 잴 수 있다.
+2. 2차원 Lagrange–Gauss 축소를 손으로 수행하고 그 정확성을 증명할 수 있다.
+3. LLL 축소 기저의 정의(크기 축소 + Lovász 조건)를 쓰고, 근사 보장 $\|b_1\| \le \alpha^{(n-1)/2}\lambda_1$ 을 증명할 수 있다.
+4. 잠재함수(potential) 논법으로 LLL 의 종료성과 다항 시간성을 설명할 수 있다.
+5. 이론 보장과 실제 성능의 차이(제곱근 Hermite 인자 $\delta_0 \approx 1.02$, GSA)를 실험으로 확인하고, 모듈 격자 LLL 등 연구 동향을 안다.
+
+**선수 지식**: 선형대수(일차독립, 내적, 행렬식). 7장(격자 기초)과 8장(격자 문제)의 핵심은 아래 "빠른 복습"에 정리했습니다.
+
+</div>
+
+## 0. 빠른 복습: 격자, 기저, Gram-Schmidt
+
+<span class="layer-tag">복습</span>
+
+일차독립인 벡터 $b_1, \dots, b_n \in \mathbb{R}^d$ 의 **정수 계수** 결합 전체
+
+$$
+\mathcal{L}(B) = \Big\{ \textstyle\sum_{i=1}^n x_i b_i \;:\; x_i \in \mathbb{Z} \Big\}
+$$
+
+를 **격자(lattice)**, $B = (b_1, \dots, b_n)$ 을 그 **기저** 라고 합니다. 이 교과서는 기저 벡터를 행렬의 **행** 으로 씁니다.
+
+- **같은 격자, 다른 기저**: $B' = UB$ 이고 $U$ 가 정수 행렬이며 $\det U = \pm 1$ (유니모듈러)이면 $\mathcal{L}(B') = \mathcal{L}(B)$ 입니다.
+- **부피(행렬식)**: $\operatorname{vol}(\mathcal{L}) = \sqrt{\det(BB^\top)}$ 는 기저에 무관한 격자의 불변량입니다.
+- **최단 벡터 길이**: $\lambda_1(\mathcal{L}) = \min_{v \in \mathcal{L}\setminus\{0\}} \|v\|$. 이것을 찾는 문제가 **SVP** 입니다.
+- **Gram-Schmidt 직교화(GSO)**:
+
+$$
+b_i^* = b_i - \sum_{j<i} \mu_{ij}\, b_j^*, \qquad \mu_{ij} = \frac{\langle b_i, b_j^* \rangle}{\langle b_j^*, b_j^* \rangle}.
+$$
+
+  $b_i^*$ 는 $b_i$ 를 앞의 벡터들이 펼치는 공간에 수직인 방향으로 사영한 것입니다. 그리고 $\operatorname{vol}(\mathcal{L}) = \prod_i \|b_i^*\|$ 입니다.
+
+<Aside type="note">
+GSO 는 격자가 아니라 **기저** 에 따라 정해집니다. 같은 격자라도 기저를 바꾸면 $b_i^*$ 들이 바뀝니다. 다만 그 곱(부피)은 변하지 않습니다. 격자 축소란 결국 *이 곱을 유지한 채 $\|b_i^*\|$ 들을 고르게 만드는 일* 입니다.
+</Aside>
+
+## 1. 직관: 좋은 기저와 나쁜 기저
+
+<span class="layer-tag">직관</span>
+
+격자는 무한히 반복되는 점의 배열이고, 기저는 그 배열을 만드는 "두 걸음"입니다. 같은 점 배열을 만드는 걸음은 무수히 많습니다. **짧고 서로 거의 수직인 걸음** 이 좋은 기저, **길고 거의 평행한 걸음** 이 나쁜 기저입니다.
+
+왜 중요한가? 좋은 기저가 있으면 "어떤 점에서 가장 가까운 격자점 찾기(CVP)"가 반올림 한 번으로 거의 풀립니다. 나쁜 기저로는 같은 반올림이 엉뚱한 점을 줍니다. 격자 암호의 많은 설계는 이 비대칭을 이용합니다. **비밀키 = 좋은 기저, 공개키 = 나쁜 기저.** 반대로 공격자의 목표는 *나쁜 기저에서 좋은 기저를 계산해 내는 것*, 즉 **격자 축소** 입니다.
+
+아래에서 "나쁜 기저"를 불러온 뒤 '한 단계'를 눌러 보세요. 점들은 그대로인데 기저가 짧아지고 직교에 가까워집니다.
+
+<LatticePlayground client:visible />
+
+관찰할 것:
+
+- **부피(|det|)는 절대 변하지 않습니다.** 우리가 하는 조작(한 벡터에서 다른 벡터의 정수배 빼기, 교환)은 모두 유니모듈러 변환입니다.
+- **직교성 결함** $\|b_1\|\|b_2\| / \operatorname{vol}$ 은 1 이상이고, 직교 기저에서만 1 입니다. 축소가 진행되며 1 에 가까워집니다.
+- 보라색 점선 $b_2^*$ 는 Gram-Schmidt 벡터입니다. $b_2$ 에서 $b_1$ 방향 성분을 *실수배* 로 뺀 것인데, 격자 안에서는 *정수배* 만 뺄 수 있다는 것이 모든 어려움의 근원입니다.
+
+## 2. 2차원: Lagrange–Gauss 축소
+
+<span class="layer-tag">정식화</span>
+
+**알고리즘 (Lagrange–Gauss).** 입력: 2차원 격자의 기저 $(b_1, b_2)$, $\|b_1\| \le \|b_2\|$ 로 정렬.
+
+1. $\mu \leftarrow \langle b_2, b_1\rangle / \|b_1\|^2$, $\;b_2 \leftarrow b_2 - \lfloor \mu \rceil b_1$ (크기 축소)
+2. $\|b_2\| < \|b_1\|$ 이면 $b_1 \leftrightarrow b_2$ 교환 후 1로. 아니면 종료.
+
+이는 정수의 유클리드 호제법을 2차원 벡터로 옮긴 것입니다. 위 위젯의 '한 단계'가 정확히 이 규칙을 따릅니다.
+
+**정리 9.1.** 종료 시 $|\mu| \le \tfrac12$, $\|b_1\| \le \|b_2\|$ 이면 $\|b_1\| = \lambda_1(\mathcal{L})$ 이다.
+
+*증명.* 임의의 0 아닌 격자 벡터 $v = x b_1 + y b_2$ ($x, y \in \mathbb{Z}$)를 잡자. $y = 0$ 이면 $\|v\| = |x|\|b_1\| \ge \|b_1\|$. $y \neq 0$ 이면 $|\langle b_1, b_2\rangle| = |\mu|\|b_1\|^2 \le \tfrac12\|b_1\|^2$ 이므로
+
+$$
+\|v\|^2 = x^2\|b_1\|^2 + 2xy\langle b_1,b_2\rangle + y^2\|b_2\|^2 \ge (x^2 - |xy| + y^2)\,\|b_1\|^2 .
+$$
+
+정수 $(x, y) \ne (0,0)$ 에 대해 $x^2 - |xy| + y^2 = (|x|-|y|)^2 + |xy| \ge 1$ 이므로 $\|v\| \ge \|b_1\|$. $\blacksquare$
+
+**작은 예제.** $b_1 = (11, 6)$, $b_2 = (19, 11)$ (위젯의 '나쁜 기저').
+
+| 단계 | $\mu$ | 조작 | 결과 기저 |
+|---|---|---|---|
+| 1 | $275/157 \approx 1.75$ | $b_2 \leftarrow b_2 - 2b_1$ | $(11,6),\ (-3,-1)$ |
+| 2 | — | 교환 ($\|b_2\|^2 = 10 < 157$) | $(-3,-1),\ (11,6)$ |
+| 3 | $-39/10 = -3.9$ | $b_2 \leftarrow b_2 + 4b_1$ | $(-3,-1),\ (-1,2)$ |
+| 4 | — | 교환 ($5 < 10$) | $(-1,2),\ (-3,-1)$ |
+| 5 | $1/5 = 0.2$ | 종료 | $\lambda_1 = \sqrt5$ |
+
+부피는 처음 $|11\cdot 11 - 6 \cdot 19| = 7$, 끝에서 $|(-1)(-1) - 2\cdot(-3)| = 7$ 로 보존됩니다.
+
+## 3. $n$차원으로: LLL 축소 기저
+
+<span class="layer-tag">정식화</span>
+
+2차원에서는 최단 벡터를 정확히 찾을 수 있었습니다. 차원이 커지면 SVP 는 NP-어려운 문제(무작위 환원 하에서)가 되고, 지수 시간 알고리즘만 알려져 있습니다. 1982년 Lenstra, Lenstra, Lovász 는 **최단 벡터를 정확히 찾는 것을 포기하는 대신, 다항 시간에 "꽤 짧은" 벡터를 보장** 하는 알고리즘을 제시했습니다.
+
+**정의 9.2 (LLL 축소).** $\delta \in (\tfrac14, 1)$ 에 대해 기저 $B$ 가 다음을 만족하면 $\delta$-LLL 축소되었다고 한다.
+
+1. **크기 축소(size-reduced)**: 모든 $j < i$ 에 대해 $|\mu_{ij}| \le \tfrac12$.
+2. **Lovász 조건**: 모든 $2 \le k \le n$ 에 대해
+
+$$
+\delta\, \|b_{k-1}^*\|^2 \;\le\; \|b_k^*\|^2 + \mu_{k,k-1}^2\, \|b_{k-1}^*\|^2 .
+$$
+
+Lovász 조건의 우변은 $b_k$ 를 $b_1, \dots, b_{k-2}$ 에 수직으로 사영한 벡터의 길이 제곱입니다. 즉 "$k-1$ 번째와 $k$ 번째 벡터를 앞의 벡터들에 수직인 2차원 평면에서 보면 대략 Gauss-축소되어 있다"는 *국소적* 조건입니다. LLL 은 국소적 2차원 축소를 반복해서 전역적 보장을 얻는 알고리즘입니다.
+
+### 근사 보장
+
+크기 축소에서 $\mu_{k,k-1}^2 \le \tfrac14$ 이므로 Lovász 조건은
+
+$$
+\|b_k^*\|^2 \ge \left(\delta - \tfrac14\right)\|b_{k-1}^*\|^2 .
+$$
+
+$\alpha = 1/(\delta - \tfrac14)$ 로 두면($\delta = \tfrac34$ 일 때 $\alpha = 2$) 귀납적으로 $\|b_i^*\|^2 \ge \alpha^{-(i-1)} \|b_1\|^2$ 입니다. 즉 **GSO 길이가 한 칸 갈 때마다 기껏해야 $\sqrt\alpha$ 배 줄어든다** 는 것이 LLL 축소의 본질입니다.
+
+**보조정리 9.3.** 임의의 기저에 대해 $\lambda_1(\mathcal{L}) \ge \min_i \|b_i^*\|$.
+
+*증명.* $v = \sum_i x_i b_i \ne 0$ 에서 $x_k \ne 0$ 인 가장 큰 $k$ 를 잡자. $b_1, \dots, b_{k-1}$ 은 $b_1^*, \dots, b_{k-1}^*$ 의 생성공간에 있고 $b_k = b_k^* + (\text{그 공간의 벡터})$ 이므로, $v$ 를 $b_k^*$ 방향으로 사영하면 정확히 $x_k b_k^*$ 이다. 따라서 $\|v\| \ge |x_k|\,\|b_k^*\| \ge \|b_k^*\| \ge \min_i \|b_i^*\|$. $\blacksquare$
+
+**정리 9.4 (LLL 의 근사 보장).** $\delta$-LLL 축소 기저는 다음을 만족한다.
+
+$$
+\text{(a)}\;\; \|b_1\| \le \alpha^{(n-1)/2}\, \lambda_1(\mathcal{L}), \qquad
+\text{(b)}\;\; \|b_1\| \le \alpha^{(n-1)/4}\, \operatorname{vol}(\mathcal{L})^{1/n}.
+$$
+
+*증명.* (a) 보조정리 9.3 과 $\|b_i^*\| \ge \alpha^{-(i-1)/2}\|b_1\| \ge \alpha^{-(n-1)/2}\|b_1\|$ 에서 바로 나온다.
+(b) $\|b_1\|^2 \le \alpha^{i-1}\|b_i^*\|^2$ 를 $i = 1, \dots, n$ 에 대해 곱하면
+
+$$
+\|b_1\|^{2n} \le \alpha^{\sum_{i}(i-1)} \prod_i \|b_i^*\|^2 = \alpha^{n(n-1)/2} \operatorname{vol}(\mathcal{L})^2 .
+\qquad\blacksquare
+$$
+
+$\delta = \tfrac34$ 이면 $\|b_1\| \le 2^{(n-1)/2}\lambda_1$ 입니다. 차원에 대해 **지수적인** 근사 인자라서 약해 보이지만, (1) 이것이 *다항 시간* 에 보장되고, (2) 수많은 응용에서 이 정도면 충분하며, (3) 실제로는 훨씬 잘 동작합니다(5절).
+
+<Aside type="tip" title="암호해석의 언어: 제곱근 Hermite 인자">
+(b) 를 $\|b_1\| = \delta_0^{\,n}\operatorname{vol}^{1/n}$ 꼴로 쓸 때의 $\delta_0$ 를 **제곱근 Hermite 인자(root Hermite factor)** 라고 합니다. 축소 알고리즘의 "강도"를 비교하는 표준 척도입니다. LLL 의 최악 보장은 $\delta \to 1$ 일 때 $\delta_0 \le (4/3)^{1/4} \approx 1.075$ 입니다. 18장에서 BKZ 의 블록 크기 $\beta$ 에 따른 $\delta_0(\beta)$ 로 실제 파라미터의 안전성을 추정하게 됩니다.
+</Aside>
+
+## 4. 알고리즘과 종료성
+
+<span class="layer-tag">정식화</span>
+
+```text
+LLL(b_1, ..., b_n; δ):
+  GSO 계산 (μ_ij, ‖b_i*‖²)
+  k ← 2
+  while k ≤ n:
+      for j = k−1 down to 1:                     # 크기 축소
+          q ← round(μ_kj);  b_k ← b_k − q·b_j;  μ 갱신
+      if ‖b_k*‖² ≥ (δ − μ²_{k,k−1}) ‖b_{k−1}*‖²:  # Lovász 조건
+          k ← k + 1
+      else:
+          b_k ↔ b_{k−1};  GSO 갱신;  k ← max(k−1, 2)
+  return b
+```
+
+이 교과서의 위젯과 실습은 이 의사코드를 그대로 구현한 코드(`src/lib/lattice.ts`, `labs/lab01_lll_lwe_attack.py`)로 돌아갑니다. 교환할 때 GSO 전체를 다시 계산하지 않고 $O(n)$ 개의 값만 갱신하는 표준 공식(Cohen 의 교과서 알고리즘 2.6.3)을 씁니다.
+
+**정리 9.5 (종료성).** 정수 기저에 대해 LLL 의 교환 횟수는 $O(n^2 \log B)$ 이하이다. 여기서 $B = \max_i \|b_i\|$.
+
+*증명 스케치 (잠재함수 논법).* $d_i = \prod_{j \le i}\|b_j^*\|^2$ 는 처음 $i$ 개 벡터의 Gram 행렬식이므로 **양의 정수** 이다. 잠재함수 $D = \prod_{i=1}^{n-1} d_i$ 를 생각하자.
+
+- 크기 축소는 $b_i^*$ 를 바꾸지 않으므로 $D$ 불변.
+- 위치 $k$ 에서의 교환은 $i \ne k-1$ 인 $d_i$ 를 바꾸지 않는다(처음 $i$ 개 벡터의 생성공간이 그대로). 바뀌는 $d_{k-1}$ 에서 새 $\|b_{k-1}^*\|^2 = \|b_k^*\|^2 + \mu_{k,k-1}^2\|b_{k-1}^*\|^2 < \delta\|b_{k-1}^*\|^2$ (Lovász 조건이 깨졌으므로). 따라서 $D$ 는 $\delta$ 배 미만으로 줄어든다.
+- $D \ge 1$ 이고 처음에 $D \le B^{n(n-1)}$ 이므로 교환은 $\log_{1/\delta} B^{n(n-1)} = O(n^2\log B)$ 번 이하. $\blacksquare$
+
+실제 비트 복잡도까지 다항임을 보이려면 중간에 나오는 유리수의 크기도 제한해야 합니다(원 논문). 부동소수점으로 GSO 를 계산하면 훨씬 빠르지만 정밀도 관리가 필요하며, 이것을 엄밀하게 해낸 것이 Nguyen–Stehlé 의 **L² 알고리즘**(비트 크기에 대해 2차 복잡도)이고, 오늘날 표준 라이브러리 **fplll** 의 기반입니다.
+
+<Quiz
+  client:visible
+  question="LLL 에서 '크기 축소' 단계(b_k ← b_k − q·b_j)가 바꾸지 않는 것은?"
+  options={[
+    '기저 벡터 b_k 자체',
+    'Gram-Schmidt 벡터 b_k* 와 잠재함수 D',
+    'μ_kj 값',
+    '벡터 b_k 의 길이 ‖b_k‖',
+  ]}
+  answer={1}
+  explanation="b_k 에서 앞쪽 벡터 b_j 의 정수배를 빼도, b_k 를 앞의 벡터들에 수직으로 사영한 b_k* 는 변하지 않습니다(빼는 성분이 전부 앞쪽 생성공간에 있으므로). 그래서 잠재함수 D 도 변하지 않고, D 를 줄이는 것은 교환뿐입니다."
+/>
+
+## 5. 이론 대 현실: GSA 와 $\delta_0 \approx 1.02$
+
+<span class="layer-tag">정식화</span>
+
+정리 9.4 는 *최악의 경우* 보장입니다. 실제로 무작위 격자에 LLL 을 돌리면 어떻게 될까요? Gama–Nguyen(2008)의 대규모 실험에 따르면 LLL 의 평균 제곱근 Hermite 인자는 약 $\delta_0 \approx 1.0219$ 로, 최악 보장 $1.075$ 보다 훨씬 작습니다. 그리고 축소 후 $\log\|b_i^*\|$ 가 $i$ 에 대해 거의 **직선** 으로 떨어집니다. 이를 **기하급수 가정(Geometric Series Assumption, GSA)** 이라 하며, 암호해석의 비용 모델 대부분이 이 가정 위에 서 있습니다.
+
+<GSAProfile client:visible />
+
+해볼 실험:
+
+1. $d = 40, q = 3329, \delta = 0.99$ 로 실행하고 측정 $\delta_0$ 가 1.02 근처인지 확인하세요.
+2. $\delta$ 를 0.5 → 0.99 로 바꿔가며 교환 횟수와 $\delta_0$ 의 관계를 보세요. (강하게 축소할수록 비싸다.)
+3. $q = 97$ 처럼 작은 $q$ 와 $q = 65537$ 처럼 큰 $q$ 의 프로파일 모양을 비교하세요. 큰 $q$ 에서는 앞부분이 길이 $q$ 로 평평하게 남는 **Z자 모양** 이 나타납니다. 이는 18장에서 LWE 공격 파라미터를 고를 때 중요한 현상입니다.
+
+## 6. 응용 맛보기: 숨은 정수 관계 찾기
+
+<span class="layer-tag">정식화</span>
+
+정수 $a = (1234, 2345, 3579)$ 사이에 작은 정수 관계 $x a_1 + y a_2 + z a_3 = 0$ 이 있는지 찾고 싶다고 합시다. 큰 상수 $N$ 을 잡고 다음 기저를 만듭니다.
+
+$$
+B = \begin{pmatrix} 1 & 0 & 0 & N a_1 \\ 0 & 1 & 0 & N a_2 \\ 0 & 0 & 1 & N a_3 \end{pmatrix}
+$$
+
+격자 벡터 $(x, y, z, N(xa_1 + ya_2 + za_3))$ 중 관계를 만족하지 않는 것은 마지막 좌표 때문에 길이가 $N$ 이상입니다. 관계를 만족하는 것은 $\|(x,y,z)\|$ 만큼만 깁니다. 그러니 LLL 이 찾아주는 짧은 벡터는 관계일 수밖에 없습니다. 실제로 LLL 은 $(1, 1, -1, 0)$ 을 찾습니다($1234 + 2345 - 3579 = 0$). 이 테스트는 저장소의 `tests/lattice.test.ts` 에 들어 있습니다.
+
+같은 아이디어가 부분합(knapsack) 암호 공격(Lagarias–Odlyzko), Coppersmith 의 작은 근 찾기, 그리고 **14장의 LWE 임베딩 공격** 으로 이어집니다. "찾고 싶은 해 = 어떤 격자의 유난히 짧은 벡터"가 되도록 격자를 설계하는 것, 이것이 격자 기반 암호해석의 기본 문법입니다.
+
+## 7. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+**읽기 순서 추천**
+
+1. **A. K. Lenstra, H. W. Lenstra Jr., L. Lovász**, *Factoring polynomials with rational coefficients*, Math. Ann. 1982. — 1절(축소 기저의 성질)만 먼저 읽고, 이 장의 증명과 대조해 보세요.
+2. **N. Gama, P. Q. Nguyen**, *Predicting Lattice Reduction*, Eurocrypt 2008. — "이론 대 현실"의 출발점. $\delta_0$ 라는 언어가 어디서 왔는지 봅니다.
+3. **P. Q. Nguyen, D. Stehlé**, *Floating-Point LLL Revisited*, Eurocrypt 2005. — 실전 LLL(fplll)의 이론적 기반.
+4. **C. Lee, A. Pellet-Mary, D. Stehlé, A. Wallet**, *An LLL Algorithm for Module Lattices*, Asiacrypt 2019. — 정수 위의 격자가 아니라 **수체의 정수환 위의 모듈** 에 대한 LLL. ML-KEM·ML-DSA 의 근간인 Module-LWE 의 구조적 안전성 질문과 직결됩니다. 3부(대수적 격자)를 공부한 뒤 다시 읽으세요.
+5. **K. Ryan, N. Heninger**, *Fast Practical Lattice Reduction through Iterated Compression*, CRYPTO 2023. — 매우 큰 차원·큰 성분에서 LLL 급 축소를 빠르게 하는 최근 접근.
+
+**열린 질문들**
+
+- LLL 의 평균 $\delta_0 \approx 1.02$ 를 이론적으로 설명할 수 있는가? (무작위 격자에서의 LLL 동작 분석은 여전히 부분적으로만 이해되어 있습니다.)
+- 모듈 격자에서 LLL 의 "대수적" 버전은 어디까지 효율적일 수 있는가? 이것이 Module-LWE 기반 스킴의 안전성에 어떤 의미가 있는가?
+- GSA 는 언제 깨지는가? (q-ary 격자의 Z자 프로파일, 매우 강한 축소의 끝부분 등)
+
+## 연습문제
+
+**★ 1.** 기저 $b_1 = (4, 1)$, $b_2 = (7, 3)$ 에 Gauss 축소를 손으로 적용하세요. 각 단계의 $\mu$ 와 최종 기저, $\lambda_1$ 을 구하고 부피가 보존됨을 확인하세요. (위젯에서 드래그로 같은 기저를 만들어 검산할 수 있습니다.)
+
+<details>
+<summary>해설</summary>
+
+$\|b_1\|^2 = 17 \le \|b_2\|^2 = 58$. $\mu = (28 + 3)/17 = 31/17 \approx 1.82 \Rightarrow b_2 \leftarrow (7,3) - 2(4,1) = (-1, 1)$. $\|b_2\|^2 = 2 < 17$ 이므로 교환: $b_1 = (-1,1), b_2 = (4,1)$. $\mu = (-4+1)/2 = -1.5 \Rightarrow$ 반올림 $-2$ (0에서 먼 쪽), $b_2 \leftarrow (4,1) + 2(-1,1) = (2, 3)$. 이제 $\mu = (-2+3)/2 = 0.5$, $|\mu| \le 1/2$ 이고 $\|b_2\|^2 = 13 \ge 2$ 이므로 종료. $\lambda_1 = \sqrt2$. 부피: $|4\cdot3 - 1\cdot7| = 5$, $|(-1)\cdot 3 - 1\cdot 2| = 5$. (반올림을 $-1$ 로 해도 $b_2 = (3,2)$, $\mu = -0.5$ 로 역시 종료합니다. $|\mu| = 1/2$ 경계에서는 두 선택 모두 허용됩니다.)
+
+</details>
+
+**★ 2.** 크기 축소 $b_k \leftarrow b_k - q b_j$ ($j<k$)가 모든 $b_i^*$ 를 바꾸지 않음을 보이세요. 또 $\mu_{k,i}$ ($i \le j$)가 어떻게 바뀌는지 식으로 쓰세요.
+
+<details>
+<summary>해설</summary>
+
+$b_j \in \operatorname{span}(b_1^*,\dots,b_j^*) \subseteq \operatorname{span}(b_1^*,\dots,b_{k-1}^*)$ 이므로 $b_k$ 와 $b_k - q b_j$ 는 이 공간에 수직인 성분이 같습니다. 즉 $b_k^*$ 불변. 다른 $b_i$ 는 바뀌지 않으므로 $b_i^*$ ($i\ne k$)도 불변. 계수는 $\mu_{k,i} \leftarrow \mu_{k,i} - q\,\mu_{j,i}$ ($i<j$), $\mu_{k,j} \leftarrow \mu_{k,j} - q$ ($\mu_{jj}=1$ 로 보면 하나의 식).
+
+</details>
+
+**★★ 3.** 위치 $k$ 에서 $b_{k-1} \leftrightarrow b_k$ 를 교환했을 때 새 GSO 값이 다음과 같음을 보이세요. ($\mu = \mu_{k,k-1}$, $B_i = \|b_i^*\|^2$)
+
+$$
+B_{k-1}' = B_k + \mu^2 B_{k-1}, \qquad \mu' = \frac{\mu B_{k-1}}{B_{k-1}'}, \qquad B_k' = \frac{B_{k-1}B_k}{B_{k-1}'}.
+$$
+
+<details>
+<summary>해설</summary>
+
+앞의 $k-2$ 개 벡터에 수직인 2차원 공간으로 사영하면 $\pi(b_{k-1}) = b_{k-1}^*$, $\pi(b_k) = b_k^* + \mu b_{k-1}^*$. 교환 후 첫 벡터는 $\pi(b_k)$ 이므로 $B_{k-1}' = \|b_k^* + \mu b_{k-1}^*\|^2 = B_k + \mu^2 B_{k-1}$ (직교). 새 계수 $\mu' = \langle \pi(b_{k-1}), \pi(b_k)\rangle / B_{k-1}' = \mu B_{k-1}/B_{k-1}'$. 2차원 사영 격자의 부피는 불변이므로 $B_{k-1}'B_k' = B_{k-1}B_k$ 에서 $B_k'$ 를 얻습니다. 이것이 코드의 `swapUpdate` 입니다.
+
+</details>
+
+**★★ 4.** $\delta$-LLL 축소 기저에서 $j \le i$ 이면 $\|b_j\|^2 \le \alpha^{i-1}\|b_i^*\|^2$ 임을 보이고, 이로부터 직교성 결함의 상한 $\prod_i \|b_i\| \le \alpha^{n(n-1)/4}\operatorname{vol}(\mathcal{L})$ 을 유도하세요.
+
+<details>
+<summary>해설</summary>
+
+$\|b_j\|^2 = \|b_j^*\|^2 + \sum_{l<j}\mu_{jl}^2\|b_l^*\|^2 \le \|b_j^*\|^2 + \tfrac14\sum_{l<j}\alpha^{j-l}\|b_j^*\|^2 \le \alpha^{j-1}\|b_j^*\|^2$ (등비급수 정리; $\alpha \ge 4/3$ 이면 $1 + \tfrac14\sum_{t=1}^{j-1}\alpha^t \le \alpha^{j-1}$ 이 귀납으로 성립. $\alpha=2$ 이면 $1 + \tfrac14(2^j - 2) \le 2^{j-1}$). 그리고 $\|b_j^*\|^2 \le \alpha^{i-j}\|b_i^*\|^2$ 를 곱하면 $\|b_j\|^2 \le \alpha^{i-1}\|b_i^*\|^2$. $j = i$ 로 두고 $i$ 에 대해 곱하면 $\prod\|b_i\|^2 \le \alpha^{n(n-1)/2}\prod\|b_i^*\|^2$.
+
+</details>
+
+**★★ 5.** 6절의 정수 관계 기저에서 $N$ 이 너무 작으면 어떤 일이 생기나요? $N$ 을 얼마 이상으로 잡아야 LLL 이 반드시 관계를 찾는지, 정리 9.4(a)를 이용해 대략적인 조건을 쓰세요.
+
+<details>
+<summary>해설</summary>
+
+$N$ 이 작으면 관계가 아닌 벡터(마지막 좌표가 $N \cdot (\text{작은 정수})$)가 관계 벡터보다 짧을 수 있어 LLL 이 엉뚱한 벡터를 냅니다. 최단 관계 벡터 길이를 $\ell$ 이라 하면 $\lambda_1 \le \ell$ 이고, LLL 출력은 $\|b_1\| \le 2^{(n-1)/2}\ell$. 관계가 아닌 벡터는 길이가 $N$ 이상이므로 $N > 2^{(n-1)/2}\ell$ 이면 $b_1$ 은 반드시 관계입니다($n = 3$ 이면 $N > 2\ell$).
+
+</details>
+
+**★★★ 6. (구현)** `labs/lab01_lll_lwe_attack.py` 의 LLL 을 `fractions.Fraction` 을 쓰는 **정확한 유리수 버전** 으로 다시 구현하세요. (a) 부동소수점 버전과 출력이 같은지 무작위 기저 100개로 비교하고, (b) 차원 10, 20, 30 에서 실행 시간을 측정해 그래프로 그리세요. (c) fpylll 이 설치되어 있다면 `fpylll.LLL.reduction` 과도 비교하세요. 결과를 1쪽 보고서로 정리하면 포트폴리오가 됩니다.
+
+<details>
+<summary>안내</summary>
+
+정확한 버전은 $\mu_{ij}$, $B_i$ 를 `Fraction` 으로 보관하면 됩니다. 차원이 커질수록 분모가 폭발적으로 커지는 것을 관찰하게 될 것이고, 이것이 L² 알고리즘(부동소수점 + 엄밀한 오차 분석)이 필요한 이유입니다. 같은 입력에서 크기 축소의 반올림 경계($|\mu| = 1/2$)에서만 출력이 달라질 수 있다는 점도 확인해 보세요.
+
+</details>
+
+**★★★ 7. (증명)** 정리 9.5 의 증명에서 "처음에 $D \le B^{n(n-1)}$" 을 보이세요. ($d_i \le \prod_{j\le i}\|b_j\|^2$ 를 쓰세요: Hadamard 부등식.)
+
+<details>
+<summary>해설</summary>
+
+$\|b_j^*\| \le \|b_j\| \le B$ 이므로 $d_i = \prod_{j\le i}\|b_j^*\|^2 \le B^{2i}$. 따라서 $D = \prod_{i=1}^{n-1} d_i \le B^{2\sum_{i=1}^{n-1} i} = B^{n(n-1)}$.
+
+</details>
+
+## 요약
+
+- 격자 축소는 **부피를 유지한 채 GSO 길이 $\|b_i^*\|$ 를 고르게 만드는 일** 이다.
+- 2차원에서는 Gauss 축소가 최단 벡터를 정확히 찾는다.
+- LLL = 크기 축소 + Lovász 조건. GSO 길이가 한 칸마다 최대 $\sqrt\alpha$ 배만 줄어들도록 보장하고, 그 결과 $\|b_1\| \le \alpha^{(n-1)/2}\lambda_1$.
+- 잠재함수 $D$ 가 교환마다 $\delta$ 배 줄어들어 다항 시간에 종료한다.
+- 실제 LLL 은 $\delta_0 \approx 1.02$ 로 이론보다 훨씬 좋고, GSA 는 암호해석 비용 모델의 기본 가정이다.
+- 다음 단계: BKZ(10장)는 2차원 대신 $\beta$ 차원 블록에서 SVP 를 풀어 더 강한 축소를 얻는다. LWE 공격(14장, 18장)은 이 도구를 직접 쓴다.

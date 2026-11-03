@@ -1,0 +1,42 @@
+---
+title: All About PQC
+description: 배경지식 없이 시작해 대학원 연구실 수준까지 — 격자 기반 양자내성암호(PQC) 인터랙티브 교과서.
+template: splash
+hero:
+  tagline: 배경지식 없이 시작해서, 격자 암호 논문을 읽고 직접 공격해 보는 데까지. 양자내성암호(PQC) 인터랙티브 교과서.
+  actions:
+    - text: 0장부터 시작하기
+      link: ./ch00-why-pqc/
+      icon: right-arrow
+    - text: 전체 커리큘럼
+      link: ./guide/curriculum/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## 이 교과서의 특징
+
+<CardGrid>
+  <Card title="세 층으로 읽는다" icon="open-book">
+    모든 장은 **직관**(비유·위젯) → **정식화**(정의·정리·증명) → **연구 관점**(논문·열린 문제) 순서입니다. 처음엔 직관만, 두 번째엔 증명까지.
+  </Card>
+  <Card title="손으로 만지는 수학" icon="puzzle">
+    격자 기저를 드래그하고, LLL 을 한 단계씩 돌리고, 브라우저 안에서 LWE 를 실제로 깨 봅니다. 모든 계산은 단위 테스트로 검증된 코드로 돌아갑니다.
+  </Card>
+  <Card title="격자 중심, 연구 지향" icon="star">
+    표준(NIST·KpqC)의 주류인 격자 암호를, 특히 **격자 축소와 암호해석, 대수적 격자** 를 깊게 다룹니다.
+  </Card>
+  <Card title="진로까지 연결" icon="rocket">
+    각 장은 연구 분야 지도 위에 놓이고, 마지막 장은 학부연구생·대학원 진학 로드맵입니다.
+  </Card>
+</CardGrid>
+
+## 지금 읽을 수 있는 장
+
+<CardGrid>
+  <LinkCard title="0장. 왜 지금 PQC인가" description="HNDL 위협, Mosca 부등식, PQC 의 다섯 가문과 표준화, 연구 지도" href="./ch00-why-pqc/" />
+  <LinkCard title="9장. LLL 완전 정복" description="Gauss 축소부터 LLL 의 증명, 종료성, GSA 실험, 모듈 격자 LLL 까지" href="./ch09-lll/" />
+  <LinkCard title="14장. LWE" description="정의, 탐색⇔결정, 최악→평균 환원, Regev 암호, 그리고 임베딩 공격" href="./ch14-lwe/" />
+  <LinkCard title="Lab 1. LLL 로 토이 LWE 공격하기" description="Python 표준 라이브러리만으로 공격을 재현하고 실패 경계를 측정" href="./labs/lab01-lll-lwe-attack/" />
+</CardGrid>

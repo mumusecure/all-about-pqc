@@ -1,0 +1,148 @@
+/* ------------------------------------------------------------------
+ * All About PQC — 디자인 토큰
+ * Starlight 의 테마 변수를 덮어쓰고, 위젯 공통 스타일을 정의한다.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --sl-font: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+  --sl-content-width: 48rem;
+
+  /* 위젯 팔레트 (라이트) */
+  --w-bg: #ffffff;
+  --w-surface: #f6f7fb;
+  --w-border: #d9dce6;
+  --w-text: #1b1f2a;
+  --w-muted: #5d6475;
+  --w-grid: #e7e9f0;
+  --w-point: #8a90a2;
+  --w-b1: #2563eb;      /* 기저 벡터 1 */
+  --w-b2: #d9480f;      /* 기저 벡터 2 */
+  --w-gs: #7c3aed;      /* Gram-Schmidt */
+  --w-good: #15803d;
+  --w-bad: #c2410c;
+  --w-fill: rgba(37, 99, 235, 0.10);
+  --w-accent: #2563eb;
+  --w-on-accent: #ffffff;
+}
+
+/* 다크 테마: Starlight 는 data-theme 속성으로 전환한다 */
+:root[data-theme='dark'] {
+  --w-bg: #12151d;
+  --w-surface: #1a1e29;
+  --w-border: #2e3444;
+  --w-text: #e8eaf0;
+  --w-muted: #9aa1b4;
+  --w-grid: #232838;
+  --w-point: #7c8296;
+  --w-b1: #60a5fa;
+  --w-b2: #fb923c;
+  --w-gs: #c4b5fd;
+  --w-good: #4ade80;
+  --w-bad: #fb923c;
+  --w-fill: rgba(96, 165, 250, 0.14);
+  --w-accent: #60a5fa;
+  --w-on-accent: #0b1220;
+}
+
+/* ---------- 본문 보조 ---------- */
+.katex { font-size: 1.05em; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25rem 0; }
+
+.sl-markdown-content details {
+  border: 1px solid var(--w-border);
+  border-radius: 0.6rem;
+  padding: 0.6rem 1rem;
+  background: var(--w-surface);
+}
+.sl-markdown-content details > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.sl-markdown-content details[open] > summary { margin-bottom: 0.5rem; }
+
+/* 학습 목표 · 선수지식 카드 */
+.goals {
+  border-left: 4px solid var(--w-accent);
+  background: var(--w-surface);
+  padding: 0.8rem 1.1rem;
+  border-radius: 0 0.6rem 0.6rem 0;
+}
+.layer-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  border: 1px solid var(--w-border);
+  color: var(--w-muted);
+}
+
+/* ---------- 위젯 공통 ---------- */
+.widget {
+  margin: 1.5rem 0;
+  border: 1px solid var(--w-border);
+  border-radius: 0.8rem;
+  background: var(--w-bg);
+  color: var(--w-text);
+  padding: 1rem;
+  font-size: 0.95rem;
+}
+.widget * { box-sizing: border-box; }
+.widget h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--w-text);
+}
+.widget p { margin: 0; }
+.widget select { font: inherit; font-size: 0.85rem; padding: 0.25rem; border-radius: 0.4rem; border: 1px solid var(--w-border); background: var(--w-surface); color: var(--w-text); }
+.widget .widget-sub {
+  margin: 0 0 0.75rem;
+  color: var(--w-muted);
+  font-size: 0.85rem;
+}
+.widget svg { display: block; width: 100%; height: auto; touch-action: none; }
+.widget .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin: 0.5rem 0; }
+.widget .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.6rem 1.2rem; margin: 0.75rem 0; }
+.widget label.slider { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--w-muted); }
+.widget label.slider b { color: var(--w-text); font-variant-numeric: tabular-nums; }
+.widget input[type='range'] { width: 100%; accent-color: var(--w-accent); }
+.widget button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--w-border);
+  background: var(--w-surface);
+  color: var(--w-text);
+  cursor: pointer;
+}
+.widget button:hover:not(:disabled) { border-color: var(--w-accent); }
+.widget button.primary { background: var(--w-accent); border-color: var(--w-accent); color: var(--w-on-accent); font-weight: 600; }
+.widget button:disabled { opacity: 0.5; cursor: not-allowed; }
+.widget .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+.widget .stat { background: var(--w-surface); border-radius: 0.5rem; padding: 0.45rem 0.65rem; }
+.widget .stat span { display: block; font-size: 0.75rem; color: var(--w-muted); }
+.widget .stat b { font-variant-numeric: tabular-nums; font-size: 1rem; }
+.widget .note { font-size: 0.85rem; color: var(--w-muted); margin-top: 0.5rem; }
+.widget .good { color: var(--w-good); font-weight: 700; }
+.widget .bad { color: var(--w-bad); font-weight: 700; }
+.widget table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.widget th, .widget td { border-bottom: 1px solid var(--w-border); padding: 0.3rem 0.4rem; text-align: right; }
+.widget th:first-child, .widget td:first-child { text-align: left; }
+.widget .log { max-height: 11rem; overflow: auto; font-family: var(--sl-font-mono, monospace); font-size: 0.8rem; background: var(--w-surface); border-radius: 0.5rem; padding: 0.5rem 0.7rem; }
+.widget .table-wrap { overflow-x: auto; }
+
+/* 퀴즈 */
+.widget .quiz-q { margin: 0.25rem 0 0.6rem; font-weight: 600; }
+.quiz-opts { display: grid; gap: 0.4rem; }
+.quiz-opts button { text-align: left; padding: 0.55rem 0.8rem; font-size: 0.9rem; }
+.quiz-opts button.correct { border-color: var(--w-good); background: color-mix(in srgb, var(--w-good) 12%, transparent); }
+.quiz-opts button.wrong { border-color: var(--w-bad); background: color-mix(in srgb, var(--w-bad) 12%, transparent); }
+.quiz-explain { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 0.5rem; background: var(--w-surface); font-size: 0.9rem; }
+
+/* 한국어 줄바꿈: 단어(어절) 단위로 끊는다 */
+body { word-break: keep-all; overflow-wrap: break-word; }

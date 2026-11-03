@@ -1,0 +1,38 @@
+---
+title: 이 교과서에 대하여
+description: 대상 독자, 읽는 방법, 표기법, 연습문제 난이도, 코드와 검증 원칙.
+---
+
+## 누구를 위한 책인가
+
+- 컴퓨터공학·수학 학부생으로, **암호와 양자컴퓨팅 배경지식은 거의 없지만** 대학원 수준까지 가고 싶은 사람.
+- 목표: 격자 기반 PQC 연구실(특히 격자 이론·암호해석 중심)에서 **논문을 읽고, 실험을 돌리고, 첫 연구 질문을 던질 수 있는 수준**.
+
+## 읽는 방법
+
+| 표시 | 의미 |
+|---|---|
+| <span class="layer-tag">직관</span> | 비유와 위젯. 처음 읽을 때는 여기만 읽어도 흐름을 잡을 수 있다. |
+| <span class="layer-tag">정식화</span> | 정의·정리·증명 스케치·작은 수 예제. 대학원 수업의 언어. |
+| <span class="layer-tag">연구 관점</span> | 핵심 논문과 읽는 순서, 열린 문제. |
+| ★ / ★★ / ★★★ | 연습문제 난이도: 개념 확인 / 증명·계산 / 대학원 과제·구현 |
+| ◆ (커리큘럼) | 격자 이론·암호해석 연구실의 핵심 주제 |
+
+모든 연습문제에는 접어 둔 해설이 있습니다. **먼저 10분 이상 스스로 고민한 뒤** 펼치세요.
+
+## 표기법
+
+- 벡터는 소문자 $a, b, s, e$, 행렬은 대문자 $A, B$. 격자 기저는 **행 벡터** 로 쓴다: $B$ 의 $i$ 번째 행이 $b_i$.
+- $\mathbb{Z}_q = \mathbb{Z}/q\mathbb{Z}$. 대표값은 $[0, q)$ 또는 중심 대표값 $(-q/2, q/2]$.
+- $\lfloor x \rceil$: 가장 가까운 정수로 반올림. $\|\cdot\|$: 유클리드 노름.
+- $\lambda_1(\mathcal{L})$: 격자의 최단 벡터 길이. $\operatorname{vol}(\mathcal{L})$: 격자의 부피(행렬식).
+
+## 코드와 검증
+
+- 위젯이 쓰는 모든 수학 코드는 [`src/lib/`](https://github.com/mumusecure/all-about-pqc/tree/main/src/lib) 에 있고, [`tests/`](https://github.com/mumusecure/all-about-pqc/tree/main/tests) 의 단위 테스트로 검증합니다(예: LLL 출력이 실제로 LLL-축소 조건을 만족하는지, 부피가 보존되는지).
+- 실습 스크립트는 [`labs/`](https://github.com/mumusecure/all-about-pqc/tree/main/labs) 에 있고 Python 표준 라이브러리만 씁니다.
+- **토이 구현은 교육용입니다.** 상수 시간이 아니고, 안전한 난수를 쓰지 않으며, 파라미터가 작습니다. 실제 보안에 쓰지 마세요.
+
+## 사실 확인 원칙
+
+표준 현황·일정처럼 바뀌는 정보는 1차 출처(NIST, KpqC, IETF 등)로 확인하고 **기준일** 을 적습니다. 오류를 발견하면 [GitHub 이슈](https://github.com/mumusecure/all-about-pqc/issues)로 알려 주세요.

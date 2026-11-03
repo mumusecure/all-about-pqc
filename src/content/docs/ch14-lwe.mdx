@@ -1,0 +1,346 @@
+---
+title: 14장. LWE (Learning With Errors)
+description: 격자 암호의 중심 문제 LWE 를 정의하고, 탐색·결정 동치, 최악→평균 환원의 의미, Regev 암호의 정확성과 안전성, 그리고 LLL 로 직접 깨 보는 임베딩 공격까지 다룬다.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import LWEScatter from '../../components/LWEScatter.tsx';
+import RegevDemo from '../../components/RegevDemo.tsx';
+import LWEAttackLab from '../../components/LWEAttackLab.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. LWE 의 탐색(search)·결정(decision) 버전을 정의하고 파라미터 $(n, q, m, \chi)$ 의 역할을 설명할 수 있다.
+2. 노이즈가 왜 필요한지, 너무 작거나 너무 크면 어떤 일이 생기는지 말할 수 있다.
+3. 탐색 ⇒ 결정 환원(소수 $q$)을 증명하고, Regev 의 최악→평균 환원이 *무엇을 보장하고 무엇을 보장하지 않는지* 설명할 수 있다.
+4. Regev 암호의 정확성 조건을 유도하고 IND-CPA 안전성 증명의 뼈대를 쓸 수 있다.
+5. LWE 를 격자의 BDD/uSVP 문제로 바꾸는 임베딩 공격을 구성하고, LLL 로 직접 실행해 공격이 실패하는 경계를 관찰한다.
+
+**선수 지식**: 모듈러 연산(2장), 정규분포의 기초(6장), LLL(9장).
+
+</div>
+
+## 1. 직관: 노이즈가 섞인 연립방정식
+
+<span class="layer-tag">직관</span>
+
+비밀 벡터 $s = (3, 5)$ 를 숨기고, $q = 13$ 으로 나눈 나머지 세계에서 일차식을 몇 개 공개한다고 합시다.
+
+$$
+\begin{aligned}
+2s_1 + 7s_2 &\equiv 2 \pmod{13}\\
+9s_1 + 4s_2 &\equiv 8 \pmod{13}\\
+5s_1 + 11s_2 &\equiv 5 \pmod{13}
+\end{aligned}
+$$
+
+노이즈가 없다면 가우스 소거법으로 바로 $s$ 를 구합니다. 고등학교 수학입니다. 이제 각 우변에 **작은 오차** $e_i \in \{-1, 0, 1\}$ 를 몰래 더하면 어떨까요? 위 식의 실제 값은 $2, 8, 5$ 가 아니라 각각 오차 $+1, -1, 0$ 이 더해진 $3, 7, 5$ 입니다. 오차가 들어간 순간 소거법은 쓸모가 없어집니다. 식을 더하고 빼면 오차도 같이 더해져 커지고, $\bmod q$ 에서 "감겨서" 의미를 잃기 때문입니다.
+
+**LWE(Learning With Errors)** 는 이 "노이즈 섞인 모듈러 연립방정식"을 푸는 문제입니다. 차원 $n$ 이 수백이 되면 양자컴퓨터로도 효율적으로 푸는 방법이 알려져 있지 않습니다.
+
+<LWEScatter client:visible />
+
+위젯에서 관찰할 것:
+
+- $\sigma = 0$ 이면 점들이 $q$ 개의 "감긴 직선" 위에 정확히 놓입니다. 후보 $s'$ 를 맞히면 주황 점선이 파란 점들과 겹칩니다.
+- $\sigma$ 를 키우면 직선이 두꺼운 띠가 되고, $\sigma \approx q/4$ 근처부터는 균등 분포와 거의 구별되지 않습니다.
+- $n = 1$ 이라 오른쪽처럼 **전수조사** 로 풀리지만, 실제 $n$ 에서는 후보가 $q^n$ 개입니다.
+
+## 2. 정식화
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 정의
+
+**정의 14.1 (LWE 분포).** 정수 $n, q \ge 2$, $\mathbb{Z}$ 위의 오차 분포 $\chi$, 비밀 $s \in \mathbb{Z}_q^n$ 에 대해, LWE 분포 $A_{s,\chi}$ 는 다음과 같이 뽑은 $(a, b) \in \mathbb{Z}_q^n \times \mathbb{Z}_q$ 의 분포이다.
+
+$$
+a \leftarrow \mathbb{Z}_q^n \text{ (균등)}, \quad e \leftarrow \chi, \quad b = \langle a, s\rangle + e \bmod q .
+$$
+
+$m$ 개의 샘플을 행렬로 모으면 $A \in \mathbb{Z}_q^{m\times n}$, $b = As + e \bmod q$ 입니다.
+
+- **탐색 LWE (Search-LWE)**: $(A, b)$ 가 주어졌을 때 $s$ 를 찾아라.
+- **결정 LWE (Decision-LWE)**: $(A, b)$ 가 $A_{s,\chi}$ 에서 왔는지, $\mathbb{Z}_q^{m\times n}\times\mathbb{Z}_q^m$ 의 균등 분포에서 왔는지 무시할 수 없는(non-negligible) 확률로 구별하라.
+
+암호에서는 대개 **결정 버전** 이 필요합니다. "암호문이 무작위와 구별되지 않는다"를 보이는 것이 안전성 증명의 핵심이기 때문입니다.
+
+### 2.2 파라미터와 오차 분포
+
+| 기호 | 의미 | 예시 (ML-KEM-768) |
+|---|---|---|
+| $n$ | 비밀의 차원(보안 파라미터) | 모듈 차원 $k=3$ × 다항식 차수 256 = 768 |
+| $q$ | 모듈러스 | 3329 |
+| $m$ | 샘플 수 | 공개키에 포함된 식의 수 |
+| $\chi$ | 오차 분포 | 중심 이항분포 $\mathrm{CBD}_\eta$, $\eta = 2$ |
+
+이론에서는 표준편차가 $\sigma$ 정도인 **이산 가우시안** $D_{\mathbb{Z},\sigma}$ 를, 실제 표준은 샘플링이 쉬운 **중심 이항분포**(동전 $2\eta$ 개를 던져 앞면 수의 차)를 주로 씁니다. 중요한 양은 **상대 오차율** $\alpha = \sigma/q$ 입니다.
+
+### 2.3 노이즈의 골디락스 원리
+
+- **노이즈 = 0**: 가우스 소거법으로 $n$ 개 샘플에서 $s$ 를 구한다. (다항 시간)
+- **노이즈가 너무 작음**: 오차가 가질 수 있는 값이 몇 개뿐이고 샘플이 아주 많으면, Arora–Ge 의 *선형화* 공격이 오차 다항식을 연립 선형방정식으로 바꿔 풀어낸다.
+- **노이즈가 너무 큼** ($\sigma \gtrsim q$): $b$ 가 균등 분포에 가까워 어렵긴 하지만, *정당한 사용자도* 복호화를 못 한다(3절).
+
+암호 설계란 결국 **공격자에게는 충분히 크고, 복호하는 사람에게는 충분히 작은 노이즈** 를 고르는 일입니다.
+
+### 2.4 탐색과 결정은 (거의) 같은 문제다
+
+결정 LWE 를 풀 수 있으면 탐색 LWE 도 풀 수 있습니다(반대 방향은 자명합니다).
+
+**정리 14.2.** $q$ 가 $\mathrm{poly}(n)$ 크기의 소수이면, 결정 LWE 를 푸는 알고리즘으로 탐색 LWE 를 $n\cdot q$ 배 정도의 시간에 풀 수 있다.
+
+*증명 스케치.* 비밀의 첫 좌표 $s_1$ 을 $g \in \mathbb{Z}_q$ 로 추측한다. 각 샘플 $(a, b)$ 에 대해 무작위 $r \leftarrow \mathbb{Z}_q$ 를 뽑아
+
+$$
+(a', b') = (a + r\,e_1,\; b + r g)
+$$
+
+로 바꾼다. ($e_1 = (1, 0, \dots, 0)$)
+
+- $g = s_1$ 이면 $b' = \langle a', s\rangle + e$ 이므로 $(a', b')$ 는 **여전히 LWE 샘플** 이다.
+- $g \neq s_1$ 이면 $b' = \langle a', s\rangle + e + r(g - s_1)$ 이고, $q$ 가 소수이므로 $r(g - s_1)$ 은 $\mathbb{Z}_q$ 에서 균등하다. 따라서 $(a', b')$ 는 **균등** 하다.
+
+결정 알고리즘이 이 둘을 구별하므로 맞는 $g$ 를 알 수 있다. 좌표마다 $q$ 개 후보, 총 $n$ 좌표. $\blacksquare$
+
+### 2.5 짧은 비밀 (정규형)
+
+비밀 $s$ 를 균등 분포 대신 **오차 분포 $\chi$ 에서** 뽑아도 LWE 는 어려움이 그대로 유지됩니다(Applebaum–Cash–Peikert–Sahai 2009). 이를 **정규형(normal form) LWE** 라고 하며, 키가 작고 연산이 빨라서 ML-KEM 을 비롯한 실제 스킴은 모두 짧은 비밀을 씁니다. 이 장의 공격 실험도 짧은 비밀을 씁니다.
+
+### 2.6 최악→평균 환원: 무엇을 보장하나
+
+LWE 가 특별한 이유는 **평균적인(무작위) 인스턴스의 어려움이 격자 문제의 최악의 경우 어려움과 연결** 되기 때문입니다.
+
+**정리 14.3 (Regev 2005, 비공식).** $\alpha q \ge 2\sqrt n$ 이면, 결정 LWE$_{n,q,\alpha}$ 를 효율적으로 푸는 알고리즘이 있을 때 $n$ 차원 격자의 GapSVP$_\gamma$, SIVP$_\gamma$ 를 $\gamma = \tilde O(n/\alpha)$ 로 푸는 **양자** 알고리즘이 존재한다.
+
+이후 Peikert(2009)가 지수 크기 $q$ 에 대해, Brakerski–Langlois–Peikert–Regev–Stehlé(2013)가 다항 크기 $q$ 에 대해 **고전(classical)** 환원을 얻었습니다.
+
+<Aside type="caution" title="대학원 수준의 함정: 환원은 파라미터를 정해주지 않는다">
+이 정리는 "LWE 를 깨면 *모든* 격자의 최악 경우를 깬다"는 강력한 **질적** 보증입니다. 하지만 환원에는 다항식 크기의 손실이 있어서(non-tight), ML-KEM 의 실제 파라미터 $n=768$, $q=3329$ 가 "몇 비트 안전한가"를 이 정리로 계산할 수는 없습니다. 실제 파라미터는 **알려진 최선의 공격 비용** 으로 정합니다. 그래서 격자 축소와 암호해석(9, 10, 18장)이 표준화의 핵심 근거가 됩니다. "증명이 있으니 안전하다"와 "파라미터가 안전하다"는 다른 주장입니다.
+</Aside>
+
+<Quiz
+  client:visible
+  question="정리 14.2(탐색 ⇒ 결정 환원)의 증명에서 'q 가 소수'라는 조건은 어디에 쓰였나?"
+  options={[
+    'a 를 균등하게 뽑기 위해',
+    'g ≠ s₁ 일 때 r(g − s₁) 이 ℤ_q 에서 균등해지도록 (g − s₁ 이 가역원)',
+    '오차 e 가 작게 유지되도록',
+    '결정 알고리즘이 다항 시간에 돌도록',
+  ]}
+  answer={1}
+  explanation="q 가 소수이면 0 이 아닌 g − s₁ 은 ℤ_q 의 가역원이므로, r 이 균등할 때 r(g − s₁) 도 균등합니다. q 가 합성수이면 g − s₁ 이 영인자일 수 있어 b′ 가 균등해지지 않습니다. 이 경우는 더 정교한 환원이 필요합니다."
+/>
+
+## 3. Regev 공개키 암호
+
+<span class="layer-tag">정식화</span>
+
+LWE 로 만든 최초의 공개키 암호입니다. 1비트 $\mu \in \{0,1\}$ 를 암호화합니다.
+
+- **키 생성**: $s \leftarrow \mathbb{Z}_q^n$, $A \leftarrow \mathbb{Z}_q^{m\times n}$, $e \leftarrow \chi^m$. 공개키 $(A,\, b = As + e)$, 비밀키 $s$.
+- **암호화**: 무작위 부분집합 $r \leftarrow \{0,1\}^m$ 을 골라
+
+$$
+u = A^\top r \in \mathbb{Z}_q^n, \qquad v = b^\top r + \mu\lfloor q/2 \rfloor \in \mathbb{Z}_q .
+$$
+
+- **복호화**: $w = v - \langle u, s \rangle \bmod q$ 를 계산해 $w$ 가 $0$ 에 가까우면 $0$, $\lfloor q/2\rfloor$ 에 가까우면 $1$.
+
+**정확성.** 계산하면
+
+$$
+w = (As + e)^\top r + \mu\lfloor q/2\rfloor - (A^\top r)^\top s = \underbrace{e^\top r}_{\text{누적 노이즈}} + \mu\lfloor q/2 \rfloor .
+$$
+
+따라서 $|e^\top r| < q/4$ (대략)이면 항상 올바르게 복호됩니다. $e^\top r$ 은 약 $m/2$ 개 오차의 합이므로 표준편차는 대략 $\sigma\sqrt{m/2}$ 입니다. 즉 **샘플 수 $m$ 과 노이즈 $\sigma$ 가 커질수록 복호 실패가 늘어납니다.**
+
+<RegevDemo client:visible />
+
+해볼 실험:
+
+1. $q = 257, m = 64$ 에서 $\sigma$ 를 0 → 8 로 올려 보세요. 점의 띠가 두꺼워지다가 경계($\pm q/4$)를 넘는 순간 실패가 생깁니다.
+2. 실측 실패율과 이론값(정규근사)을 비교하세요. 이런 **복호 실패 확률 분석** 은 ML-KEM 설계의 핵심 항목이고(16장), 실패를 일부러 유도하는 **복호 실패 공격** 은 암호해석의 한 분야입니다(20장).
+
+### 안전성 (IND-CPA) 증명의 뼈대
+
+공격자는 공개키 $(A, b)$ 와 암호문 $(u, v)$ 를 봅니다. 두 단계의 하이브리드 논법을 씁니다.
+
+1. **(계산적 단계)** 결정 LWE 가정에 의해 $(A, b)$ 를 균등 무작위 $(A, b')$ 로 바꿔도 공격자는 알아차리지 못한다.
+2. **(통계적 단계)** 이제 $[A \mid b']$ 는 균등 행렬이다. $m \ge (n+1)\log_2 q + \omega(\log n)$ 이면 **잔여 해시 보조정리(Leftover Hash Lemma)** 에 의해 $([A\mid b'], [A\mid b']^\top r)$ 는 균등 분포와 통계적으로 가깝다. 즉 $(u, v - \mu\lfloor q/2\rfloor)$ 가 균등하므로 $v$ 는 $\mu$ 에 대한 정보를 담지 않는다.
+
+따라서 결정 LWE 가 어려우면 Regev 암호는 선택 평문 공격에 안전(IND-CPA)합니다. (선택 암호문 공격에 대한 안전성 IND-CCA 는 Fujisaki–Okamoto 변환이 필요하며 16장에서 다룹니다.)
+
+### 효율성의 문제와 그 다음
+
+Regev 원형은 공개키가 $m(n+1)\log q$ 비트로 크고, 암호문 하나가 1비트만 나릅니다. 이후 개선의 큰 줄기는 다음과 같습니다.
+
+| 개선 | 아이디어 | 이어지는 장 |
+|---|---|---|
+| **LPR 형태** (Lindner–Peikert 2011) | 무작위 부분집합 $r$ 대신 *짧은 벡터* $r$ 와 추가 오차: $u = A^\top r + e_1$, $v = b^\top r + e_2 + \mu\lfloor q/2\rfloor$. 공개키를 $n\times n$ 로 줄일 수 있음 | ML-KEM 의 직접적 원형 (16장) |
+| **구조화 (Ring/Module-LWE)** | $A$ 를 다항식 환 위의 작은 행렬로: 키가 $\tilde O(n)$ 으로, 연산은 NTT 로 빠르게 | 12장, 16장 |
+| **LWR** (Banerjee–Peikert–Rosen 2012) | 오차를 더하는 대신 결정적으로 반올림: $b = \lfloor (p/q)\, As \rceil$ | SMAUG-T 등 (16장) |
+
+## 4. 공격 미리보기: LWE 는 격자 문제다
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 BDD 로 보기
+
+$q$-ary 격자 $\Lambda_q(A) = \{ y \in \mathbb{Z}^m : y \equiv As \pmod q \text{ for some } s\}$ 를 생각하면, $b = As + e$ 는 격자점 $As \bmod q$ 에서 $\|e\|$ 만큼 떨어진 점입니다. 오차가 작으므로 이는 **유계 거리 복호(BDD)**: "아주 가까운 격자점이 있다고 약속된 점에서 그 격자점을 찾아라" 문제입니다.
+
+### 4.2 임베딩: BDD 를 uSVP 로
+
+Kannan 의 임베딩 기법은 목표점을 격자에 한 차원 붙여서 "가까운 점 찾기"를 "유난히 짧은 벡터 찾기(uSVP)"로 바꿉니다. 짧은 비밀의 경우 비밀까지 함께 넣는 다음 기저(Bai–Galbraith 형태)가 편리합니다. 차원은 $d = m + n + 1$ 입니다.
+
+$$
+B = \begin{pmatrix} q I_m & 0 & 0 \\ A^\top & I_n & 0 \\ b^\top & 0 & 1 \end{pmatrix}
+$$
+
+마지막 행에서 $A^\top$ 의 행들을 $s_j$ 배씩 빼고 $qI_m$ 의 행들로 $\bmod q$ 를 정리하면
+
+$$
+(b - As + qz,\; -s,\; 1) = (e,\, -s,\, 1) \in \mathcal{L}(B).
+$$
+
+이 벡터의 길이는 약 $\sigma\sqrt{m+n}$ 로 아주 짧습니다. 반면 이 격자의 "보통" 최단 벡터 길이는 Gaussian heuristic 으로
+
+$$
+\mathrm{GH}(\mathcal{L}) \approx \sqrt{\frac{d}{2\pi e}}\;\operatorname{vol}(\mathcal{L})^{1/d}, \qquad \operatorname{vol}(\mathcal{L}) = q^m
+$$
+
+입니다. **숨은 벡터가 GH 보다 충분히 짧으면(gap 이 크면) 격자 축소가 그것을 찾아냅니다.** 9장 6절의 "정수 관계 찾기"와 정확히 같은 문법입니다.
+
+<LWEAttackLab client:visible />
+
+해볼 실험 (결과를 표로 정리해 보세요):
+
+1. $q = 97, \sigma = 1$ 에서 $n = 8, 16, 24, 32, 40$ 으로 올려 보세요. 어느 지점에서 성공률이 무너지나요?
+2. 같은 $n$ 에서 $\sigma$ 를 1 → 2 로 올리면 경계가 어떻게 움직이나요?
+3. $q = 3329, \sigma = 2$ 로 바꾸면 같은 $n$ 에서도 훨씬 쉽게 풀립니다. 왜일까요? ($\alpha = \sigma/q$ 와 gap 을 보세요.)
+
+이 교과서의 실험 환경(LLL, $\delta = 0.99$)에서는 대략 $q = 97, \sigma = 1$ 일 때 $n = 32 \sim 40$, $\sigma = 2$ 일 때 $n = 24 \sim 32$ 사이에서 성공률이 급격히 떨어집니다. 실제 ML-KEM 의 768 차원은 이 경계보다 한참 위에 있고, 게다가 공격자는 LLL 보다 훨씬 강한 BKZ 를 쓸 수 있습니다. **"LLL 보다 강한 공격을 상정해도 안전한 파라미터"를 고르는 방법** 이 18장의 주제입니다.
+
+### 4.3 다른 공격들 (목록)
+
+- **쌍대(dual) 공격**: $A$ 의 왼쪽 핵(kernel)에서 짧은 벡터 $w$ 를 찾아 $\langle w, b\rangle$ 가 작은지로 구별한다.
+- **BKW 류**: 샘플을 아주 많이 써서 가우스 소거를 "부드럽게" 수행한다. 샘플 수가 제한된 실제 스킴에는 덜 위협적.
+- **대수적 공격 (Arora–Ge)**: 오차의 범위가 좁고 샘플이 매우 많을 때.
+- **하이브리드 공격**: 비밀의 일부를 추측(또는 중간 만남)하고 나머지를 격자 축소로.
+
+이 공격들의 비용을 한꺼번에 추정하는 도구가 **lattice estimator**(Albrecht–Player–Scott 2015 에서 출발)이며, 18장에서 직접 써 봅니다.
+
+<Quiz
+  client:visible
+  question="임베딩 기저에서 숨은 벡터 (e, −s, 1) 이 LLL 로 찾아지기 어려워지는 방향의 변화는?"
+  options={[
+    'q 를 크게 하고 σ 는 그대로 둔다',
+    'n 을 줄인다',
+    'n 을 키운다 (격자 차원 d 가 커지고 LLL 의 근사 성능이 상대적으로 나빠진다)',
+    '오차 σ 를 줄인다',
+  ]}
+  answer={2}
+  explanation="n 이 커지면 d = m + n + 1 이 커지고, LLL 이 보장하는 근사 인자(대략 δ₀^d)가 지수적으로 나빠져 같은 gap 으로는 숨은 벡터를 못 찾게 됩니다. q 를 키우거나 σ 를 줄이면 상대 오차 α = σ/q 가 작아져 오히려 공격이 쉬워집니다."
+/>
+
+## 5. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+**읽기 순서 추천**
+
+1. **O. Regev**, *On Lattices, Learning with Errors, Random Linear Codes, and Cryptography*, STOC 2005 / J. ACM 2009. — 1~2절과 5절(암호)을 먼저. 양자 환원(3절)은 6장·8장 이후에. 이 논문으로 Regev 는 2018년 괴델상을 받았습니다.
+2. **C. Peikert**, *A Decade of Lattice Cryptography*, 2016 (서베이). — 이 교과서 3~5부 전체의 지도. 2~4장을 먼저 읽으세요.
+3. **R. Lindner, C. Peikert**, *Better Key Sizes (and Attacks) for LWE-Based Encryption*, CT-RSA 2011. — LPR 형태와 구체적 공격 비용 분석. ML-KEM 으로 가는 다리.
+4. **M. R. Albrecht, R. Player, S. Scott**, *On the Concrete Hardness of Learning with Errors*, J. Math. Cryptol. 2015. — 공격 비용 추정의 표준 정리. 18장의 기반.
+5. **S. Bai, S. D. Galbraith**, *Lattice Decoding Attacks on Binary LWE*, ACISP 2014. — 이 장의 임베딩 기저.
+
+**열린 질문들**
+
+- 구조화된 변형(Ring/Module-LWE)은 일반 LWE 만큼 어려운가? 이데알 격자에서는 큰 근사 인자에 대해 양자 공격의 진전이 있었지만(12장), Module-LWE 의 구체적 파라미터에는 아직 실질적 영향이 없습니다. **모듈 격자의 구조를 이용한 축소(module-LLL 등)** 가 이 질문의 최전선이며, 국내에서도 활발히 연구되는 주제입니다.
+- 환원의 손실을 줄인 **촘촘한(tight) 환원** 이 가능한가?
+- 복호 실패, 오차 분포의 선택(가우시안 vs 이항 vs 반올림)이 구체적 안전성에 주는 영향은 정확히 얼마인가?
+
+## 연습문제
+
+**★ 1.** 1절의 예제($q = 13$, $s = (3, 5)$, $e = (1, -1, 0)$)에서 $b$ 를 직접 계산하세요. 그리고 오차를 모른 채 처음 두 식만으로 가우스 소거를 하면 어떤 $s$ 를 얻는지 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$b_1 = 2\cdot3 + 7\cdot5 + 1 = 42 \equiv 3$, $b_2 = 9\cdot3 + 4\cdot5 - 1 = 46 \equiv 7$, $b_3 = 5\cdot 3 + 11\cdot 5 + 0 = 70 \equiv 5 \pmod{13}$. 노이즈를 무시하고 $2s_1 + 7s_2 = 3$, $9s_1 + 4s_2 = 7$ 을 풀면: 행렬식 $8 - 63 = -55 \equiv 10$, 역원 $10^{-1} \equiv 4$ ($40 = 39 + 1$). $s_1 = 4(3\cdot 4 - 7\cdot7) = 4(-37) \equiv 4\cdot 2 = 8$, $s_2 = 4(2\cdot7 - 9\cdot3) = 4(-13) \equiv 0$. 즉 $(8, 0)$ 이라는 엉뚱한 답이 나옵니다. 세 번째 식으로 검산하면 $5\cdot8 = 40 \equiv 1 \ne 5$ 입니다. 오차 $\pm1$ 만으로도 소거법은 전혀 다른 답을 냅니다.
+
+</details>
+
+**★ 2.** 노이즈가 없을 때 $A$ 의 위쪽 $n\times n$ 블록이 $\bmod q$ 에서 가역이면 $s$ 를 다항 시간에 구할 수 있음을 보이세요. 무작위 $A$ 에서 이 블록이 가역일 확률은 대략 얼마인가요? ($q$ 소수)
+
+<details>
+<summary>해설</summary>
+
+$A_1 s \equiv b_1$ 에서 $s = A_1^{-1}b_1$. 역행렬은 가우스 소거로 $O(n^3)$. $\mathbb{F}_q$ 위 무작위 $n\times n$ 행렬이 가역일 확률은 $\prod_{i=1}^{n}(1 - q^{-i}) \ge 1 - \tfrac{1}{q-1}$ 정도로 1에 가깝습니다.
+
+</details>
+
+**★★ 3.** Regev 암호에서 $\chi$ 가 $[-B, B]$ 에 값을 갖는다고 하자. 복호가 **항상** 성공하기 위한 충분조건을 $m, B, q$ 로 쓰세요. 그리고 이 최악 경우 조건과 3절의 "표준편차" 분석이 왜 크게 다른 파라미터를 주는지 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+$|e^\top r| \le \sum_i |e_i| \le mB$ 이므로 $mB < q/4$ (홀수 $q$ 면 약간 더 엄격)이면 항상 성공. 하지만 실제로 $e^\top r$ 은 부호가 섞인 합이라 전형적 크기가 $B\sqrt m$ 수준입니다(중심극한정리). 최악 조건은 $q > 4mB$, 확률적 조건은 대략 $q \gtrsim c\,\sigma\sqrt m$ 로 $\sqrt m$ 배 차이가 납니다. 실제 스킴은 확률적 분석으로 실패 확률을 $2^{-128}$ 이하 같은 값으로 묶어 파라미터를 고릅니다.
+
+</details>
+
+**★★ 4.** 4.2절의 기저 $B$ 에 대해 (a) $\det B = q^m$ 임을 보이고, (b) $(e, -s, 1)$ 이 격자에 속함을 계수까지 명시해 보이세요.
+
+<details>
+<summary>해설</summary>
+
+(a) $B$ 는 블록 하삼각이고 대각 블록이 $qI_m$, $I_n$, $1$ 이므로 $\det = q^m$. (b) $b \equiv As + e \pmod q$ 이므로 $b - As = e + qz$ 인 정수 벡터 $z$ 가 있습니다. $qI_m$ 행들에 계수 $-z$, $A^\top$ 행들에 계수 $-s$, 마지막 행에 계수 $1$ 을 주어 결합하면 $(b - As - qz,\; -s,\; 1) = (e, -s, 1)$ 입니다. 코드의 `embeddingBasis` 와 테스트 `tests/lwe.test.ts` 가 (a) 를 확인합니다.
+
+</details>
+
+**★★ 5.** 정리 14.2 의 환원을 $q = 2^k$ 같은 합성수에 그대로 쓰면 어디서 깨지는지 구체적인 예($q = 4$, $g - s_1 = 2$)로 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$q = 4$, $g - s_1 = 2$ 이면 $r \in \{0,1,2,3\}$ 에 대해 $r\cdot 2 \bmod 4 \in \{0, 2\}$ 뿐입니다. 즉 $b'$ 에 더해지는 값이 균등하지 않고 짝수 오프셋만 생기므로, $b'$ 의 분포가 균등과 구별될 수 있고 결정 알고리즘의 답을 "추측이 틀렸다"로 해석할 수 없습니다.
+
+</details>
+
+**★★★ 6. (증명 스케치 완성)** 3절의 통계적 단계에서 잔여 해시 보조정리를 정확히 진술하고, 해시족 $\mathcal{H} = \{h_M(r) = M^\top r : M \in \mathbb{Z}_q^{m\times(n+1)}\}$ 가 범용(universal)임을 보인 뒤, 통계적 거리 상한을 $m, n, q$ 로 쓰세요.
+
+<details>
+<summary>힌트</summary>
+
+$r \ne r'$ 이면 $\Pr_M[M^\top r = M^\top r'] = \Pr_M[M^\top(r - r') = 0] = q^{-(n+1)}$ ($r - r'$ 의 0 아닌 좌표 하나에 대해 $M$ 의 해당 행이 균등하므로, $q$ 소수 가정). $r$ 의 최소 엔트로피는 $m$ 비트. LHL 에 의해 통계적 거리 $\le \tfrac12\sqrt{q^{n+1}/2^m}$. 따라서 $m \ge (n+1)\log_2 q + 2\lambda$ 이면 $2^{-\lambda}$ 이하.
+
+</details>
+
+**★★★ 7. (구현 · 포트폴리오)** [Lab 1](../labs/lab01-lll-lwe-attack/) 의 스크립트로 $q \in \{97, 257\}$, $\sigma \in \{1, 2\}$ 각각에 대해 성공률이 50% 가 되는 $n$ 을 찾고, 그 지점의 gap $= \mathrm{GH}/\|(e,-s,1)\|$ 과 격자 차원 $d$ 의 관계를 그래프로 그리세요. gap 의 문턱이 $d$ 에 대해 어떤 함수 꼴로 커지는지 가설을 세우고, Gama–Nguyen(2008)의 uSVP 실험과 비교하세요.
+
+## 요약
+
+- LWE: $b = As + e \bmod q$ 에서 $s$ 찾기(탐색) 또는 균등과 구별하기(결정). 노이즈가 문제를 어렵게 만든다.
+- 소수 $q$ 에서 탐색과 결정은 동치이고, 짧은 비밀(정규형)도 똑같이 어렵다.
+- 최악→평균 환원은 강력한 질적 근거지만, **실제 파라미터는 공격 비용으로 정한다.**
+- Regev 암호: $w = e^\top r + \mu\lfloor q/2\rfloor$. 누적 노이즈 $< q/4$ 이면 정확. 안전성은 DLWE + 잔여 해시 보조정리.
+- LWE 는 BDD/uSVP 로 바뀌고, 숨은 벡터 $(e, -s, 1)$ 이 충분히 짧으면 격자 축소가 찾아낸다. 차원이 커지면 이 공격은 급격히 어려워진다.
+- 다음: NTRU(15장), ML-KEM(16장), 그리고 공격 비용의 정량화(18장).
+
+## 참고문헌
+
+- O. Regev, *On lattices, learning with errors, random linear codes, and cryptography*, STOC 2005; J. ACM 56(6), 2009.
+- C. Peikert, *Public-key cryptosystems from the worst-case shortest vector problem*, STOC 2009.
+- Z. Brakerski, A. Langlois, C. Peikert, O. Regev, D. Stehlé, *Classical hardness of learning with errors*, STOC 2013.
+- B. Applebaum, D. Cash, C. Peikert, A. Sahai, *Fast cryptographic primitives and circular-secure encryption based on hard learning problems*, CRYPTO 2009.
+- R. Lindner, C. Peikert, *Better key sizes (and attacks) for LWE-based encryption*, CT-RSA 2011.
+- A. Banerjee, C. Peikert, A. Rosen, *Pseudorandom functions and lattices*, Eurocrypt 2012.
+- S. Arora, R. Ge, *New algorithms for learning in presence of errors*, ICALP 2011.
+- M. R. Albrecht, R. Player, S. Scott, *On the concrete hardness of Learning with Errors*, J. Math. Cryptol. 2015.
+- S. Bai, S. D. Galbraith, *Lattice decoding attacks on binary LWE*, ACISP 2014.
+- C. Peikert, *A decade of lattice cryptography*, Foundations and Trends in TCS, 2016.
+- NIST, [FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard](https://csrc.nist.gov/pubs/fips/203/final), 2024.
