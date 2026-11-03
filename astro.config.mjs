@@ -33,6 +33,9 @@ export default defineConfig({
         { label: '0부 · 오리엔테이션', items: [
           { label: '0장. 왜 지금 PQC인가', slug: 'ch00-why-pqc' },
         ]},
+        { label: '1부 · 기초', items: [
+          { label: '2장. 수학 I: 정수론과 대수', slug: 'ch02-algebra' },
+        ]},
         { label: '2부 · 격자의 기하와 알고리즘', items: [
           { label: '9장. LLL 완전 정복', slug: 'ch09-lll' },
         ]},
