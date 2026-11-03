@@ -34,6 +34,7 @@ export default defineConfig({
           { label: '0장. 왜 지금 PQC인가', slug: 'ch00-why-pqc' },
         ]},
         { label: '1부 · 기초', items: [
+          { label: '1장. 암호학을 정의로 다루기', slug: 'ch01-definitions' },
           { label: '2장. 수학 I: 정수론과 대수', slug: 'ch02-algebra' },
         ]},
         { label: '2부 · 격자의 기하와 알고리즘', items: [

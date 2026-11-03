@@ -1,0 +1,336 @@
+---
+title: 1장. 암호학을 정의로 다루기
+description: 보안 파라미터와 무시 가능 함수, 완전 비밀성, IND-CPA·IND-CCA·EUF-CMA 게임, 환원 증명과 게임 홉, 구체적 안전성과 타이트함, 해시 함수와 생일 공격, 랜덤 오라클 모델(ROM)과 양자 랜덤 오라클 모델(QROM).
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import INDGameSim from '../../components/INDGameSim.tsx';
+import BirthdaySim from '../../components/BirthdaySim.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 보안 파라미터, 효율적 공격자, 무시 가능 함수를 정의하고, "안전하다"를 **게임** 으로 정식화할 수 있다.
+2. IND-CPA, IND-CCA, EUF-CMA 게임을 쓰고, 결정적 암호화가 IND-CPA 일 수 없음과 Regev 암호가 IND-CCA 가 아님을 증명할 수 있다.
+3. 환원 증명의 구조를 이해하고, 게임 홉(하이브리드)으로 간단한 안전성 증명을 쓸 수 있다.
+4. 구체적 안전성("몇 비트 안전한가")과 환원의 타이트함을 계산할 수 있다.
+5. 해시 함수의 세 성질과 생일 공격을 설명하고, 랜덤 오라클 모델과 양자 랜덤 오라클 모델이 무엇이며 왜 논쟁적인지 말할 수 있다.
+
+**선수 지식**: [0장](../ch00-why-pqc/). 확률의 기초(사건, 독립, 기대값). 통계적 거리는 [6장](../ch06-linalg-prob/) 5절에서 더 깊이 다룹니다.
+
+</div>
+
+## 1. 직관: "안전하다"는 무슨 뜻인가
+
+<span class="layer-tag">직관</span>
+
+"이 암호는 안전하다"는 말을 증명하려면, 먼저 **무엇으로부터 무엇을 지키는지** 를 정확히 말해야 합니다. 공격자는 무엇을 볼 수 있나요(암호문만? 공개키도? 복호 결과도?), 무엇을 하면 "이긴" 건가요(키 복구? 메시지 복구? 메시지에 대한 아주 작은 정보?), 계산 능력은 어느 정도인가요?
+
+현대 암호학은 이 질문들을 **게임** 으로 답합니다. 정직한 **도전자** 와 **공격자** 가 정해진 규칙으로 게임을 하고, 공격자가 이길 확률이 "그냥 찍는 것"보다 의미 있게 높지 않으면 안전하다고 정의합니다. 1980년대 초 Goldwasser 와 Micali 가 이 관점을 확립했고(두 사람은 이 업적으로 2012년 튜링상을 받았습니다), 이 교과서의 모든 안전성 주장은 이 언어로 쓰입니다.
+
+두 가지 원칙이 출발점입니다.
+
+- **Kerckhoffs 의 원칙**: 알고리즘은 공개되어 있고, 비밀은 **키** 뿐이다. 그래서 정의는 "공격자가 스킴을 모두 안다"고 가정합니다.
+- **최악의 공격자**: 특정 공격(예: 전수조사)을 막는 것으로는 부족하다. 정해진 자원 안의 **모든** 공격자를 막아야 한다.
+
+## 2. 정식화: 정의들
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 보안 파라미터와 무시 가능 함수
+
+모든 스킴은 **보안 파라미터** $\lambda$ (예: 128)로 크기가 정해집니다. 공격자는 $\lambda$ 에 대한 **확률적 다항 시간(PPT)** 알고리즘으로 모델링합니다. "이길 확률이 거의 1/2"의 "거의"는 다음으로 정의합니다.
+
+**정의 1.1 (무시 가능).** 함수 $\varepsilon : \mathbb{N} \to [0, 1]$ 이 모든 다항식 $p$ 에 대해 충분히 큰 $\lambda$ 에서 $\varepsilon(\lambda) < 1/p(\lambda)$ 이면 **무시 가능** 하다고 하고 $\varepsilon = \mathrm{negl}(\lambda)$ 로 쓴다.
+
+예: $2^{-\lambda}$, $2^{-\sqrt\lambda}$, $\lambda^{-\log\lambda}$ 는 무시 가능하고, $1/\lambda^{100}$ 은 아니다.
+
+**보조정리 1.2.** 무시 가능 함수 둘의 합, 그리고 무시 가능 함수와 다항식의 곱은 무시 가능하다.
+
+이 성질 덕분에 "공격자가 다항식 번 시도해도" 무시 가능한 확률은 여전히 무시 가능합니다. 환원 증명이 다항식 크기의 손실을 허용하는 근거입니다.
+
+### 2.2 완전 비밀성과 그 한계
+
+**완전 비밀성 (Shannon 1949).** 암호문이 메시지에 대한 정보를 **전혀** 주지 않는 것: 모든 메시지 분포에 대해 $\Pr[M = m \mid C = c] = \Pr[M = m]$.
+
+일회용 패드(OTP) $c = m \oplus k$ ($k$ 는 균등, $|k| = |m|$)는 완전 비밀성을 가집니다. 하지만 Shannon 은 **완전 비밀성에는 메시지만큼 긴 키가 필요하다** 는 것을 보였습니다($|\mathcal{K}| \ge |\mathcal{M}|$, 연습문제 8). 같은 키를 두 번 쓰면 $c_1 \oplus c_2 = m_1 \oplus m_2$ 가 새어 나갑니다. 그래서 실용 암호는 "계산 능력이 제한된 공격자에게는 구별 불가능"이라는 **계산적 안전성** 으로 물러섭니다. 공개키 암호는 정의상 계산적일 수밖에 없습니다(공개키에 비밀키의 정보가 다 들어 있으므로).
+
+### 2.3 공개키 암호의 문법
+
+**정의 1.3.** 공개키 암호는 세 알고리즘 $(\mathsf{KeyGen}, \mathsf{Enc}, \mathsf{Dec})$ 이다. $\mathsf{KeyGen}(1^\lambda) \to (pk, sk)$, $\mathsf{Enc}(pk, m) \to c$ (확률적), $\mathsf{Dec}(sk, c) \to m$ 또는 $\bot$. **정확성**: $\Pr[\mathsf{Dec}(sk, \mathsf{Enc}(pk, m)) \ne m] \le \delta$.
+
+격자 암호에서 $\delta$ 는 0 이 아닐 수 있습니다(14장 Regev 의 복호 실패, 16장 ML-KEM 의 $2^{-164}$ 등). 그래서 정확성도 정의의 일부로 명시합니다.
+
+### 2.4 IND-CPA
+
+**정의 1.4 (IND-CPA 게임).**
+
+1. 도전자가 $(pk, sk) \leftarrow \mathsf{KeyGen}(1^\lambda)$ 을 만들고 $pk$ 를 공격자 $\mathcal{A}$ 에게 준다.
+2. $\mathcal{A}$ 가 같은 길이의 메시지 $m_0, m_1$ 을 고른다.
+3. 도전자가 비밀 동전 $b \leftarrow \{0, 1\}$ 을 던지고 $c^* = \mathsf{Enc}(pk, m_b)$ 를 준다.
+4. $\mathcal{A}$ 가 $b'$ 을 출력한다.
+
+$\mathrm{Adv}^{\text{ind-cpa}}(\mathcal{A}) = \left|\Pr[b' = b] - \tfrac12\right|$. 모든 PPT $\mathcal{A}$ 에 대해 이것이 무시 가능하면 스킴은 **IND-CPA 안전** 하다.
+
+"두 메시지 중 무엇을 암호화했는지조차 모른다"는 것이므로, 메시지에 대한 **어떤 부분 정보** 도 새지 않는다는 뜻입니다(의미적 안전성과 동치, Goldwasser–Micali).
+
+**명제 1.5.** 결정적인 $\mathsf{Enc}$ (같은 $pk, m$ 이면 항상 같은 $c$)는 IND-CPA 안전할 수 없다.
+
+*증명.* $\mathcal{A}$ 는 공개키로 $\mathsf{Enc}(pk, m_1)$ 을 직접 계산해 $c^*$ 와 비교하고, 같으면 1, 다르면 0 을 출력한다. 정확성에 의해 $m_0 \ne m_1$ 의 암호문은 달라야 하므로 $\mathcal{A}$ 는 항상 이긴다. 이득 $\tfrac12$. $\blacksquare$
+
+그래서 공개키 암호는 **반드시 무작위성을 써야** 합니다. Regev 암호의 무작위 부분집합 $r$ 이 그 역할입니다. 교과서식 RSA 처럼 결정적인 스킴은 패딩으로 무작위성을 넣어야 합니다.
+
+<INDGameSim client:visible />
+
+### 2.5 IND-CCA: 복호 오라클이 있으면
+
+현실의 공격자는 시스템이 일부 암호문을 복호해 주는 상황(오류 메시지, 프로토콜 반응)을 이용할 수 있습니다. 이를 반영한 것이 **IND-CCA** 입니다.
+
+**정의 1.6 (IND-CCA 게임).** IND-CPA 게임과 같되, 공격자는 언제든 **$c^*$ 가 아닌** 임의의 암호문 $c$ 에 대해 $\mathsf{Dec}(sk, c)$ 를 물어볼 수 있다.
+
+**명제 1.7.** Regev 암호는 IND-CCA 안전하지 않다.
+
+*증명.* 도전 암호문 $c^* = (u, v)$ 에 대해 $c' = (u, v + \lfloor q/2\rfloor)$ 는 $c^*$ 와 다른 암호문이므로 복호 질의가 허용된다. 복호의 위상 $w' = v + \lfloor q/2\rfloor - \langle u, s\rangle = w + \lfloor q/2\rfloor$ 이므로 $\mathsf{Dec}(c') = 1 - b$ (노이즈가 경계를 넘지 않는 한). 공격자는 $1 - \mathsf{Dec}(c')$ 를 출력해 이긴다. $\blacksquare$
+
+이처럼 암호문을 변조해 관련된 평문의 암호문을 만들 수 있는 성질을 **가변성(malleability)** 이라 합니다. 격자 암호는 구조상 가변적이라서, 실제 스킴(ML-KEM 등)은 **Fujisaki–Okamoto 변환** 으로 IND-CPA 스킴을 IND-CCA KEM 으로 바꿉니다. 복호 후 다시 암호화해서 같은 암호문이 나오는지 확인하는 것이 핵심 아이디어입니다(3장, 16장).
+
+### 2.6 KEM 과 서명
+
+- **KEM (키 캡슐화)**: $\mathsf{Encaps}(pk) \to (c, K)$, $\mathsf{Decaps}(sk, c) \to K$. 메시지를 직접 암호화하는 대신 무작위 공유키 $K$ 를 만들어 보냅니다. IND-CCA KEM 게임에서 공격자는 $(c^*, K_b)$ ($K_0$ 은 진짜 키, $K_1$ 은 무작위)를 받아 $b$ 를 맞혀야 합니다. ML-KEM, NTRU+ 가 KEM 입니다.
+- **서명**: $\mathsf{Sign}(sk, m) \to \sigma$, $\mathsf{Verify}(pk, m, \sigma) \to \{0, 1\}$.
+
+**정의 1.8 (EUF-CMA).** 공격자는 $pk$ 를 받고 원하는 메시지들 $m_1, \dots, m_Q$ 의 서명을 서명 오라클에 물을 수 있다. 끝에 질의하지 않은 새 메시지 $m^*$ 에 대한 유효 서명 $\sigma^*$ 를 내면 이긴다. 이길 확률이 무시 가능하면 **EUF-CMA 안전**. (이미 질의한 메시지라도 *새로운* 서명을 만들면 이기는 더 강한 정의는 **SUF-CMA**.)
+
+<Quiz
+  client:visible
+  question="IND-CCA 게임에서 공격자가 할 수 없는 것은?"
+  options={[
+    '공개키로 원하는 메시지를 암호화하기',
+    '도전 암호문 c* 가 아닌 아무 암호문이나 복호 오라클에 묻기',
+    '도전 암호문 c* 자체를 복호 오라클에 묻기',
+    '도전 암호문을 받은 뒤에도 복호 질의를 계속하기',
+  ]}
+  answer={2}
+  explanation="c* 자체를 물으면 게임이 무의미해지므로 그것만 금지됩니다. c* 를 한 비트만 바꾼 암호문은 물어볼 수 있고, 그래서 가변적인 스킴(Regev)은 IND-CCA 가 아닙니다."
+/>
+
+## 3. 환원 증명
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 구조
+
+격자 암호의 안전성 증명은 거의 모두 다음 꼴입니다.
+
+> **정리.** 문제 $P$ (예: 결정 LWE)가 어렵다면, 스킴 $\Pi$ 는 안전하다.
+
+증명은 대우로 합니다. $\Pi$ 를 이득 $\varepsilon$ 으로 깨는 공격자 $\mathcal{A}$ 가 있다면, $\mathcal{A}$ 를 부품으로 써서 $P$ 를 이득 $\varepsilon' \ge \varepsilon / \mathrm{poly}$ 로 푸는 알고리즘 $\mathcal{B}$ (**환원**)를 만듭니다. $\mathcal{B}$ 는 $P$ 의 인스턴스를 받아 $\mathcal{A}$ 에게 진짜 게임처럼 보이는 세계를 **시뮬레이션** 해 주고, $\mathcal{A}$ 의 답을 $P$ 의 답으로 바꿉니다.
+
+**작은 예제: PRG ⇒ 스트림 암호.** $G : \{0,1\}^\lambda \to \{0,1\}^\ell$ 가 **의사난수 생성기(PRG)**, 즉 $G(k)$ 가 균등한 $\ell$ 비트와 구별되지 않는다고 하자. 일회용 스트림 암호 $c = m \oplus G(k)$ 가 (도청자에 대해) IND 안전함을 보인다.
+
+*증명.* 공격자 $\mathcal{A}$ 가 이득 $\varepsilon$ 을 가진다고 하자. PRG 판별자 $\mathcal{B}$ 는 $\ell$ 비트 문자열 $y$ 를 받아 다음을 한다. $\mathcal{A}$ 에게서 $m_0, m_1$ 을 받고, 동전 $b$ 를 던져 $c^* = m_b \oplus y$ 를 주고, $\mathcal{A}$ 가 $b' = b$ 를 맞히면 "의사난수"라고 답한다.
+
+- $y = G(k)$ 이면 $\mathcal{A}$ 가 보는 세계는 진짜 게임이므로 $\Pr[b' = b] = \tfrac12 \pm \varepsilon$.
+- $y$ 가 균등하면 $c^*$ 는 OTP 이므로 $b$ 와 독립이고 $\Pr[b' = b] = \tfrac12$.
+
+따라서 $\mathcal{B}$ 의 구별 이득은 정확히 $\varepsilon$ 이다. PRG 가 안전하면 $\varepsilon$ 은 무시 가능하다. $\blacksquare$
+
+### 3.2 게임 홉
+
+복잡한 증명은 게임을 조금씩 바꿔 가는 **게임 홉(sequence of games)** 으로 정리합니다. $G_0$ 은 진짜 게임, $G_k$ 는 공격자가 이길 수 없는 게임이고, 이웃한 두 게임의 차이를 하나씩 묶습니다. 6장의 하이브리드 논법과 같습니다.
+
+$$
+\mathrm{Adv}(\mathcal{A}) = \left|\Pr[G_0] - \tfrac12\right| \le \sum_{i=1}^{k}\left|\Pr[G_{i-1}] - \Pr[G_i]\right| + \left|\Pr[G_k] - \tfrac12\right| .
+$$
+
+14장의 Regev 암호 증명을 이 형식으로 쓰면 다음과 같습니다.
+
+| 게임 | 바뀐 것 | 차이를 묶는 근거 |
+|---|---|---|
+| $G_0$ | 진짜 IND-CPA 게임 | |
+| $G_1$ | 공개키의 $b = As + e$ 를 균등한 $b$ 로 | 결정 LWE (계산적) |
+| $G_2$ | 암호문 $(A^\top r, b^\top r)$ 를 균등한 $(u, v')$ 로 | 잔여 해시 보조정리 (통계적) |
+| | $G_2$ 에서 $c^*$ 는 $b$ 와 독립 → $\Pr[G_2] = \tfrac12$ | |
+
+### 3.3 구체적 안전성과 타이트함
+
+점근적 정의("무시 가능")는 "얼마나 큰 파라미터가 필요한가"에 답하지 못합니다. 실제로는 **구체적 안전성** 을 씁니다. 시간 $t$ 를 들여 이득 $\varepsilon$ 을 얻는 공격이 있으면 대략 $t/\varepsilon$ 을 공격 비용으로 보고, 모든 공격에 대해 $t/\varepsilon \ge 2^{\kappa}$ 이면 **$\kappa$ 비트 안전** 이라고 말합니다.
+
+환원이 $\varepsilon_\Pi \le L\cdot\varepsilon_P$ 처럼 **손실 인자 $L$** 을 가지면, 문제 $P$ 가 $2^{128}$ 비트 안전해도 스킴에 대해 보장되는 것은 $2^{128}/L$ 입니다. $L = 1$ 에 가까울수록 **타이트한** 환원입니다. 예를 들어 손실이 해시 질의 수 $Q = 2^{64}$ 에 비례하면 보장은 64비트로 줄어듭니다. 14장에서 말한 "LWE 의 최악→평균 환원은 손실이 커서 파라미터를 정해 주지 않는다"는 이 문제의 극단적인 예입니다.
+
+## 4. 해시 함수와 랜덤 오라클
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 세 가지 성질
+
+해시 함수 $H : \{0,1\}^* \to \{0,1\}^t$ 에 대해
+
+- **역상 저항(preimage)**: $y$ 가 주어질 때 $H(x) = y$ 인 $x$ 를 찾기 어렵다.
+- **제2역상 저항**: $x$ 가 주어질 때 $H(x') = H(x)$ 인 $x' \ne x$ 를 찾기 어렵다.
+- **충돌 저항**: $H(x) = H(x')$ 인 서로 다른 $x, x'$ 를 찾기 어렵다.
+
+충돌 저항이면 제2역상 저항이지만, 그 역은 성립하지 않습니다. 해시 기반 서명(24장)은 어떤 성질에 기대느냐에 따라 출력 길이가 달라집니다.
+
+### 4.2 생일 공격
+
+**명제 1.9.** $t$ 비트 출력의 무작위 함수에 서로 다른 입력 $k$ 개를 넣으면 충돌이 없을 확률은 $\prod_{i<k}(1 - i/2^t) \approx e^{-k^2/2^{t+1}}$ 이다. 따라서 약 $2^{t/2}$ 번이면 충돌이 생기고, 첫 충돌까지 평균 질의 수는 $\approx\sqrt{\pi 2^t/2}$ 이다.
+
+<BirthdaySim client:visible />
+
+그래서 충돌 저항 $\lambda$ 비트를 원하면 출력이 $2\lambda$ 비트여야 합니다. 양자 알고리즘으로는 역상 찾기가 그로버로 $2^{t/2}$, 충돌 찾기가 Brassard–Høyer–Tapp 알고리즘으로 이론상 $2^{t/3}$ 이지만, 후자는 큰 양자 메모리를 요구해서 고전 병렬 충돌 탐색보다 실제로 유리하지 않다는 분석(Bernstein 2009)도 있습니다.
+
+### 4.3 랜덤 오라클 모델 (ROM)
+
+많은 효율적 스킴(FO 변환, Fiat-Shamir 서명, ML-KEM, ML-DSA)은 표준 가정만으로는 증명하기 어렵습니다. 그래서 Bellare–Rogaway(1993)는 **해시 함수를 진짜 무작위 함수로 대체** 하고, 모든 당사자가 오라클 질의로만 접근하게 하는 **랜덤 오라클 모델** 을 제안했습니다.
+
+ROM 증명이 강력한 이유는 환원 $\mathcal{B}$ 가 오라클을 **직접 흉내** 내기 때문입니다.
+
+- **관찰(extraction)**: 공격자가 무엇을 질의했는지 모두 본다. 예: "공격자가 $H(m, r)$ 을 질의하지 않고는 이 값을 알 수 없다."
+- **프로그래밍**: 아직 질의되지 않은 점의 답을 원하는 값으로 정해 둔다. 예: 서명 시뮬레이션에서 "이 질의의 답은 내가 미리 정한 도전값이다."
+
+<Aside type="caution" title="ROM 은 휴리스틱이다">
+Canetti–Goldreich–Halevi(1998)는 ROM 에서는 안전하지만 **어떤 구체적 해시 함수로 바꿔도** 깨지는 (인위적인) 스킴을 만들었습니다. 즉 "ROM 에서 안전"은 "실제로 안전"을 수학적으로 보장하지 않습니다. 그래도 자연스러운 스킴에서 ROM 증명이 깨진 사례는 드물어서, ROM 은 실용 암호의 표준 도구로 쓰입니다. 정직하게 말하면 "SHA-3 가 무작위 함수처럼 행동한다"는 추가 가정을 하는 셈입니다.
+</Aside>
+
+### 4.4 양자 랜덤 오라클 모델 (QROM)
+
+양자 공격자는 해시 함수를 자기 컴퓨터에서 **양자 회로로** 돌릴 수 있으므로, 오라클에 **중첩 상태로** 질의한다고 봐야 합니다($\sum_x \alpha_x|x\rangle \mapsto \sum_x\alpha_x|x, H(x)\rangle$). 이것이 Boneh 외(Asiacrypt 2011)가 정식화한 **QROM** 입니다.
+
+문제는 ROM 증명의 두 무기가 무너진다는 것입니다. 중첩 질의를 "기록"하려고 측정하면 공격자의 상태가 바뀌고(복제 불가 정리), "이 점을 질의했는가"라는 질문 자체가 잘 정의되지 않습니다. 그래서 PQC 의 안전성 증명은 QROM 전용 기법을 씁니다. 대표적으로 Zhandry 의 **압축 오라클(compressed oracle)**(CRYPTO 2019)이 양자 질의를 "기록"하는 방법을 제시했고, FO 변환의 QROM 증명(Hofheinz–Hövelmanns–Kiltz 2017 등)이 ML-KEM 의 안전성 근거입니다. QROM 증명은 종종 질의 수 $Q$ 에 대해 $Q^2$ 같은 손실을 가져서, 3.3절의 타이트함 문제가 PQC 에서 특히 중요합니다.
+
+<Quiz
+  client:visible
+  question="출력이 256비트인 해시 함수의 (고전) 충돌 저항은 대략 몇 비트인가?"
+  options={['256비트', '128비트', '85비트', '64비트']}
+  answer={1}
+  explanation="생일 공격으로 약 2^(256/2) = 2^128 번이면 충돌이 생깁니다. 양자 BHT 알고리즘은 이론상 2^(256/3) ≈ 2^85 이지만, 메모리 비용 때문에 실제 위협은 논쟁적입니다."
+/>
+
+## 5. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **정의는 진화한다.** KEM 은 오랫동안 IND-CCA 만 요구받았지만, 프로토콜 안에서 쓰일 때는 "같은 공유키가 서로 다른 암호문·공개키에서 나올 수 있는가" 같은 **결합(binding) 성질** 도 중요하다는 지적이 나왔습니다(Cremers–Dax–Medinger, *Keeping Up with the KEMs*, CCS 2024). 새로운 공격 시나리오가 새로운 정의를 낳습니다.
+- **타이트함과 다중 사용자.** 수십억 명이 같은 스킴을 쓰면 "한 명이라도 깨지는" 확률이 사용자 수만큼 커질 수 있습니다. 다중 사용자 환경과 QROM 에서의 타이트한 증명은 활발한 연구 주제입니다.
+- **모델 밖의 공격.** 게임은 공격자가 알고리즘의 입출력만 본다고 가정합니다. 실행 시간, 전력, 캐시 같은 **부채널** 은 모델 밖에 있습니다(20장). "증명된 스킴"이 실제로 깨지는 대부분의 경우가 여기에 해당합니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **J. Katz, Y. Lindell**, *Introduction to Modern Cryptography* (3판, 2020). 정의·증명 장들. 이 장의 표준 교과서.
+2. **D. Boneh, V. Shoup**, *A Graduate Course in Applied Cryptography* (저자 웹사이트 무료 공개). 게임과 구체적 안전성의 언어로 일관되게 쓰여 있습니다.
+3. **V. Shoup**, *Sequences of Games: A Tool for Taming Complexity in Security Proofs*, Cryptology ePrint Archive 2004/332. 게임 홉 증명을 쓰는 법.
+4. **M. Bellare, P. Rogaway**, *Random Oracles are Practical*, CCS 1993 / **R. Canetti, O. Goldreich, S. Halevi**, *The Random Oracle Methodology, Revisited*, STOC 1998. 같이 읽으면 ROM 의 의미와 한계가 보입니다.
+5. **M. Zhandry**, *How to Record Quantum Queries, and Applications to Quantum Indifferentiability*, CRYPTO 2019. QROM 증명 기법의 전환점. 5장(양자) 이후에 읽으세요.
+
+## 연습문제
+
+**★ 1.** 다음이 무시 가능한지 판정하세요: (a) $2^{-\lambda/2}$ (b) $\lambda^{-10}$ (c) $2^{-\log^2\lambda}$ (d) $2^{-\log\lambda}$ (e) $1/\lambda!$
+
+<details>
+<summary>해설</summary>
+
+(a) 예. (b) 아니오(다항식의 역수). (c) 예: $2^{-\log^2\lambda} = \lambda^{-\log\lambda}$ 이고 지수 $\log\lambda$ 가 어떤 상수보다도 결국 커집니다. (d) 아니오: $2^{-\log\lambda} = 1/\lambda$. (e) 예.
+
+</details>
+
+**★ 2.** 같은 키로 OTP 를 두 번 쓰면 무엇이 새어 나가나요? 두 메시지가 영어 문장이라면 공격자는 무엇을 할 수 있을까요?
+
+<details>
+<summary>해설</summary>
+
+$c_1 \oplus c_2 = m_1 \oplus m_2$ 로 키가 사라집니다. 자연어는 중복성이 커서, 한쪽 메시지의 일부를 추측(예: 흔한 단어)하면 다른 쪽의 같은 위치가 드러나고, 이를 반복해 두 메시지를 상당 부분 복구할 수 있습니다.
+
+</details>
+
+**★ 3.** 위젯에서 "노이즈 없는 Regev + 가우스 소거"가 이득 ½ 을 얻는 이유를 14장의 용어로 설명하세요. 노이즈가 있을 때 같은 전략이 실패하는 이유는?
+
+<details>
+<summary>해설</summary>
+
+노이즈가 없으면 공개키 $b = As$ 는 연립일차방정식이라 $m \ge n$ 개의 식으로 $s$ 가 유일하게 정해지고, 그러면 복호를 그대로 할 수 있습니다. 노이즈가 있으면 식들이 서로 모순되어(정확히 맞는 해가 없어) 소거법이 실패합니다. 이것이 14장 2.3절의 "노이즈 = 0 이면 다항 시간"입니다.
+
+</details>
+
+**★★ 4.** 명제 1.7 의 공격에서 "노이즈가 경계를 넘지 않는 한"이라는 조건을 정확히 쓰고, 이 공격이 실패할 확률이 원래 복호 실패 확률과 어떤 관계인지 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+$c'$ 의 위상은 $w' = e^\top r + (b + 1)\lfloor q/2\rfloor \bmod q$ 입니다. $b = 0$ 이면 $c'$ 은 "1 의 정상 암호문"과 같은 분포, $b = 1$ 이면 $2\lfloor q/2\rfloor = q - 1$ ($q$ 홀수) 만큼 이동해 $e^\top r - 1$ 이 되어 "0 의 암호문"에 가깝습니다. 따라서 공격은 정상 복호가 성공할 때 성공하고, 실패 확률은 복호 실패 확률과 거의 같습니다(위상이 1 만큼 이동하는 차이만 있음).
+
+</details>
+
+**★★ 5.** 게임 홉 부등식(3.2절)을 삼각부등식으로 증명하고, $k$ 번의 홉 각각의 차이가 $\varepsilon_i$ 이면 공격자의 이득이 $\sum\varepsilon_i$ 이하임을 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$\Pr[G_0] - \tfrac12 = \sum_{i=1}^k(\Pr[G_{i-1}] - \Pr[G_i]) + (\Pr[G_k] - \tfrac12)$ (망원합)에 절댓값과 삼각부등식을 적용하면 됩니다. 마지막 항이 0 이면 $\mathrm{Adv} \le \sum\varepsilon_i$.
+
+</details>
+
+**★★ 6.** 어떤 서명 스킴의 증명이 "$\varepsilon_{\text{forge}} \le Q_H\cdot\varepsilon_{\text{SIS}} + Q_S^2/2^{256}$" ($Q_H$: 해시 질의 수, $Q_S$: 서명 질의 수)라고 하자. $Q_H = 2^{64}$, $Q_S = 2^{40}$, SIS 문제가 128비트 안전하다면 이 증명이 보장하는 안전성은 몇 비트인가요?
+
+<details>
+<summary>해설</summary>
+
+첫 항: $\varepsilon_{\text{SIS}} \approx t/2^{128}$ 이면 $Q_H\varepsilon_{\text{SIS}} \approx t\cdot 2^{64}/2^{128}$, 즉 공격 비용 $t/\varepsilon \approx 2^{64}$. 둘째 항 $2^{80}/2^{256}$ 은 무시할 만합니다. 따라서 증명이 보장하는 것은 약 **64비트** 입니다. 실제 공격이 그렇게 강하다는 뜻은 아니지만, 증명만으로는 128비트를 주장할 수 없습니다. 이것이 타이트함 연구의 동기입니다.
+
+</details>
+
+**★★ 7.** 명제 1.9 의 근사 $\prod_{i<k}(1 - i/N) \approx e^{-k^2/2N}$ 을 $1 - x \le e^{-x}$ 로 유도하고, 충돌 확률이 $\tfrac12$ 이 되는 $k$ 가 약 $1.177\sqrt N$ 임을 보이세요. $t = 256$ 이면 $k$ 는?
+
+<details>
+<summary>해설</summary>
+
+$\prod(1 - i/N) \le \prod e^{-i/N} = e^{-k(k-1)/2N} \approx e^{-k^2/2N}$. $e^{-k^2/2N} = \tfrac12 \iff k = \sqrt{2\ln2\cdot N} \approx 1.177\sqrt N$. $t = 256$ 이면 $k \approx 1.18\cdot 2^{128}$.
+
+</details>
+
+**★★★ 8.** Shannon 의 정리: 완전 비밀성을 가진 스킴은 $|\mathcal{K}| \ge |\mathcal{M}|$ 이어야 함을 증명하세요.
+
+<details>
+<summary>해설</summary>
+
+귀류법. $|\mathcal{K}| < |\mathcal{M}|$ 이라 하고, 메시지를 균등하게 뽑고, 가능한 암호문 $c$ 를 하나 고정하자. $c$ 로 복호될 수 있는 메시지는 $\{\mathsf{Dec}(k, c) : k \in \mathcal{K}\}$ 로 많아야 $|\mathcal{K}|$ 개이므로, 이 집합 밖의 메시지 $m$ 이 있다. 그러면 $\Pr[M = m \mid C = c] = 0 \ne \Pr[M = m] = 1/|\mathcal{M}|$ 이라 완전 비밀성에 모순입니다.
+
+</details>
+
+**★★★ 9.** 3.1절의 PRG 예제를 **두 개의** 메시지를 같은 시드로 암호화하는 경우로 바꾸면 무엇이 깨지나요? 이를 고치려면 PRG 대신 무엇이 필요한가요? (힌트: 의사난수 함수 PRF 와 논스)
+
+<details>
+<summary>해설</summary>
+
+같은 $G(k)$ 를 두 번 쓰면 2번 문제의 이중 패드가 되어 $c_1 \oplus c_2 = m_1 \oplus m_2$ 가 샙니다. 메시지마다 다른 키스트림이 필요하므로, PRF $F_k$ 와 메시지마다 바뀌는 논스 $N$ 으로 $c = (N, m \oplus F_k(N))$ 처럼 만들고, 다중 메시지 IND 안전성을 PRF 의 안전성으로 환원합니다(같은 논스를 쓰지 않는다는 조건 아래).
+
+</details>
+
+**★★★ 10. (읽기)** Canetti–Goldreich–Halevi(1998)의 반례 스킴의 아이디어를 한 쪽으로 요약하세요. 왜 이 반례가 "자연스러운" 스킴에는 직접 적용되지 않는다고 여겨지나요?
+
+## 요약
+
+- 안전성은 **게임** 으로 정의한다: 도전자, 공격자, 승리 조건, 이득 $|\Pr[\text{승리}] - \tfrac12|$.
+- 무시 가능 = 모든 다항식의 역수보다 빨리 0 으로. 다항식 배 손실을 견딘다.
+- 완전 비밀성은 키가 메시지만큼 길어야 한다(Shannon). 그래서 계산적 안전성을 쓴다.
+- IND-CPA: 결정적 암호화는 불가능 → 무작위성이 필수. IND-CCA: 가변적인 스킴(Regev)은 불가능 → FO 변환이 필요. 서명은 EUF-CMA.
+- 환원 증명: 스킴을 깨는 공격자로 어려운 문제를 푼다. 게임 홉으로 차이를 하나씩 묶는다. 손실 인자가 실제 보장 비트 수를 줄인다(타이트함).
+- 해시: 역상·제2역상·충돌 저항. 생일 공격으로 충돌은 $2^{t/2}$.
+- ROM 은 해시를 무작위 함수로 보는 휴리스틱이고, 양자 공격자는 중첩 질의를 하므로 QROM 이 필요하다. PQC 의 FO·Fiat-Shamir 증명은 QROM 에서 이루어진다.
+- 다음: [2장](../ch02-algebra/)에서 수학 도구를 준비하고, 3장에서 KEM 과 FO 변환을 자세히 다룬다.
+
+## 참고문헌
+
+- C. E. Shannon, *Communication theory of secrecy systems*, Bell System Technical Journal, 1949.
+- S. Goldwasser, S. Micali, *Probabilistic encryption*, J. Comput. Syst. Sci. 28(2), 1984.
+- M. Bellare, P. Rogaway, *Random oracles are practical: A paradigm for designing efficient protocols*, CCS 1993.
+- R. Canetti, O. Goldreich, S. Halevi, *The random oracle methodology, revisited*, STOC 1998.
+- G. Brassard, P. Høyer, A. Tapp, *Quantum cryptanalysis of hash and claw-free functions*, LATIN 1998.
+- V. Shoup, *Sequences of games: a tool for taming complexity in security proofs*, ePrint 2004/332.
+- D. J. Bernstein, *Cost analysis of hash collisions: Will quantum computers make SHARCS obsolete?*, SHARCS 2009.
+- D. Boneh, Ö. Dagdelen, M. Fischlin, A. Lehmann, C. Schaffner, M. Zhandry, *Random oracles in a quantum world*, Asiacrypt 2011.
+- D. Hofheinz, K. Hövelmanns, E. Kiltz, *A modular analysis of the Fujisaki–Okamoto transformation*, TCC 2017.
+- M. Zhandry, *How to record quantum queries, and applications to quantum indifferentiability*, CRYPTO 2019.
+- C. Cremers, A. Dax, N. Medinger, *Keeping up with the KEMs: Stronger security notions for KEMs and automated analysis of KEM-based protocols*, CCS 2024.
