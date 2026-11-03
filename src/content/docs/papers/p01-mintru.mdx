@@ -1,0 +1,326 @@
+---
+title: "논문 읽기 1. Lattice analysis on MiNTRU problem"
+description: overstretched NTRU 류 가정에 대한 Kirchner–Fouque 식 밀집 부분격자 공격의 사례 연구. 선수 지식, 미니 입문, 절별 지도, 핵심 논증 해설, 재계산·재현, 표기 검산, 자가 점검 질문.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import OverstretchedCalc from '../../../components/OverstretchedCalc.tsx';
+
+<div class="goals">
+
+**대상 논문**: C. Lee, A. Wallet, *Lattice analysis on MiNTRU problem*, [Cryptology ePrint Archive 2020/230](https://eprint.iacr.org/2020/230) (10쪽, 2020년 2월 버전 기준).
+
+**한 문장 요약**: Asiacrypt 2019 의 동형암호(GGH+19)가 기댄 새 가정 MiNTRU 는 모듈러스가 지나치게 큰(overstretched) 파라미터를 썼는데, Kirchner–Fouque(2017)식 **밀집 부분격자(dense sublattice) 공격** 을 적용하면 100비트 안전성을 주장한 가장 작은 파라미터가 노트북 한 코어로 약 15시간 만에 깨진다.
+
+**이 가이드로 얻는 것**: 암호해석 논문 한 편을 "가정 → 격자 구성 → 휴리스틱 분석 → 실제 공격 → 키 복구" 순서로 읽고, 핵심 계산을 직접 검산하고, 작은 파라미터에서 공격을 재현하는 경험.
+
+**예상 소요**: 1회독 2시간, 정독과 검산 6~8시간, 재현 실험([Lab 2](#8-재현-실험-lab-2)) 4~6시간.
+
+</div>
+
+## 이 가이드의 사용법
+
+1. **1절(선수 지식)** 을 체크하고 모자란 부분은 해당 장을 먼저 봅니다.
+2. **2절(미니 입문)** 은 논문이 "안다고 가정하는" 개념(NTRU 격자, overstretched, gadget 행렬, Pataki–Tural)을 채웁니다.
+3. **3절(논문 지도)** 을 옆에 두고 원문을 읽습니다. 처음엔 §3.1·§4 만, 두 번째에 §3.2·§3.3 의 계산을 따라갑니다.
+4. **4~5절** 로 핵심 논증과 수치를 검산하고, **6절** 의 표기 주의점을 직접 확인합니다.
+5. **7절** 질문에 답할 수 있으면 "읽었다"고 말할 수 있습니다. **8절** 은 재현 실험입니다.
+
+## 0. 왜 이 논문을 읽나
+
+- **짧고 완결적.** 본문 8쪽 안에 암호해석 논문의 전형적인 구조가 모두 들어 있습니다.
+- **핵심 경로와 정확히 겹침.** q-ary 격자와 부피([7장](../../ch07-lattices/)), uSVP 와 Gaussian heuristic([6장](../../ch06-linalg-prob/)·[8장](../../ch08-lattice-problems/)), LLL·GSA·제곱근 Hermite 인자([9장](../../ch09-lll/))를 실제 공격에 씁니다.
+- **연구 흐름의 한 지점.** overstretched NTRU 에 대한 부분체 공격(Cheon–Jeong–Lee 2016, Albrecht–Bai–Ducas 2016) → 이를 순수 격자 축소로 재해석한 Kirchner–Fouque(2017) → 그 렌즈를 **구조가 없는 행렬 버전** NTRU 에 적용한 이 논문 → 예측 모델을 정밀화한 *NTRU Fatigue*(2021). "대수 구조가 아니라 기하가 핵심"이라는 메시지가 한 줄로 이어집니다.
+
+## 1. 선수 지식 체크리스트
+
+| 개념 | 논문에서 쓰는 곳 | 교과서 | 점검 질문 |
+|---|---|---|---|
+| q-ary 격자, 부피, 부분격자 | §3.1–3.2 의 $\Lambda_q(C_0)$ | [7장](../../ch07-lattices/) 3절 | $\Lambda_q$ 의 부피가 왜 $q^n$ 인가? |
+| Gram-Schmidt, $\operatorname{vol} = \prod\|b_i^*\|$, Hadamard | Lemma 2.1–2.3 | [6장](../../ch06-linalg-prob/) 2절 | Lemma 2.3 증명에 Hadamard 가 어떻게 쓰이나? |
+| Gaussian heuristic | Heuristic 1, 식 (3.1) | [6장](../../ch06-linalg-prob/) 7절 | GH 를 사영 격자 $L^\perp$ 에 적용하는 근거는? |
+| LLL, GSA, 제곱근 Hermite 인자 $\delta$ | Heuristic 2, Lemma 2.1 | [9장](../../ch09-lll/) 3·5절 | GSA 아래 $\|b_i^*\|/\|b_{i+1}^*\|$ 은? |
+| uSVP 와 "유난히 짧은 벡터" | §1 의 KF17 직관 | [8장](../../ch08-lattice-problems/) 3절, [14장](../../ch14-lwe/) 4절 | 임베딩 공격의 gap 과 이 논문의 "부피 gap" 의 공통점은? |
+| 사영, 직교 여공간 | §3.2 의 $L^\perp$ | [6장](../../ch06-linalg-prob/) 2절, [7장](../../ch07-lattices/) 5절 | $\operatorname{Vol}(L^\perp) = \operatorname{Vol}(L(B'))/\operatorname{Vol}(L(X'))$ 인 이유는? |
+| Hermite 정규형(HNF) | §3.2 의 $X'$ 구성 | [7장](../../ch07-lattices/) 연습문제 10 | HNF 의 마지막 블록이 단위행렬이면 무엇을 할 수 있나? |
+| BKZ (블록 크기 $\beta$) | 실험의 BKZ-20 | 10장 (예정) | "$\beta$ 가 크면 $\delta$ 가 작다" 정도면 충분 |
+| NTRU 문제, overstretched | §1 전체 | 15·19장 (예정) → **아래 2절** | 2.1–2.2 |
+
+## 2. 미니 입문
+
+### 2.1 NTRU 문제와 NTRU 격자
+
+작은 계수의 비밀 다항식 $f, g$ 로 $h = f/g \bmod q$ 를 공개하고, 공격자는 $(f, g)$ 를 찾아야 합니다. $gh - f \equiv 0 \pmod q$ 이므로 $(f, g)$ 는 다음 격자의 **아주 짧은 벡터** 입니다.
+
+$$
+\Lambda_q = \{(u, v) \in \mathbb{Z}^{2n} : vh - u \equiv 0 \pmod q\},\qquad
+B_{\mathrm{NTRU}} = \begin{pmatrix} qI_n & 0\\ h & I_n\end{pmatrix},\qquad
+\operatorname{Vol}(\Lambda_q) = q^n .
+$$
+
+행 $(h_i, e_i)$ 는 $v = e_i$ 일 때 $u = e_ih$ 이므로 격자에 속합니다. 7장의 q-ary 격자와 같은 구조입니다.
+
+### 2.2 overstretched 와 밀집 부분격자
+
+$(f, g)$ 와 그 "회전들"(환 구조에서는 Galois 켤레, 행렬 버전에서는 비밀 행렬의 모든 행)이 함께 **랭크 $n$ 부분격자** $L$ 을 이룹니다. 비밀이 작으니 $\operatorname{Vol}(L)$ 은 작고, 전체 격자의 부피는 $q^n$ 입니다. $q$ 가 엄청나게 크면(overstretched) 이 부피 차이를 메우기 위해 격자 축소가 내놓는 짧은 벡터들이 이 부분격자 안으로 **"떨어질" 수밖에 없습니다**. 최단 벡터 하나를 찾는 uSVP 보다 "랭크가 크고 부피가 아주 작은 부분격자"를 찾는 것이 훨씬 쉬워지는 구간이 있다는 것, 이것이 Kirchner–Fouque 의 관찰입니다.
+
+<Aside type="note" title="교과서와 연결">
+14장 임베딩 공격의 "gap = GH ÷ ‖숨은 벡터‖"는 *벡터 하나* 의 이례성이었습니다. 이 논문은 *부분격자 전체* 의 이례성(부피 gap)을 씁니다. 19장의 dense sublattice 공격의 원형입니다.
+</Aside>
+
+### 2.3 gadget 행렬과 MiNTRU
+
+$\ell = \log_2 q$, $m = n\ell$ 일 때 gadget 행렬은 $G = [\,I_n \mid 2I_n \mid 4I_n \mid \cdots \mid 2^{\ell-1}I_n\,] \in \mathbb{Z}_q^{n\times m}$. 블록 $i$ 가 $2^iI_n$ 이라는 점만 기억하면 됩니다.
+
+**MiNTRU 표본**: 작은(실제 파라미터에선 **균등 이진**) $S \in \{0,1\}^{n\times n}$ (mod $q$ 가역)과 $E \in \{0,1\}^{n\times m}$ 으로
+
+$$
+C = S^{-1}(G - E) \bmod q \in \mathbb{Z}_q^{n\times m}.
+$$
+
+계산 문제는 $C$ 에서 $(S, E)$ 찾기, 결정 문제는 $C$ 를 균등 무작위 행렬과 구별하기입니다. GGH+19 의 안전성은 결정 버전에 기대고, 계산 문제를 풀면 결정 문제도 풀리므로 **$S$ 를 복구하면 안전성 증명이 무의미해집니다**. NTRU 와의 대응: 첫 블록 $C_0 = S^{-1}(I_n - E_0)$, 즉 $SC_0 \equiv I_n - E_0$ 는 "$h = f/g$" 의 행렬판이고, 환 구조가 없다는 점만 다릅니다.
+
+### 2.4 Pataki–Tural 보조정리
+
+완전 랭크 격자의 임의의 기저 $b_1, \dots, b_n$ 과 랭크 $d$ 인 임의의 부분격자 $L'$ 에 대해
+
+$$
+\min_{S \subset [n],\, |S| = d}\ \prod_{i \in S}\|b_i^*\| \;\le\; \operatorname{Vol}(L').
+$$
+
+Gram-Schmidt 길이 중 **작은 것 $d$ 개의 곱** 은 어떤 랭크 $d$ 부분격자의 부피보다도 작다는 뜻입니다. GSA 를 가정하면 작은 것들은 맨 끝 $d$ 개이므로, "부피가 작은 부분격자가 있다 → 축소된 기저의 꼬리가 작아야 한다 → (GSA 로) 머리 $\|b_1\|$ 도 작아야 한다"로 이어집니다.
+
+## 3. 논문 지도
+
+| 절 | 내용 | 읽는 법 |
+|---|---|---|
+| §1 서론 | NTRU, overstretched, 부분체 공격 → KF17 의 재해석, MiNTRU 정의, 기여 | 1회독 필수. "only geometric properties … are core to the attack" 에 밑줄. |
+| §2.1 격자 | GH, GSA($\delta_\beta$ 공식), Lemma 2.1, Pataki–Tural | Lemma 2.1 의 지수 $k(3k-1)$ 을 직접 유도(4절 C). |
+| §2.2 이진 행렬 | Lemma 2.3 $\mathbb{E}[\operatorname{Vol}(L(X))] \le (m/2)^{n/2}$, 실험값 $(n/2)^{n/2}$, Prop 2.4 $\|S^{-1}\|_\infty \approx n$ | "이론 상한이 느슨해 실험적 상한을 쓴다"는 판단 방식에 주목. |
+| §2.3 MiNTRU | 정의, 파라미터 $(n, q) \in \{(2^{10}, 2^{42}), (2^{12}, 2^{111}), (2^{15}, 2^{883})\}$, $q = 2^{\alpha\sqrt n}$ | $\alpha$ 를 직접 계산(1.31, 1.73, 4.88). |
+| §3.1 개요 | 2단계 공격: 부분격자 축소로 $S' = TS$ → $T$ 복구 | 전체 그림. 1회독 필수. |
+| §3.2 격자 단계 분석 | KF17 식 부분행렬 $B'$, 부피 상한, 사영 격자의 GH, 조건 (3.1)(3.2), 점근 분석 | **논문의 심장.** 4절 B–D 와 나란히. 6절 표기 주의. |
+| §3.3 키 복구 | $D_j$ 를 정수 위에서 계산 → 망원합 → 반올림으로 $T$ | 4절 E 와 대조. 부호 주의. |
+| §4 실험 | 표 1(작은 파라미터, LLL 로 충분), 실제 공격($k = 280$, BKZ-20, 180비트 정밀도, 약 15시간) | 5절의 재계산·재현과 비교. 저자 코드 주소가 논문에 있음. |
+
+## 4. 핵심 논증 단계별 해설
+
+### A. 왜 밀집 부분격자가 있는가 (§3.1)
+
+$SC_0 \equiv I_n - E_0$ 이므로 $X = [\,S \mid I_n - E_0\,]$ 의 각 행은 $\Lambda_q(C_0) = \{(u, v) : uC_0 \equiv v\}$ 에 속하고, $L(X)$ 는 랭크 $n$ 부분격자입니다. $n = 2^{10}$, $q = 2^{42}$ 에서 크기를 비교하면
+
+| | $\log_2$ 부피 |
+|---|---|
+| 전체 격자 $\Lambda_q(C_0)$ (차원 $2n$) | $n\log_2 q = 1024 \times 42 = 43008$ |
+| 밀집 부분격자 $L(X)$ (랭크 $n$), 실험적 상한 $(n/2)^{n/2}$ | $\tfrac n2\log_2\tfrac n2 = 512 \times 9 = 4608$ |
+
+랭크는 절반인데 부피는 $2^{38400}$ 배 작습니다.
+
+### B. 차원 줄이기: KF17 의 부분행렬 (§3.2)
+
+$2n = 2048$ 차원 전체 대신, 기저를 블록으로 나눠 가운데 $2k \times 2k$ 부분행렬
+
+$$
+B' = \begin{pmatrix} qI_k & 0\\ C_{01} & I_k\end{pmatrix}
+$$
+
+만 축소합니다($C_{01}$ 은 $C_0$ 의 앞 $k$ 행·뒤 $k$ 열 블록). 이 작은 격자에도 밀집 부분격자의 "조각" $L(X')$ (랭크 $k$)이 들어 있다는 것이 HNF 논증이고, $\operatorname{Vol}(L(X')) \le \operatorname{Vol}(L(X))$ 입니다.
+
+### C. 두 부등식의 대결 (§3.2, 식 (3.1)(3.2))
+
+**상한: 축소된 첫 벡터는 짧다.** GSA $\|b_i^*\| = \delta^2\|b_{i+1}^*\|$ 로 $2k$ 차원 기저의 뒤쪽 $k$ 개 곱을 계산하면
+
+$$
+\prod_{i=1}^{k}\|b_{k+i}^*\| = \|b_1\|^k\,\delta^{-2\sum_{i=1}^k(k+i-1)} = \|b_1\|^k\,\delta^{-k(3k-1)} \quad(\text{Lemma 2.1}).
+$$
+
+Pataki–Tural 로 이 값은 $\operatorname{Vol}(L(X'))$ 이하이므로 $\|b_1'\| \le \delta^{3k-1}\operatorname{Vol}(L(X'))^{1/k}$.
+
+**하한: 밀집 부분격자 밖의 벡터는 길다.** $L(B')$ 를 $\operatorname{span}(X')$ 의 직교 여공간으로 사영한 격자 $L^\perp$ 는 랭크 $k$, 부피 $q^k/\operatorname{Vol}(L(X'))$ ($L(X')$ 가 원시 부분격자일 때). GH 로
+
+$$
+\lambda_1(L^\perp)^k \approx \left(\frac{k}{2\pi e}\right)^{k/2}\frac{q^k}{\operatorname{Vol}(L(X'))}.
+$$
+
+$L(X')$ 밖의 벡터는 사영이 0 이 아니므로 길이가 $\lambda_1(L^\perp)$ 이상입니다. 따라서 **$\|b_1'\| < \lambda_1(L^\perp)$ 이면 $b_1' \in L(X')$**. 두 식을 합치고 $\operatorname{Vol}(L(X'))^2 \le (n/2)^n$ 을 대입하면 공격 성공의 충분조건 (3.2) 가 나옵니다.
+
+$$
+\left(\frac{k}{2\pi e}\right)^{k/2} q^k \;\ge\; \delta_\beta^{\,k(3k-1)}\,(n/2)^{n}.
+$$
+
+### D. 점근 분석: 왜 $q = 2^{\alpha\sqrt n}$ 이 치명적인가 (§3.2 끝)
+
+로그를 취하고 작은 항을 버리면 $\log q \ge 3k\log\delta + \tfrac nk\log\tfrac n2$. 우변을 $k$ 에 대해 최소화하면(산술–기하 평균) $k^\ast = \sqrt{n\log(n/2)/(3\log\delta)}$ 에서
+
+$$
+\log q \;\ge\; \sqrt{12\,n\,\log\delta\,\log(n/2)}.
+$$
+
+$\log q = \alpha\sqrt n$ 이면 $\log\delta \le \alpha^2/(12\log(n/2))$ 로 충분합니다. 필요한 제곱근 Hermite 인자가 $1 + O(1/\log n)$ 이면 되므로, **블록 크기가 차원에 비해 아주 천천히 커져도 된다** 는 뜻입니다. (마지막 해석은 가이드의 것: $\log\delta_\beta \approx \frac{\log\beta}{2\beta}$ 로 보면 $\beta$ 가 대략 $\log n$ 규모면 충분합니다.)
+
+### E. 비밀키 복구 (§3.3)
+
+격자 단계가 끝나면 $S' = TS$ ($T$ 는 작은 정수 행렬)인 짧은 행렬을 얻습니다. $C_j = S^{-1}(2^jI - E_j)$ 를 쓰면
+
+$$
+D_0 := S'C_0 \bmod q = T(I - E_0),\qquad
+D_j := S'(C_j - 2C_{j-1}) \bmod q = T(2E_{j-1} - E_j)\ \ (j \ge 1).
+$$
+
+오른쪽이 모두 작은 행렬이라 **중심 대표값으로 보면 정수 위의 등식** 입니다. 망원합으로
+
+$$
+\sum_{j=0}^{i} 2^{i-j}D_j = T(2^iI - E_i) \quad(\text{정수 위}).
+$$
+
+$i = r = \log_2 q - 1$ 이면 $T(2^rI - E_r)/2^r = T - TE_r/2^r$ 이고, $\|TE_r\|_\infty < 2^{r-1} = q/4$ 이면 반올림으로 $T$ 가 정확히 나옵니다. 그러면 $S = T^{-1}S'$. (가이드 작성 시 $n = 8$, $q = 2^{20}$ 예제의 정수 연산으로 이 등식들을 검산했습니다.)
+
+## 5. 실험 읽기, 재계산, 재현
+
+### 5.1 논문의 보고
+
+- **표 1**: $n = 2^6 \sim 2^9$, $\log q = 22 \sim 37$ 에서 모두 비밀 복구 성공. $n = 2^8, 2^9$ 은 BKZ-20 이 필요하다고 계산했지만 **실제로는 LLL 로 충분** 했다("LLL overperforms").
+- **실제 공격**: $n = 2^{10}$, $q = 2^{42}$, $k = 280$, BKZ-20 (SageMath 9.0, fplll 0.5.1, 부동소수점 정밀도 180비트). 약 15시간 뒤 $L(S)$ 에 속하는 짧은 벡터 $k$ 개. 여러 코어로 $n$ 개 이상 얻을 수 있어 전체 공격이 성립한다고 결론.
+
+### 5.2 식 (3.2) 를 직접 계산해 보기
+
+<OverstretchedCalc client:visible />
+
+같은 계산을 표로 정리하면(이 교과서의 `tests/overstretched.test.ts` 가 확인하는 수치):
+
+| $\delta$ 가정 | $n = 2^{10}, q = 2^{42}$ 에서 (3.2) 를 만족하는 $k$ | $k = 280$ 의 여유 ($\log_2$) |
+|---|---|---|
+| GSA 근사식으로 $\beta = 20$: $\delta \approx 1.00965$ | $287 \le k \le 800$ | $-145$ (경계 바로 밖) |
+| BKZ-20 실험값 근사 $\delta \approx 1.0128$ | 없음 | $-1202$ |
+| LLL 실험값 $\delta \approx 1.0219$ | 없음 | $-4233$ |
+
+| 작은 파라미터 | 논문이 쓴 $2k$ | (3.2) 가 요구하는 최소 $2k$ (LLL / BKZ-20 실험 $\delta$) |
+|---|---|---|
+| $n = 2^6$, $\log q = 22$ | 24 | 32 / 32 |
+| $n = 2^7$, $\log q = 27$ | 50 | 64 / 60 |
+| $n = 2^8$, $\log q = 32$ | 100 | 136 / 122 |
+| $n = 2^9$, $\log q = 37$ | 216 | 불가 / 262 |
+
+<Aside type="caution" title="해석: (3.2) 는 보수적인 충분조건이다">
+실제 공격은 (3.2) 가 요구하는 것보다 작은 $k$ 와 약한 축소로 성공했습니다. 이유 후보: (1) $\operatorname{Vol}(L(X'))$ 를 최악의 경우인 $\operatorname{Vol}(L(X))$ 로, 그것도 느슨한 실험 상한 $(n/2)^{n/2}$ 로 바꿨다. (2) GSA·GH 는 근사이고, 작은 블록에서 실제 $\delta$ 와 GSA 근사식 값이 다르다. (3) 밀집 부분격자의 "조각"이 여러 개라 축소가 더 쉽게 걸려든다. 이 "예측과 실험의 차이"를 정밀하게 다룬 후속 연구가 Ducas–van Woerden, *NTRU Fatigue: How Stretched is Overstretched?* (Asiacrypt 2021) 입니다.
+</Aside>
+
+### 5.3 작은 파라미터 재현
+
+교과서 Lab 1 의 순수 Python LLL($\delta = 0.99$)로, 논문 표 1 과 같은 $2k$ 에서 격자 단계를 재현한 결과입니다([Lab 2](#8-재현-실험-lab-2) 스크립트).
+
+| 설정 (시드 2개) | 시간 | 앞 $k$ 개 중 $L(S)$ 에 속한 벡터 | $\log_2\|b_1\|$, $\log_2\|b_k\|$, $\log_2\|b_{k+1}\|$ |
+|---|---|---|---|
+| $n = 2^6$, $q = 2^{22}$, $2k = 24$ | 0.0초 | 12/12, 12/12 | 7.4, 8.6, **14.0** / 8.1, 8.4, **13.8** |
+| $n = 2^7$, $q = 2^{27}$, $2k = 50$ | 0.5초 | 25/25, 25/25 | 10.7, 11.0, **17.3** / 10.6, 11.1, **17.5** |
+| $n = 2^8$, $q = 2^{32}$, $2k = 100$ | 약 12초 | 50/50, 50/50 | 14.2, 14.2, **20.5** / 14.0, 14.2, **20.6** |
+
+$k$ 번째와 $k+1$ 번째 사이에서 길이가 $2^5 \sim 2^6$ 배 뛰는 것이, 논문이 말한 "앞 $k$ 개는 짧은 벡터, 다음 $k$ 개는 훨씬 길다"는 현상입니다. 논문처럼 BKZ 없이 LLL 만으로 성공합니다.
+
+## 6. 읽을 때 주의할 표기 (검산 연습)
+
+원문을 정독하며 직접 검산하면 걸리는 부분들입니다. 모두 **결론에는 영향이 없는** 표기 수준의 차이이며, 스스로 맞춰 보는 것이 좋은 연습입니다.
+
+1. **$\Lambda_q(C_0)$ 의 정의** (§3.1) 는 "$uC_0 - v$" 뒤에 "$\equiv 0 \pmod q$" 를 보충해 읽어야 합니다.
+2. **기저와 블록 순서** (§3.2): $B = \begin{pmatrix} qI & 0\\ C_0 & I\end{pmatrix}$ 가 생성하는 격자는 $\{(u, v) : vC_0 \equiv u\}$ 이고, 여기에는 $[\,I - E_0 \mid S\,]$ 의 행이 속합니다. 정의 $\{(u, v) : uC_0 \equiv v\}$ 와 $X = [\,S \mid I - E_0\,]$ 를 그대로 쓰려면 기저를 $\begin{pmatrix} I & C_0\\ 0 & qI\end{pmatrix}$ 로 보면 됩니다. 어느 쪽이든 부피는 $q^n$ 이고 밀집 부분격자를 포함합니다. (Lab 2 스크립트는 논문의 $B'$ 를 그대로 쓰고, 마지막 $k$ 좌표를 $S$ 블록으로 봅니다.)
+3. **최적 $k$ 의 식** (§3.2 끝): 바로 다음 식 $\sqrt{12n\log\delta\log(n/2)}$ 과 맞으려면 $k = \sqrt{n\log(n/2)/(3\log\delta_\beta)}$ 여야 합니다(제곱근). PDF 렌더링에 따라 근호가 잘 보이지 않을 수 있습니다.
+4. **$D_i$ 의 부호** (§3.3): $S'(2C_i - C_{i+1}) = T(E_{i+1} - 2E_i)$ 이므로, 본문의 $T(2E_i - E_{i+1})$ 을 쓰려면 $D_i := S'(C_{i+1} - 2C_i)$ 로 정의하면 됩니다(4절 E 의 규약).
+5. **표 1 의 $U$** 는 §3.3 의 변환 행렬 $T$ 에 해당하는 것으로 보입니다($U \cdot S$ 는 $S'$).
+
+## 7. 자가 점검 질문
+
+<details>
+<summary>Q1. MiNTRU 가 일반 NTRU 와 다른 점 두 가지는?</summary>
+
+(1) 환 구조가 없는 행렬 버전("non-structured"), (2) gadget 행렬에서 $E$ 를 뺀 "비동차(inhomogeneous)" 형태. 구조가 없다는 점은 방어가 되지 못합니다. KF17 이 이미 "구조는 핵심이 아니다"라고 보였기 때문입니다.
+
+</details>
+
+<details>
+<summary>Q2. 계산 문제를 풀면 왜 GGH+19 의 안전성 증명이 무의미해지나?</summary>
+
+증명은 결정 MiNTRU 가정에 기대는데, $S$ 를 복구하면 $SC \bmod q$ 가 $G - E$ (작은 $E$) 꼴인지 확인해 MiNTRU 표본과 무작위 행렬을 구별할 수 있기 때문입니다.
+
+</details>
+
+<details>
+<summary>Q3. Lemma 2.1 의 지수 −k(3k−1) 을 유도하라.</summary>
+
+GSA 로 $\|b_{k+i}^*\| = \|b_1\|\delta^{-2(k+i-1)}$. $\sum_{i=1}^k 2(k+i-1) = 2k^2 + k(k-1) = 3k^2 - k$.
+
+</details>
+
+<details>
+<summary>Q4. 사영 격자 L⊥ 의 부피가 q^k / Vol(L(X′)) 인 이유는?</summary>
+
+$L(X')$ 가 원시 부분격자이면, $X'$ 의 기저로 시작하는 $L(B')$ 의 기저를 잡아 GSO 를 하면 앞 $k$ 개 곱이 $\operatorname{Vol}(L(X'))$, 뒤 $k$ 개 곱이 사영 격자의 부피이고, 전체 곱은 $\operatorname{Vol}(L(B')) = q^k$ 입니다.
+
+</details>
+
+<details>
+<summary>Q5. b′₁ ∉ L(X′) 이면 왜 ‖b′₁‖ ≥ λ₁(L⊥) 인가?</summary>
+
+원시성 가정 아래 $b_1'$ 이 $\operatorname{span}(X')$ 밖에 있으면 사영 $\pi(b_1')$ 이 $L^\perp$ 의 0 아닌 벡터이고, 사영은 길이를 늘리지 않으므로 $\|b_1'\| \ge \|\pi(b_1')\| \ge \lambda_1(L^\perp)$.
+
+</details>
+
+<details>
+<summary>Q6. 점근 분석의 √n 은 어디서 나오나?</summary>
+
+$3k\log\delta + \frac nk\log\frac n2$ 를 $k$ 에 대해 최소화하면 두 항의 기하평균 $\sqrt{n\log\delta\log(n/2)}$ 꼴이 나옵니다. $\log q$ 가 $\sqrt n$ 보다 빨리 크면 상수 수준의 $\delta$ 로도 공격이 성립합니다.
+
+</details>
+
+<details>
+<summary>Q7. 키 복구에서 D_j 들이 '정수 위에서' 계산되는 조건은?</summary>
+
+$T(2E_{j-1} - E_j)$ 의 성분 절댓값이 $q/2$ 보다 작아야 중심 대표값이 실제 정수값과 같습니다. $T$ 와 $E$ 가 작아서 성립합니다.
+
+</details>
+
+<details>
+<summary>Q8. 실제 공격이 식 (3.2) 의 예측보다 잘 된 이유는? (열린 질문)</summary>
+
+5.2절의 세 후보를 출발점으로 삼고, *NTRU Fatigue* (2021) 의 dense sublattice discovery 예측 모델과 비교해 보세요. 어느 요인이 가장 큰지 실험으로 분리해 보는 것(Lab 2 의 과제 3)이 좋은 연구 연습입니다.
+
+</details>
+
+<details>
+<summary>Q9. 저자들이 제시한 후속 방향은? 왜 더 어려울 수 있나?</summary>
+
+MiNTRU 표본이 아니라 **실제 암호문** 을 공격하는 것. 암호화가 노이즈를 더 얹으므로 밀집 부분격자의 부피가 커져 필요한 $(k, \beta)$ 가 커집니다. 저자들은 노이즈가 여전히 작아 실용적 계산 범위에 머물 것이라 예상했습니다.
+
+</details>
+
+## 8. 재현 실험 (Lab 2)
+
+저장소의 [`labs/lab02_mintru_lattice_phase.py`](https://github.com/mumusecure/all-about-pqc/blob/main/labs/lab02_mintru_lattice_phase.py) 는 표준 라이브러리만 씁니다.
+
+```bash
+cd all-about-pqc/labs
+python3 lab02_mintru_lattice_phase.py
+```
+
+```bash
+python3 lab02_mintru_lattice_phase.py 8 32 50
+```
+
+두 번째 명령은 $n = 2^8$, $q = 2^{32}$, $k = 50$ 입니다(약 12초).
+
+**과제**
+
+1. **재현**: 5.3절 표를 재현합니다.
+2. **최소 $k$ 찾기**: $n = 2^6, 2^7, 2^8$ 에서 $k$ 를 줄여 가며 "앞 $k$ 개가 모두 $L(S)$ 에 속하는" 최소 $k$ 를 찾고, 5.2절 계산기의 예측과 표로 비교합니다.
+3. **원인 분리**: 실제 $\operatorname{Vol}(L(X'))$ 를 계산해(작은 $n$ 에서는 HNF 로 가능) $(n/2)^{n/2}$ 상한 대신 넣으면 (3.2) 의 예측이 얼마나 실험에 가까워지는지 확인합니다. Q8 에 대한 정량적 답이 됩니다.
+4. **키 복구까지**: 4절 E 의 망원합으로 $T$, 그리고 $S$ 를 복구해 전체 공격을 완성합니다.
+5. **보고서(1쪽)**: 설정 → 표(예측 $k$ vs 실제 최소 $k$) → 관찰(노름 점프) → 해석 → 한계.
+
+## 9. 함께 읽을 논문 (순서대로)
+
+1. P. Kirchner, P.-A. Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017. 이 논문 분석 틀의 원본.
+2. J. H. Cheon, J. Jeong, C. Lee, *An Algorithm for NTRU Problems and Cryptanalysis of the GGH Multilinear Map without a Low-Level Encoding of Zero*, LMS J. Comput. Math. 2016 / M. Albrecht, S. Bai, L. Ducas, *A Subfield Lattice Attack on Overstretched NTRU Assumptions*, CRYPTO 2016. 부분체 공격.
+3. N. Genise, C. Gentry, S. Halevi, B. Li, D. Micciancio, *Homomorphic Encryption for Finite Automata*, Asiacrypt 2019. 공격 대상(MiNTRU 정의 부분만).
+4. L. Ducas, W. van Woerden, *NTRU Fatigue: How Stretched is Overstretched?*, Asiacrypt 2021. 예측 모델의 정밀화.
+5. G. Pataki, M. Tural, *On Sublattice Determinants in Reduced Bases*, arXiv:0804.4014. 핵심 보조정리.
+
+<p style="font-size:0.85rem;color:var(--sl-color-gray-3)">출처: 원문 PDF (ePrint 2020/230, 2020-02-29 버전). 4절 E 의 첨자 규약, 5.2·5.3절의 수치, 6절의 표기 검산은 이 가이드의 계산이며 원문 저자의 주장이 아닙니다.</p>

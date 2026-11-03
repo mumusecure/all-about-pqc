@@ -23,6 +23,7 @@
 | 9장 | LLL 완전 정복 — Gauss 축소, LLL 증명, 종료성, GSA |
 | 14장 | LWE — 탐색⇔결정, 최악→평균 환원, Regev 암호, 임베딩 공격 |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
+| 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 
 전체 26장 계획은 사이트의 [전체 커리큘럼](https://mumusecure.github.io/all-about-pqc/guide/curriculum/) 참고.
 
