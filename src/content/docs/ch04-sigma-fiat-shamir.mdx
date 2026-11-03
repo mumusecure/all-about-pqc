@@ -141,7 +141,7 @@ QROM 에서는 공격자의 양자 상태를 복사할 수 없어서(복제 불�
 
 *증명.* 고정된 $c$ 에 대해 $z = y + cs$ 는 $[cs - B, cs + B]$ 에서 균등하다. $|cs| \le \beta$ 이므로 이 구간은 항상 $[-(B - \beta), B - \beta]$ 를 포함하고, 그 안의 각 값은 확률 $\frac{1}{2B+1}$ 로 나온다. 조건부로 보면 그 구간 위의 균등분포이고 $c, s$ 와 무관하다. $\blacksquare$
 
-이것이 ML-DSA 와 KpqC 의 HAETAE 가 서명 생성에서 루프를 도는 이유입니다. 실제 스킴은 고차원이라 수락 확률이 $(1 - \beta/B)^{n}$ 꼴로 줄어들므로, $B$ 와 $\beta$ 의 비를 신중히 고릅니다. 수락률과 서명 크기의 절충, 가우시안이나 초구(hyperball) 위의 균등분포 같은 다른 분포의 선택(HAETAE)은 17장에서 다룹니다.
+이것이 ML-DSA 와 KpqC 의 HAETAE 가 서명 생성에서 루프를 도는 이유입니다. 실제 스킴은 고차원이라 수락 확률이 $(1 - \beta/B)^{n}$ 꼴로 줄어들므로, $B$ 와 $\beta$ 의 비를 신중히 고릅니다. 수락률과 서명 크기의 절충, 가우시안이나 초구(hyperball) 위의 균등분포 같은 다른 분포의 선택(HAETAE)은 [17장](../ch17-lattice-signatures/)에서 다룹니다.
 
 ## 6. 미리보기: 다른 Σ-프로토콜들
 
@@ -156,7 +156,7 @@ QROM 에서는 공격자의 양자 상태를 복사할 수 없어서(복제 불�
 1. **I. Damgård**, *On Σ-Protocols* (강의 노트). Σ-프로토콜의 표준 입문.
 2. **C. P. Schnorr**, *Efficient Signature Generation by Smart Cards*, J. Cryptology 1991.
 3. **D. Pointcheval, J. Stern**, *Security Arguments for Digital Signatures and Blind Signatures*, J. Cryptology 2000. Forking lemma.
-4. **V. Lyubashevsky**, *Fiat–Shamir with Aborts: Applications to Lattice and Factoring-Based Signatures*, Asiacrypt 2009 / *Lattice Signatures without Trapdoors*, Eurocrypt 2012. 17장 ML-DSA 의 직접적 원형.
+4. **V. Lyubashevsky**, *Fiat–Shamir with Aborts: Applications to Lattice and Factoring-Based Signatures*, Asiacrypt 2009 / *Lattice Signatures without Trapdoors*, Eurocrypt 2012. [17장](../ch17-lattice-signatures/) ML-DSA 의 직접적 원형.
 5. **J. Don, S. Fehr, C. Majenz, C. Schaffner**, *Security of the Fiat–Shamir Transformation in the Quantum Random-Oracle Model*, CRYPTO 2019.
 
 ## 연습문제
@@ -211,7 +211,7 @@ $c = H(R)$: 서명이 메시지에 묶이지 않아, 한 서명이 모든 메시
 <details>
 <summary>해설</summary>
 
-좌표마다 독립이므로 곱입니다. $(1 - \beta/B)^n \approx e^{-n\beta/B} \ge 1/4 \iff n\beta/B \le \ln 4 \approx 1.386$, 즉 $\beta/B \lesssim 1.35\times10^{-3}$. 마스크 범위가 비밀 기여분보다 약 740배 커야 합니다. 그래서 서명이 커지고, 이 절충을 줄이는 분포 선택이 연구 대상입니다(17장).
+좌표마다 독립이므로 곱입니다. $(1 - \beta/B)^n \approx e^{-n\beta/B} \ge 1/4 \iff n\beta/B \le \ln 4 \approx 1.386$, 즉 $\beta/B \lesssim 1.35\times10^{-3}$. 마스크 범위가 비밀 기여분보다 약 740배 커야 합니다. 그래서 서명이 커지고, 이 절충을 줄이는 분포 선택이 연구 대상입니다([17장](../ch17-lattice-signatures/)).
 
 </details>
 
@@ -228,7 +228,7 @@ $c = H(R)$: 서명이 메시지에 묶이지 않아, 한 서명이 모든 메시
 - Fiat–Shamir: $c = H(R \| m)$ 로 서명이 된다. ROM 증명은 오라클 프로그래밍과 되감기(forking lemma)를 쓰며 $Q$ 배 손실이 있다. QROM 에서는 양자 되감기 기법이 필요하다.
 - 영지식은 시뮬레이터로 정의한다. 영지식은 "대화록이 정보를 주지 않음", 건전성은 "실시간으로 속일 수 없음"이고, 둘을 가르는 것은 메시지의 순서다.
 - 격자에서는 응답을 $\bmod$ 로 감을 수 없어 $z = y + cs$ 가 비밀을 흘린다. **거절 샘플링** 으로 받아들인 응답의 분포를 비밀과 무관하게 만든다(Fiat–Shamir with aborts → ML-DSA, HAETAE).
-- 다음: 5장(양자 위협)으로 1부를 마치고, 16·17장에서 ML-KEM 과 격자 서명으로 이어진다.
+- 다음: 5장(양자 위협)으로 1부를 마치고, [16장](../ch16-mlkem/)·[17장](../ch17-lattice-signatures/)에서 ML-KEM 과 격자 서명으로 이어진다.
 
 ## 참고문헌
 

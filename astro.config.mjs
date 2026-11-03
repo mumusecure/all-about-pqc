@@ -54,6 +54,7 @@ export default defineConfig({
           { label: '14장. LWE', slug: 'ch14-lwe' },
           { label: '15장. NTRU', slug: 'ch15-ntru' },
           { label: '16장. ML-KEM 해부', slug: 'ch16-mlkem' },
+          { label: '17장. 격자 서명', slug: 'ch17-lattice-signatures' },
         ]},
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },

@@ -1,0 +1,426 @@
+---
+title: 17장. 격자 서명
+description: 격자 서명의 두 길. Fiat–Shamir with aborts 로 만든 ML-DSA(FIPS 204)를 해부하고(q = 8380417, HighBits·힌트·공개키 압축, 네 가지 거절 검사), 바이모달·초구 분포로 서명을 줄인 HAETAE, 해시 후 서명(GPV)과 평행사변형 공격, NTRU 격자 위의 FN-DSA, 격자 동형 문제의 HAWK 와 그 철회까지.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import MLDSALoop from '../../components/MLDSALoop.tsx';
+import BimodalRejection from '../../components/BimodalRejection.tsx';
+import ParallelepipedLeak from '../../components/ParallelepipedLeak.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 격자 서명의 두 패러다임(**Fiat–Shamir with aborts** 와 **해시 후 서명**)을 구별하고, 각각 비밀을 어떻게 숨기는지 말할 수 있다.
+2. ML-DSA 의 KeyGen·Sign·Verify 를 FIPS 204 수준으로 따라가고, HighBits/LowBits, 공개키 압축과 힌트, 네 가지 거절 검사가 각각 왜 필요한지 증명할 수 있다.
+3. 거절 샘플링의 반복 횟수를 계산하고, 가우시안·바이모달·초구 분포가 서명 크기를 어떻게 바꾸는지(HAETAE) 설명할 수 있다.
+4. Babai 반올림 서명이 비밀 기저를 흘리는 이유(평행사변형 공격)와, GPV 의 이산 가우시안 샘플링이 그것을 막는 원리를 설명할 수 있다.
+5. FN-DSA(Falcon) 의 NTRU 격자 트랩도어와 HAWK 의 격자 동형 문제를 개략하고, 2026년 HAWK 철회가 주는 교훈을 말할 수 있다.
+
+**선수 지식**: [4장](../ch04-sigma-fiat-shamir/)(Σ-프로토콜, Fiat–Shamir, 거절 샘플링), [12장](../ch12-ring-module-lwe/)(Module-LWE/SIS), [16장](../ch16-mlkem/)(NTT, 압축), [8장](../ch08-lattice-problems/)(Babai, 복호 영역), [15장](../ch15-ntru/)(NTRU), [6장](../ch06-linalg-prob/)(이산 가우시안).
+
+</div>
+
+## 1. 직관: 서명의 두 길
+
+<span class="layer-tag">직관</span>
+
+서명은 "비밀키를 가진 사람만 만들 수 있고, 누구나 확인할 수 있는" 짧은 증거입니다. 격자로 서명을 만드는 방법은 크게 둘입니다.
+
+**길 1: 아는 것을 증명한다 (Fiat–Shamir with aborts).** 4장의 Schnorr 처럼 "나는 짧은 $s$ 를 안다"는 Σ-프로토콜을 만들고 도전을 해시로 바꿉니다. 격자에서는 응답 $z = y + cs$ 를 $\bmod$ 로 감을 수 없어 $z$ 가 $s$ 쪽으로 밀리므로, **범위를 벗어나면 버리고 다시** 합니다. ML-DSA, HAETAE.
+
+**길 2: 비밀 지도를 가진 사람만 길을 찾는다 (해시 후 서명).** 메시지를 해시해 공간의 한 점 $t$ 로 보내고, **$t$ 에 가까운 격자점**을 서명으로 내놓습니다. 가까운 점을 찾는 것(CVP, 8장)은 좋은 기저(비밀키)가 있어야 쉽습니다. 단, 찾는 방법이 비밀 기저의 모양을 흘리면 안 됩니다. FN-DSA(Falcon), HAWK.
+
+| | 패러다임 | 가정 | 공개키 / 서명 (가장 작은 집합, 바이트) | 상태 |
+|---|---|---|---|---|
+| **ML-DSA** | FS with aborts | Module-LWE, Module-SIS | 1312 / 2420 | FIPS 204 (2024) |
+| **HAETAE** | FS with aborts (바이모달, 초구) | Module-LWE, Module-SIS | 992 / 1474 | KpqC 최종 (2025) |
+| **FN-DSA** (Falcon) | 해시 후 서명 (GPV) | NTRU, NTRU-SIS | 897 / 666 | FIPS 206 표준화 진행 중 |
+| **HAWK** | 해시 후 서명 (LIP) | 모듈 격자 동형 문제 | (생략) | 2026년 7월 철회 (7절) |
+
+크기만 보면 해시 후 서명이 압도적으로 작습니다. 그런데도 NIST 의 1순위 표준이 ML-DSA 인 이유는 구현입니다. ML-DSA 는 정수 연산과 균등 분포만으로 상수 시간 구현이 쉽고, Falcon 은 부동소수점 FFT 와 가우시안 샘플러가 필요해 안전하게 구현하기 어렵습니다. 이 장은 이 절충을 끝까지 따라갑니다.
+
+## 2. 격자 Schnorr: Lyubashevsky 의 식별 프로토콜
+
+<span class="layer-tag">정식화</span>
+
+ML-DSA 의 뼈대만 남기면 이렇습니다($R_q = \mathbb{Z}_q[X]/(X^{256}+1)$, 행렬 $A \in R_q^{k \times \ell}$).
+
+- **키**: 비밀 $s_1 \in R_q^\ell$, $s_2 \in R_q^k$ (계수 $\le \eta$), 공개 $t = A s_1 + s_2$. 이 공개키가 무작위처럼 보이는 것이 Module-LWE 입니다.
+- **약속**: 마스크 $y$ (계수 $\le \gamma_1$)를 뽑아 $w = A y$.
+- **도전**: $c \in R_q$, 계수가 $\pm 1$ 인 것이 정확히 $\tau$ 개(나머지 0).
+- **응답**: $z = y + c s_1$.
+- **검증**: $A z - c t = A y - c s_2 = w - c s_2$ 가 $w$ 와 "거의 같은지", 그리고 $z$ 가 짧은지.
+
+$c$ 가 희소하고 $s_i$ 가 작으므로 $\|c s_i\|_\infty \le \beta := \tau \eta$ 입니다(각 계수가 $\pm s$ 의 계수 $\tau$ 개의 합).
+
+**보조정리 17.1 (상자 거절 샘플링).** $y$ 의 각 계수가 $\{-\gamma_1 + 1, \dots, \gamma_1\}$ 에서 균등하고 $\|v\|_\infty \le \beta$ 일 때, $z = y + v$ 를 $\|z\|_\infty < \gamma_1 - \beta$ 일 때만 받아들이면, 받아들인 $z$ 는 $v$ 와 **무관하게** 상자 $\{-(\gamma_1 - \beta - 1), \dots, \gamma_1 - \beta - 1\}^{n\ell}$ 위에서 균등하고, 받아들일 확률은
+
+$$
+\left(\frac{2(\gamma_1 - \beta) - 1}{2\gamma_1}\right)^{n\ell} \approx e^{-n\ell\beta/\gamma_1}.
+$$
+
+*증명.* 계수마다 봅니다. 상자 안의 값 $a$ ($|a| \le \gamma_1 - \beta - 1$)에 대해 $z_i = a$ 가 되려면 $y_i = a - v_i$ 이고, $|v_i| \le \beta$ 라 $a - v_i$ 는 항상 $y_i$ 의 범위 안입니다. 따라서 $\Pr[z_i = a] = 1/(2\gamma_1)$ 로 $a$ 에도 $v_i$ 에도 무관합니다. 상자 안의 값은 $2(\gamma_1 - \beta) - 1$ 개이고, 계수들은 독립입니다. $\square$
+
+4장의 1차원 위젯이 바로 이 보조정리였습니다. 고차원에서는 수락 확률이 지수적으로 줄어드므로, $\beta/\gamma_1$ 를 $1/(n\ell)$ 정도로 맞춰야 반복 횟수가 상수가 됩니다.
+
+## 3. ML-DSA 해부
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 파라미터
+
+모든 집합에서 $n = 256$, $q = 8380417$, $d = 13$ 입니다.
+
+| | $(k, \ell)$ | $\eta$ | $\tau$ | $\beta$ | $\gamma_1$ | $\gamma_2$ | $\omega$ | 반복 | pk | sk | sig | 범주 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ML-DSA-44 | (4, 4) | 2 | 39 | 78 | $2^{17}$ | $(q-1)/88$ | 80 | 4.25 | 1312 | 2560 | 2420 | 2 |
+| ML-DSA-65 | (6, 5) | 4 | 49 | 196 | $2^{19}$ | $(q-1)/32$ | 55 | 5.1 | 1952 | 4032 | 3309 | 3 |
+| ML-DSA-87 | (8, 7) | 2 | 60 | 120 | $2^{19}$ | $(q-1)/32$ | 75 | 3.85 | 2592 | 4896 | 4627 | 5 |
+
+"반복"은 서명 하나에 필요한 평균 시도 횟수이고, 다음 식으로 맞습니다(연습 5).
+
+$$
+\mathbb{E}[\text{반복}] \approx \exp\!\Big( n\beta \Big( \frac{\ell}{\gamma_1} + \frac{k}{\gamma_2} \Big) \Big).
+$$
+
+**$q = 8380417 = 2^{23} - 2^{13} + 1$.** ML-KEM 과 달리 $q \equiv 1 \pmod{512}$ 이라 위수 512 인 원소($\zeta = 1753$)가 있고, $X^{256} + 1$ 이 **일차식 256 개로 완전히** 갈라집니다(16장 보조정리 16.1 과 비교). NTT 가 8층까지 가고 곱셈이 좌표별 곱입니다. $q$ 가 큰 이유는 $\gamma_1 \approx 2^{17} \sim 2^{19}$ 짜리 마스크와 그 곱을 담아야 하기 때문이고, $2^{23} - 2^{13} + 1$ 꼴은 나머지 연산을 빠르게 합니다.
+
+### 3.2 상위 비트만 약속한다
+
+서명에 $w$ 전체를 넣으면 너무 큽니다. 대신 $w$ 의 **상위 비트**만 해시에 넣습니다. $\mathbb{Z}_q$ 의 원소 $r$ 을
+
+$$
+r = r_1 \cdot 2\gamma_2 + r_0, \qquad r_0 \in (-\gamma_2, \gamma_2]
+$$
+
+로 쪼개는 것이 $\mathsf{Decompose}$ 이고(경계 $r - r_0 = q - 1$ 인 경우만 따로 처리), $r_1 = \mathsf{HighBits}(r)$, $r_0 = \mathsf{LowBits}(r)$ 입니다. 예: $\gamma_2 = (q-1)/32 = 261888$ 이면 $r = 1000000 = 2 \cdot 523776 - 47552$ 이라 $\mathsf{HighBits} = 2$, $\mathsf{LowBits} = -47552$.
+
+서명자는 $c$ 를 $H(\mu \,\|\, w_1)$, $w_1 = \mathsf{HighBits}(w)$ 로 만들고, 검증자는 $\mathsf{HighBits}(Az - ct) = \mathsf{HighBits}(w - cs_2)$ 를 계산합니다. 둘이 같아야 합니다.
+
+**보조정리 17.2.** $\|v\|_\infty \le \beta$ 이고 $\|\mathsf{LowBits}(w - v)\|_\infty < \gamma_2 - \beta$ 이면 $\mathsf{HighBits}(w - v) = \mathsf{HighBits}(w)$.
+
+*증명.* $w - v = r_1 \cdot 2\gamma_2 + r_0$, $|r_0| < \gamma_2 - \beta$ 라 하면 $w = r_1 \cdot 2\gamma_2 + (r_0 + v)$ 이고 $|r_0 + v| < \gamma_2$. 따라서 $r_0 + v$ 가 $w$ 의 LowBits 이고 상위 비트는 $r_1$ 그대로입니다(경계 처리 생략). $\square$
+
+그래서 서명자는 **$\|\mathsf{LowBits}(w - cs_2)\|_\infty \ge \gamma_2 - \beta$ 이면 버립니다.** 이것이 두 번째 거절 검사이고, 거절 샘플링이 아니라 정확성을 위한 검사입니다. 덤으로 $z$ 와 함께 이 값도 비밀과 무관해져 시뮬레이션이 가능해집니다(4절).
+
+### 3.3 공개키 압축과 힌트
+
+공개키 $t$ 의 계수는 23 비트라 그대로 두면 $k \cdot 256 \cdot 23 / 8$ 바이트입니다. ML-DSA 는 $t = t_1 \cdot 2^d + t_0$ ($\mathsf{Power2Round}$, $|t_0| \le 2^{d-1} = 4096$)로 쪼개 **$t_1$ (10 비트)만 공개**합니다. 그러면 검증자가 계산할 수 있는 것은
+
+$$
+Az - c\,t_1 2^d = w - c s_2 + c\, t_0
+$$
+
+뿐이고, 여분의 $c\,t_0$ 가 상위 비트를 바꿀 수 있습니다. 서명자는 이 "올림수"를 **힌트** $h$ 로 알려 줍니다.
+
+- $\mathsf{MakeHint}(z, r) = [\,\mathsf{HighBits}(r) \ne \mathsf{HighBits}(r + z)\,]$
+- $\mathsf{UseHint}(h, r)$: $h = 1$ 이면 $r$ 의 LowBits 부호에 따라 상위 비트를 $\pm 1$ (순환).
+
+**보조정리 17.3.** $\|z\|_\infty \le \gamma_2$ 이면 $\mathsf{UseHint}(\mathsf{MakeHint}(z, r), r) = \mathsf{HighBits}(r + z)$.
+
+서명자는 $h = \mathsf{MakeHint}(-ct_0, \; w - cs_2 + ct_0)$ 를 붙이고, 검증자는 $\mathsf{UseHint}(h, Az - ct_1 2^d) = \mathsf{HighBits}(w - cs_2) = w_1$ 을 얻습니다. 보조정리를 쓰려면 $\|ct_0\|_\infty < \gamma_2$ 여야 하고(세 번째 검사), 힌트는 1 의 개수가 $\omega$ 이하일 때만 짧게 인코딩되므로 그것도 검사합니다(네 번째). 이 두 검사는 거의 걸리지 않습니다.
+
+이 장치 덕분에 공개키가 $32 + 320k$ 바이트(ML-DSA-44 에서 1312)로 줄었습니다. $t_0$ 를 숨기는 것이 안전성을 해치지 않는다는 것도 증명의 일부입니다($t_0$ 는 비밀키에 들어 있지만 공개되어도 안전하다고 분석됩니다).
+
+### 3.4 알고리즘
+
+**KeyGen**: 시드 $\xi$ 에서 $(\rho, \rho', K)$ 를 만들고, $\hat A \leftarrow \mathsf{ExpandA}(\rho)$ (NTT 영역, 거절 샘플링), $(s_1, s_2) \leftarrow \mathsf{ExpandS}(\rho')$ (계수 균등 $[-\eta, \eta]$), $t = As_1 + s_2$, $(t_1, t_0) = \mathsf{Power2Round}(t)$. 공개키 $(\rho, t_1)$, 비밀키 $(\rho, K, tr, s_1, s_2, t_0)$, $tr = H(\mathrm{pk})$ (64 바이트).
+
+**Sign** (메시지 $M$, 문맥 문자열 $ctx$):
+
+1. $\mu = H(tr \,\|\, M')$, $M' = 0 \,\|\, |ctx| \,\|\, ctx \,\|\, M$
+2. $\rho'' = H(K \,\|\, rnd \,\|\, \mu)$ — $rnd$ 는 새 난수 32 바이트(기본, "hedged"), 결정적 변형은 $rnd = 0$
+3. 반복($\kappa$ 는 카운터):
+   - $y \leftarrow \mathsf{ExpandMask}(\rho'', \kappa)$, $w = Ay$, $w_1 = \mathsf{HighBits}(w)$
+   - $\tilde c = H(\mu \,\|\, w_1)$, $c = \mathsf{SampleInBall}(\tilde c)$
+   - $z = y + cs_1$, $r_0 = \mathsf{LowBits}(w - cs_2)$
+   - **검사**: $\|z\|_\infty \ge \gamma_1 - \beta$ 또는 $\|r_0\|_\infty \ge \gamma_2 - \beta$ 이면 다시
+   - $h = \mathsf{MakeHint}(-ct_0, w - cs_2 + ct_0)$; $\|ct_0\|_\infty \ge \gamma_2$ 또는 $h$ 의 1 이 $\omega$ 개 초과면 다시
+4. 서명 $\sigma = (\tilde c, z, h)$
+
+**Verify**: $\|z\|_\infty < \gamma_1 - \beta$, 힌트 형식, 그리고 $\tilde c = H(\mu \,\|\, \mathsf{UseHint}(h, Az - ct_1 2^d))$.
+
+**서명 크기**: $\lambda/4 + 32\ell(1 + \log_2\gamma_1) + \omega + k$. ML-DSA-44 는 $32 + 4 \cdot 32 \cdot 18 + 80 + 4 = 2420$.
+
+<MLDSALoop client:visible />
+
+위젯에서 거절의 거의 전부가 앞의 두 검사입니다. ML-DSA-44 에서 계산하면 $z$ 검사 통과 확률은 $e^{-256 \cdot 4 \cdot 78/2^{17}} \approx 0.54$, LowBits 검사는 $e^{-256 \cdot 4 \cdot 78 / 95232} \approx 0.43$ 이고, 곱의 역수가 4.25 입니다.
+
+<Quiz
+  client:visible
+  question="ML-DSA 서명 루프의 네 검사 중, 서명이 비밀 s₁ 을 흘리지 않게 하는 '거절 샘플링' 역할을 하는 것은?"
+  options={[
+    '‖z‖∞ < γ₁ − β',
+    '‖LowBits(w − cs₂)‖∞ < γ₂ − β',
+    '‖ct₀‖∞ < γ₂',
+    '힌트의 1 의 개수 ≤ ω',
+  ]}
+  answer={0}
+  explanation="z = y + cs₁ 은 cs₁ 만큼 밀린 분포입니다. 보조정리 17.1 에 의해 ‖z‖∞ < γ₁ − β 인 것만 받아들이면 z 는 비밀과 무관한 상자 위 균등분포가 됩니다. LowBits 검사는 검증자가 같은 상위 비트를 복원하도록 하는 정확성 조건이고, 나머지 둘은 힌트가 올바르게 작동하고 짧게 인코딩되도록 하는 조건입니다."
+/>
+
+### 3.5 구현에서 조심할 것
+
+- **논스 재사용.** 같은 $y$ 로 서로 다른 $c, c'$ 에 서명하면 $z - z' = (c - c') s_1$ 이고, $c - c'$ 가 $R_q$ 에서 가역이면 $s_1$ 이 바로 나옵니다(연습 6, 4장의 Schnorr 논스 재사용과 같은 구조). 결정적 서명은 같은 메시지에 같은 $y$ 를 쓰므로 안전하지만, **결함 주입**으로 $c$ 만 바꾸게 만들면 이 공격이 됩니다. 기본값인 hedged 모드($rnd$ 섞기)가 이를 완화합니다.
+- **부채널.** $z = y + cs_1$ 계산이나 $y$ 생성을 전력 분석으로 관찰하면 적은 수의 서명으로 $s_1$ 을 복원하는 공격들이 있습니다. 마스킹은 ML-KEM 보다 비쌉니다(거절 검사 자체가 비선형).
+- **거절 횟수는 새도 된다.** 몇 번 만에 통과했는지는 공개 정보와 독립이 되도록 설계되어 있어(버린 시도는 공개되지 않음) 루프 횟수 자체를 상수 시간으로 만들 필요는 없습니다. 단, **버린 시도의 $c$ 가 새면 안 됩니다**. 버린 시도의 정보가 새면 거절 샘플링의 증명이 깨집니다.
+
+## 4. 안전성
+
+<span class="layer-tag">정식화</span>
+
+**키 위조 불가.** 공개키 $(A, t)$ 를 균등한 것으로 바꾸는 단계가 Module-LWE 입니다. 그다음, 위조자는 $A z - c t$ 의 상위 비트를 해시한 것이 $c$ 가 되는 짧은 $z$ 를 찾아야 하는데, 이것을 정식화한 것이 **SelfTargetMSIS** 입니다. 고전 ROM 에서는 forking lemma(4장)로 두 위조를 얻어 Module-SIS 해를 뽑을 수 있고, QROM 에서는 Kiltz–Lyubashevsky–Schaffner(Eurocrypt 2018)가 SelfTargetMSIS 로의 직접 환원을 보였습니다. 강한 위조 불가(SUF-CMA)에는 Module-SIS 가 추가로 들어갑니다.
+
+**서명 시뮬레이션 (영지식).** 보조정리 17.1 과 LowBits 검사 덕분에, 비밀키 없이도 "$z$ 를 상자에서 균등하게, $c$ 를 무작위로 뽑고 $H(\mu \,\|\, \mathsf{HighBits}(Az - ct))$ 를 $c$ 로 프로그래밍"하면 진짜 서명과 같은 분포가 나옵니다. 그래서 서명 오라클이 공격자에게 도움이 되지 않습니다.
+
+<Aside type="caution" title="증명도 고쳐진다">
+Fiat–Shamir with aborts 의 증명에는 "버린 시도"를 다루는 미묘함이 있고, Dilithium 원래 증명의 빈틈이 2023년에 지적·수정되었습니다(Barbosa 외; Devevey–Fallahpour–Passelègue–Stehlé, 둘 다 CRYPTO 2023). 표준화된 스킴의 안전성 증명도 연구 대상이라는 좋은 예입니다.
+</Aside>
+
+## 5. 분포를 바꾸면 서명이 줄어든다: 가우시안, 바이모달, 초구
+
+<span class="layer-tag">정식화</span>
+
+ML-DSA 의 균등 상자는 구현이 쉽지만, 서명 계수의 크기 $\gamma_1$ 이 $\beta$ 의 수천 배($nk$ 배 정도)입니다. 분포를 바꾸면 이 비를 줄일 수 있습니다.
+
+**가우시안 (Lyubashevsky, Eurocrypt 2012).** $y \leftarrow D_\sigma$ 로 뽑고, $z = y + v$ 를 $\min(1, D_\sigma(z) / (M \cdot D_{\sigma, v}(z)))$ 의 확률로 받아들입니다. 비 $D_\sigma(z)/D_{\sigma,v}(z) = \exp((-2\langle z, v \rangle + \|v\|^2)/2\sigma^2)$ 는 $\langle z, v\rangle \to -\infty$ 에서 유계가 아니므로 꼬리를 잘라야 하고, $\sigma = \alpha\|v\|$ 일 때 $M = \exp(12/\alpha + 1/(2\alpha^2))$ 로 통계적 거리 $2^{-100}$ 을 얻습니다. 고전적 선택 $\alpha = 12$ 에서 $M \approx e^{1 + 1/288} \approx 2.73$.
+
+**바이모달 (BLISS, Ducas–Durmus–Lepoint–Lyubashevsky, CRYPTO 2013).** 응답을 $z = y + (-1)^b v$ ($b$ 무작위)로 만들면 제안 분포가 $\tfrac12 D_{\sigma,v} + \tfrac12 D_{\sigma,-v}$ 이고,
+
+$$
+\frac{D_\sigma(z)}{\tfrac12 D_{\sigma,v}(z) + \tfrac12 D_{\sigma,-v}(z)} = \frac{\exp(\|v\|^2/2\sigma^2)}{\cosh(\langle z, v\rangle/\sigma^2)} \le \exp\!\Big(\frac{\|v\|^2}{2\sigma^2}\Big).
+$$
+
+**유계** 이므로 꼬리를 자를 필요 없이 $M = \exp(1/(2\alpha^2))$ 로 정확한 거절 샘플링이 됩니다. $\alpha$ 를 1 근처까지 줄일 수 있어 $\sigma$ 가 열 배 이상 작아집니다.
+
+<BimodalRejection client:visible />
+
+**바이모달의 대가.** 검증식에서 $\pm v$ 의 부호가 지워져야 합니다. BLISS 는 공개키가 $\bmod 2q$ 에서 $A S = q I$ 꼴의 관계를 만족하도록 만들어, $\pm$ 어느 쪽이든 $\bmod 2q$ 에서 같은 검증 결과가 나오게 합니다. 그리고 가우시안 샘플링은 상수 시간 구현이 까다롭습니다. BLISS 는 실제로 가우시안 샘플러의 캐시 타이밍 공격으로 키가 복구되었습니다(Groot Bruinderink 외, CHES 2016).
+
+**HAETAE (KpqC, Cheon 외, TCHES 2024).** 바이모달 아이디어를 쓰되, 가우시안 대신 **초구(hyperball) 위의 균등분포**를 씁니다. 큰 초구에서 균등하게 뽑아 밀린 뒤 작은 초구 안에 들어오면 받아들이는 방식이라, 상자보다 부피 대비 반지름이 효율적이고 가우시안보다 다루기 쉽습니다. 여기에 서명의 상위 비트를 엔트로피 부호화(rANS)로 압축해 크기를 더 줄였습니다.
+
+| | 공개키 | 서명 | | 공개키 | 서명 |
+|---|---|---|---|---|---|
+| HAETAE-120 | 992 | 1474 | ML-DSA-44 | 1312 | 2420 |
+| HAETAE-180 | 1472 | 2349 | ML-DSA-65 | 1952 | 3309 |
+| HAETAE-260 | 2080 | 2948 | ML-DSA-87 | 2592 | 4627 |
+
+(바이트. HAETAE 는 KpqC 최종 명세 기준이며 서명 크기는 부호화 때문에 가변적이니 정확한 정의는 명세서에서 확인하세요.) 대가는 초구 샘플링에 실수(고정소수점) 연산이 들어가 상수 시간 구현과 검증이 ML-DSA 보다 어렵다는 점입니다. 같은 Fiat–Shamir with aborts 뼈대에서 **분포와 부호화를 바꾼 것으로** 서명이 약 30~40% 줄어든 셈입니다.
+
+## 6. 해시 후 서명: GPV 와 FN-DSA
+
+<span class="layer-tag">정식화</span>
+
+### 6.1 평행사변형 공격과 GPV
+
+8장에서 "좋은 기저 = 비밀키"를 봤습니다. 가장 단순한 서명은 이렇습니다. 메시지를 점 $t = H(M)$ 으로 보내고, 좋은 기저 $B$ 로 Babai 반올림해 격자점 $v$ 를 서명으로 냅니다. 검증자는 $v$ 가 격자점이고 $\|t - v\|$ 가 작은지 확인합니다. GGH 서명과 NTRUSign 이 이 구조였습니다.
+
+문제는 $t - v = (\text{좌표의 소수 부분}) \cdot B$ 가 **평행사변형 $\mathcal{P}_{1/2}(B)$ 위에서 균등** 하다는 것입니다. 서명을 모으면 점들이 비밀 기저의 모양을 그립니다.
+
+<ParallelepipedLeak client:visible />
+
+공분산은 정확히 $B^T B / 12$ (행이 기저 벡터)라 기저의 모양을 담은 행렬이 새고, Nguyen–Regev(Eurocrypt 2006)는 4차 모멘트를 최소화하는 경사 하강으로 기저 자체를 복원해 GGH·NTRUSign 을 실제로 깼습니다(연습 9).
+
+**GPV (Gentry–Peikert–Vaikuntanathan, STOC 2008)** 의 해법: 반올림 대신 **이산 가우시안에서 뽑습니다**. Klein 의 알고리즘(최근접 평면에서 각 단계의 반올림을 $D_{\mathbb{Z}, c_i, \sigma/\|b_i^*\|}$ 표본으로 바꾼 것)은 $\sigma \ge \|\tilde B\| \cdot \omega(\sqrt{\log n})$ ($\|\tilde B\| = \max_i \|b_i^*\|$)이면 출력이 $D_{L + t, \sigma}$ 에 통계적으로 가깝습니다. 이 분포는 **격자와 $t$ 에만 의존하고 어떤 기저를 썼는지와 무관**하므로 아무것도 새지 않습니다. 서명 길이는 $\sigma$ 에 비례하므로, **GSO 길이가 고르게 짧은 기저**가 곧 좋은 비밀키입니다.
+
+### 6.2 FN-DSA (Falcon)
+
+Falcon 은 GPV 를 15장의 **NTRU 격자** 위에서 효율적으로 만든 것입니다.
+
+- **키**: 작은 $f, g \in \mathbb{Z}[X]/(X^n + 1)$, $n = 512$ 또는 $1024$, $q = 12289$. 공개키 $h = g f^{-1} \bmod q$. 비밀키는 NTRU 방정식 $fG - gF = q$ 를 만족하는 $F, G$ 까지 포함한 기저
+$$
+B = \begin{pmatrix} g & -f \\ G & -F \end{pmatrix}.
+$$
+이 기저의 GSO 노름은 약 $1.17\sqrt q$ 로, 격자의 부피($q^n$)에 비해 거의 최적으로 고릅니다. $F, G$ 는 체 노름을 따라 탑을 내려가며 재귀적으로 풉니다.
+- **서명**: 솔트 $r$ (40 바이트)와 함께 $c = \mathsf{HashToPoint}(r \,\|\, M) \in \mathbb{Z}_q[X]/(X^n+1)$. 비밀 기저로 $s_1 + s_2 h \equiv c \pmod q$ 이고 짧은 $(s_1, s_2)$ 를 **빠른 푸리에 샘플링**(ffSampling, Ducas–Prest 2016: 환 구조를 이용한 Klein 샘플러의 $O(n \log n)$ 판)으로 뽑습니다. 서명은 $(r, \mathsf{Compress}(s_2))$.
+- **검증**: $s_1 = c - s_2 h \bmod q$ 를 계산하고 $\|(s_1, s_2)\|^2 \le \lfloor \beta^2 \rfloor$ 인지 확인. NTT 곱셈 한 번이면 끝나 매우 빠릅니다.
+
+| | 공개키 | 서명 |
+|---|---|---|
+| FN-DSA-512 (Falcon-512) | 897 | 666 |
+| FN-DSA-1024 (Falcon-1024) | 1793 | 1280 |
+
+공개키 + 서명이 ML-DSA-44 의 약 40% 입니다. TLS 인증서 체인처럼 서명이 여러 개 오가는 곳에서 큰 차이입니다. 대가:
+
+- **부동소수점.** ffSampling 은 FFT 영역의 실수 연산과 가우시안 샘플러가 필요합니다. 상수 시간 부동소수점은 플랫폼마다 다르고, FPU 가 없는 기기에서는 에뮬레이션이 필요합니다.
+- **부채널.** FFT 계산이나 가우시안 샘플링을 전자기·전력으로 관찰해 키를 복구하는 공격들이 발표되었습니다. BLISS 의 교훈이 그대로 적용됩니다.
+- **표준화.** NIST 는 FN-DSA 를 FIPS 206 으로 표준화하고 있으며(2026년 중반 기준 초안 단계), 최신 상태는 NIST 의 공지를 확인하세요.
+
+<Quiz
+  client:visible
+  question="GPV 서명이 Babai 반올림 대신 이산 가우시안 샘플링을 쓰는 이유는?"
+  options={[
+    '서명을 더 짧게 만들기 위해',
+    '반올림으로 만든 t − v 는 평행사변형 P½(B) 위 균등이라 비밀 기저의 모양을 흘리지만, 충분히 넓은 가우시안 출력은 기저와 무관한 분포를 따르기 때문',
+    '가우시안이 계산이 더 빨라서',
+    '검증식을 단순하게 만들기 위해',
+  ]}
+  answer={1}
+  explanation="반올림 서명의 오차는 비밀 기저가 만드는 평행사변형 위에서 균등하므로, 서명을 모으면 공분산 BᵀB/12 와 더 높은 모멘트로 기저를 복원할 수 있습니다(Nguyen–Regev). σ 가 GSO 길이보다 충분히 큰 이산 가우시안 D_{L+t,σ} 는 격자와 t 에만 의존하므로 어떤 기저로 뽑았는지 알려 주지 않습니다. 오히려 서명은 약간 길어집니다."
+/>
+
+## 7. HAWK 와 격자 동형 문제, 그리고 철회
+
+<span class="layer-tag">연구 관점</span>
+
+**아이디어.** 해시 후 서명이 어려운 이유는 "좋은 기저로 가우시안 샘플링"이 복잡하기 때문입니다. 그런데 **$\mathbb{Z}^n$** 은 표준 기저가 완벽하게 좋은 기저라 샘플링이 쉽습니다(좌표마다 정수 가우시안). HAWK(Ducas–Postlethwaite–Pulles–van Woerden, Asiacrypt 2022)는 $\mathbb{Z}^{2n}$ 을 비밀 유니모듈러 행렬 $B$ 로 "돌린" 격자를 쓰고, 공개키로 Gram 행렬 $Q = B^T B$ 만 줍니다. 서명자는 $\mathbb{Z}^{2n}$ 에서 쉽게 샘플링한 뒤 $B$ 로 옮기고, 검증자는 $Q$ 가 정하는 노름으로 길이를 잽니다. 부동소수점이 필요 없고, Falcon 만큼 작고, 빠릅니다.
+
+**가정.** 안전성은 "$Q$ 에서 $B$ 를 찾기", 즉 주어진 이차 형식이 $\mathbb{Z}^{2n}$ 과 **동형** 임을 보여 주는 변환을 찾는 **격자 동형 문제(LIP)** 의 모듈 판(module-LIP)에 기댑니다. 비교적 새로운 가정입니다.
+
+**철회 (2026년).** HAWK 는 NIST 추가 서명 공모의 2라운드(2024년 10월)와 3라운드에 올랐던 유일한 격자 기반 후보였습니다. 2026년 7월 28일 NIST pqc-forum 에 새 키 복구 공격이 공개되었는데, 보도에 따르면 HAWK-$n$ 의 (동치) 비밀키 복구를 약 $n/2 + 1$ 차원의 SVP 로 환원해 **필요한 격자 축소 블록 크기를 대략 절반으로** 줄이는 공격이고, 그간 쓰이지 않던 구조(대칭성)를 이용합니다. 설계자들은 7월 29일 HAWK 를 철회하며, 파라미터를 두 배로 키우거나 더 높은 랭크의 모듈로 옮기는 단순한 대책으로는 경쟁력이 없다고 밝혔습니다. 여러 보도는 이 공격이 Anthropic 연구자들이 AI 의 도움을 받아 찾은 것이라고 전합니다. NIST 는 이 결과가 ML-KEM, ML-DSA 등 확정된 표준에는 영향이 없다고 밝혔습니다.
+
+<Aside type="note" title="이 절의 출처에 대해">
+이 절의 철회 경위는 공개 보도와 설계자 사이트의 요약을 바탕으로 썼고, 공격 논문과 포럼 원문은 아직 이 교과서에서 직접 검증하지 못했습니다. 원문을 읽고 숫자를 확인하는 것을 연습 11 로 남깁니다.
+</Aside>
+
+**교훈.** BKZ 비용이 블록 크기 $\beta$ 에 지수적($2^{0.292\beta}$, 10장)이므로, 블록 크기가 절반이 되면 보안 비트도 대략 절반이 됩니다. 새 가정(LIP)과 그 위의 **구조**(모듈, 대칭)는 오래 분석된 LWE/SIS 보다 예상하지 못한 공격에 취약할 수 있습니다. 12장의 "구조는 공짜가 아니다"와 같은 이야기이고, 표준이 보수적인 가정을 선호하는 이유입니다.
+
+## 8. 비교와 선택
+
+| | ML-DSA-44 | HAETAE-120 | FN-DSA-512 |
+|---|---|---|---|
+| 공개키 + 서명 | 3732 | 2466 | 1563 |
+| 서명 생성 | 빠름, 정수만 | 빠름, 고정소수점 | 빠름, **부동소수점** |
+| 검증 | 빠름 | 빠름 | 매우 빠름 |
+| 상수 시간 구현 | 쉬움 | 중간 | 어려움 |
+| 가정 | MLWE + MSIS | MLWE + MSIS | NTRU + NTRU-SIS |
+| 표준 | FIPS 204 | KpqC | FIPS 206 (진행 중) |
+
+**기본값은 ML-DSA**, 크기가 결정적인 곳(인증서 체인, 저대역 통신)은 FN-DSA, 국내 규제 환경에서는 KpqC 의 HAETAE 를 검토하는 것이 대략적인 지형입니다. 격자 외에는 해시 기반 SLH-DSA(FIPS 205, 23장)가 가정이 가장 보수적인 대안입니다.
+
+## 9. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **Fiat–Shamir with aborts 의 증명.** QROM 에서의 타이트함, 버린 시도의 정보, 결함 공격까지 포함한 모델. 2023년의 수정 이후에도 계속 다듬어지고 있습니다.
+- **구현 보안.** ML-DSA 와 HAETAE 의 마스킹 비용, FN-DSA 의 상수 시간 부동소수점·정수 에뮬레이션, 가우시안 샘플러 부채널. KpqC 스킴의 임베디드 최적화(예: 메모리가 작은 마이크로컨트롤러용 HAETAE)는 국내에서도 활발합니다.
+- **고급 서명.** 임계(threshold) 서명, 다중 서명, 집합 서명을 격자로 만드는 연구(예: Raccoon 계열, 임계 ML-DSA)는 거절 샘플링이 상호작용과 잘 맞지 않아 어렵고, 그래서 연구 거리가 많습니다.
+- **암호해석.** LIP 과 NTRU 트랩도어 격자의 구조적 공격, 그리고 HAWK 철회처럼 "새 대칭성"을 찾는 연구. 10장(BKZ)과 13장(모듈 격자 축소)이 도구입니다.
+
+## 연습문제
+
+**★ 1.** 크기 공식으로 ML-DSA-65 의 pk, sig 를 계산하세요.
+
+<details>
+<summary>풀이</summary>
+
+pk $= 32 + 320 \cdot 6 = 1952$. sig $= 192/4 + 5 \cdot 32 \cdot (1 + 19) + 55 + 6 = 48 + 3200 + 61 = 3309$.
+
+</details>
+
+**★ 2.** $q = 8380417$ 에서 $1753^{256} \equiv -1$ 을 확인하고, ML-DSA 의 NTT 가 ML-KEM 과 달리 끝까지(8층) 가는 이유를 쓰세요.
+
+<details>
+<summary>풀이</summary>
+
+`pow(1753, 256, 8380417)` 은 8380416 입니다. $q - 1 = 2^{13} \cdot 3 \cdot 11 \cdot 31$ 이 512 로 나누어떨어지므로 위수 512 인 원소가 있고, $X^{256} + 1$ 의 근 256 개가 모두 $\mathbb{Z}_q$ 에 있습니다. ML-KEM 의 $3328 = 2^8 \cdot 13$ 은 512 로 나누어지지 않았습니다.
+
+</details>
+
+**★ 3.** $\gamma_2 = (q-1)/88 = 95232$ 일 때 $r = 1000000$ 의 HighBits 와 LowBits 를 구하세요.
+
+<details>
+<summary>풀이</summary>
+
+$2\gamma_2 = 190464$. $1000000 = 5 \cdot 190464 + 47680$ 이고 $47680 \le \gamma_2$ 이므로 $\mathsf{HighBits} = 5$, $\mathsf{LowBits} = 47680$.
+
+</details>
+
+**★★ 4.** 보조정리 17.2 의 증명에서 생략한 경계 경우($r - r_0 = q - 1$)를 처리하세요. 왜 Decompose 가 이 경우를 따로 다룰까요?
+
+<details>
+<summary>풀이</summary>
+
+$q - 1$ 은 $2\gamma_2$ 의 배수이고 $m = (q-1)/(2\gamma_2)$ 라 하면, $r$ 이 $q - 1$ 근처일 때 그대로 나누면 $r_1 = m$ 이 나오는데 이 위치는 $\bmod q$ 에서 $0$ 바로 옆입니다(원을 한 바퀴 돌아옴). 그러면 상위 비트가 $m + 1$ 가지가 되고 "0 근처"가 두 가지 이름을 갖습니다. Decompose 는 이 경우 $r_1 = 0$, $r_0 \leftarrow r_0 - 1$ 로 보내 상위 비트를 $\mathbb{Z}_m$ 의 순환 구조로 만듭니다(그래서 UseHint 도 $\bmod m$ 으로 $\pm 1$ 합니다). 보조정리 17.2 의 결론은 "상위 비트가 같다"이므로 $w$ 와 $w - v$ 가 이 경계 양쪽에 걸쳐도 둘 다 $r_1 = 0$ 으로 보내져 성립합니다. 엄밀한 처리는 Dilithium 명세의 해당 보조정리를 보세요.
+
+</details>
+
+**★★ 5.** 보조정리 17.1 로 $z$ 검사의 통과 확률을, 같은 논리로 LowBits 검사의 통과 확률을 근사하고, 기대 반복 횟수 공식을 유도하세요. ML-DSA-44 에 넣어 4.25 를 얻으세요.
+
+<details>
+<summary>풀이</summary>
+
+$z$: 계수 $n\ell$ 개, 각 $\approx 1 - \beta/\gamma_1$ → $e^{-n\ell\beta/\gamma_1}$. LowBits: $w - cs_2$ 의 LowBits 가 대략 $(-\gamma_2, \gamma_2]$ 에서 균등하다고 보면 계수 $nk$ 개, 각 $\approx 1 - \beta/\gamma_2$ → $e^{-nk\beta/\gamma_2}$. 곱의 역수가 $\exp(n\beta(\ell/\gamma_1 + k/\gamma_2))$. ML-DSA-44: $256 \cdot 78 \cdot (4/131072 + 4/95232) = 1.448$, $e^{1.448} = 4.25$.
+
+</details>
+
+**★★ 6.** (논스 재사용) 같은 $y$ 로 $c \ne c'$ 에 대한 서명 $z, z'$ 을 얻었습니다. $s_1$ 을 복원하는 방법을 쓰고, $c - c'$ 가 $R_q$ 에서 가역일 조건을 NTT 로 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+$z - z' = (c - c') s_1$. $R_q \cong \mathbb{Z}_q^{256}$ (NTT, 완전 분해)이므로 $c - c'$ 가 가역 ⇔ $\mathrm{NTT}(c - c')$ 의 모든 좌표가 0 이 아님 ⇔ $c - c'$ 가 $X^{256}+1$ 의 어떤 근에서도 0 이 아님. 희소한 $\pm1, \pm 2$ 다항식이 256 개 근 중 하나에서 0 이 될 확률은 매우 작아 거의 항상 가역이고, 그러면 $s_1 = (c - c')^{-1}(z - z')$. 가역이 아니어도 대부분의 좌표에서 $s_1$ 의 NTT 값이 나오고, $s_1$ 이 작다는 사실로 나머지를 메울 수 있습니다.
+
+</details>
+
+**★★ 7.** 도전 공간의 크기 $\binom{256}{\tau} 2^\tau$ 를 $\tau = 39, 49, 60$ 에 대해 $\log_2$ 로 계산하고, 각각의 $\lambda$ (128, 192, 256)와 비교하세요.
+
+<details>
+<summary>풀이</summary>
+
+약 $2^{192.8}$, $2^{225.3}$, $2^{257.0}$. 모두 $2^\lambda$ 이상이라, 도전을 미리 맞히는 공격(시뮬레이터처럼 $c$ 를 추측)이 $2^{-\lambda}$ 이하입니다. $\tau$ 를 키우면 도전 공간이 커지지만 $\beta = \tau\eta$ 가 커져 반복 횟수와 서명 크기가 늘어나는 절충입니다.
+
+</details>
+
+**★★ 8.** 바이모달 비의 식을 유도하고, 그것이 $\exp(\|v\|^2/2\sigma^2)$ 이하임을 보이세요. 위젯에서 $M = 3$ 일 때 두 방식의 $\alpha$ 비가 약 16 배임을 확인하고, 서명 계수당 몇 비트를 아끼는지 계산하세요.
+
+<details>
+<summary>풀이</summary>
+
+$\tfrac12(e^{-\|z - v\|^2/2\sigma^2} + e^{-\|z+v\|^2/2\sigma^2}) = e^{-(\|z\|^2 + \|v\|^2)/2\sigma^2}\cosh(\langle z, v\rangle/\sigma^2)$ 이므로 비는 $e^{\|v\|^2/2\sigma^2}/\cosh(\cdot)$ 이고 $\cosh \ge 1$. $M = 3$: 한쪽 이동 $\alpha \approx 11.0$, 바이모달 $\alpha = 1/\sqrt{2\ln 3} \approx 0.67$, 비 $\approx 16$, $\log_2 16 = 4$ 비트.
+
+</details>
+
+**★★ 9.** $u$ 가 $[-\tfrac12, \tfrac12]^n$ 에서 균등하고 $x = uB$ (행이 기저 벡터)일 때 $\mathrm{Cov}(x) = B^T B / 12$ 임을 보이세요. 이것만으로 $B$ 를 복원할 수 없는 이유와, Nguyen–Regev 가 4차 모멘트를 쓰는 이유를 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+$\mathrm{Cov}(u) = I/12$ (구간 $[-\tfrac12, \tfrac12]$ 균등의 분산은 $1/12$), $\mathrm{Cov}(uB) = B^T \mathrm{Cov}(u) B = B^T B/12$. 이 행렬은 $B$ 를 왼쪽에서 직교 행렬로 바꾼 $OB$ 에도 똑같으므로($(OB)^T(OB) = B^TB$), 2차 모멘트만으로는 "어느 방향으로 돌아가 있는지"를 알 수 없습니다. 대신 $(B^TB)^{-1} = LL^T$ 인 $L$ 로 $x \mapsto xL$ 을 하면 $xL = u(BL)$ 이고 $(BL)(BL)^T = I$, 즉 $BL$ 은 직교 행렬이라 평행사변형이 **회전된 정육면체**가 됩니다. 정육면체 위 균등분포의 공분산은 모든 방향으로 같아 회전이 보이지 않지만, 4차 모멘트 $\mathbb{E}[\langle xL, w\rangle^4]$ 는 단위 벡터 $w$ 가 정육면체의 면 방향(= $BL$ 의 행)일 때 최소가 됩니다. 이 최솟점들을 경사 하강으로 찾아 $L^{-1}$ 을 곱하면 기저 벡터 $\pm b_i$ 가 나옵니다.
+
+</details>
+
+**★★★ 10.** (읽기) Falcon 명세에서 NTRU 기저의 GSO 노름이 $\approx 1.17\sqrt q$ 라는 주장과, 가우시안 폭 $\sigma$, 서명 노름 한계 $\beta$ 가 어떻게 연결되는지 찾아 정리하세요. 6.1 절의 $\sigma \ge \|\tilde B\| \cdot \omega(\sqrt{\log n})$ 조건과 비교하세요.
+
+<details>
+<summary>풀이</summary>
+
+명세는 키 생성에서 $\|\tilde B\|$ 가 기준($1.17\sqrt q$)을 넘는 $(f, g)$ 를 버립니다. 서명 폭은 $\sigma = \|\tilde B\| \cdot \eta_\epsilon(\mathbb{Z}^{2n})$ 꼴(평활 매개변수, 6장)로 정해지고, 서명 노름 한계 $\beta$ 는 $\sigma\sqrt{2n}$ 에 작은 여유를 곱한 값입니다. 즉 GPV 조건의 $\omega(\sqrt{\log n})$ 가 구체적인 평활 매개변수로 바뀐 것이고, $\|\tilde B\|$ 가 작을수록 $\sigma$, $\beta$, 그리고 서명 크기가 작아집니다. 키 생성이 "좋은 $(f, g)$ 가 나올 때까지 다시" 하는 이유입니다.
+
+</details>
+
+**★★★ 11.** (읽기) 2026년 7월 pqc-forum 의 HAWK 공격 공개 글과 설계자들의 철회 공지를 찾아, (a) 키 복구가 어떤 차원의 어떤 문제로 환원되는지, (b) 그 결과 필요한 BKZ 블록 크기와 보안 비트가 어떻게 바뀌는지, (c) 공격이 쓰는 구조가 무엇인지 정리하세요. 이 교과서 7절의 서술과 다른 점이 있으면 알려 주세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+(b) 는 10장의 core-SVP 모델로 계산합니다: 블록 크기가 $\beta \to \beta/2$ 가 되면 비용이 $2^{0.292\beta} \to 2^{0.146\beta}$. 범주 1 (약 $2^{128}$)을 목표로 한 파라미터가 $2^{64}$ 근처로 떨어진다는 뜻이고, 대책으로 차원을 두 배로 하면 키·서명이 두 배가 되어 Falcon 대비 장점이 사라집니다. (a), (c) 는 원문으로 확인하세요.
+
+</details>
+
+## 요약
+
+- 격자 서명은 **Fiat–Shamir with aborts**(ML-DSA, HAETAE)와 **해시 후 서명**(FN-DSA, HAWK)의 두 길이 있다.
+- ML-DSA: $q = 8380417$ 의 완전 NTT, $w$ 의 상위 비트만 약속, $t$ 는 상위 10 비트만 공개하고 힌트로 보정. 네 검사 중 $\|z\|$ 는 거절 샘플링(비밀 숨기기), LowBits 는 정확성. 평균 반복 $\exp(n\beta(\ell/\gamma_1 + k/\gamma_2))$.
+- 분포를 바꾸면 서명이 준다: 가우시안(꼬리 자르기, $\alpha \approx 12$) → 바이모달($\alpha \approx 1$, mod $2q$ 키 구조) → 초구 + 엔트로피 부호화(HAETAE).
+- Babai 서명은 평행사변형 $\mathcal{P}_{1/2}(B)$ 로 비밀 기저를 흘린다(Nguyen–Regev). GPV 는 이산 가우시안 샘플링으로 기저와 무관한 분포를 만든다. FN-DSA 는 이것을 NTRU 격자와 ffSampling 으로 효율화했지만 부동소수점 구현이 어렵다.
+- HAWK 는 LIP 위의 간결한 설계였으나 2026년 새 구조 공격으로 철회되었다. 새 가정과 구조는 공짜가 아니다.
+- 다음: 5부에서 공격 비용을 정량화한다. [10장](../guide/curriculum/)(BKZ·sieving)과 18장(lattice estimator).
+
+## 참고문헌
+
+1. **NIST FIPS 204**, *Module-Lattice-Based Digital Signature Standard* (2024). 이 장 3절의 1차 자료.
+2. L. Ducas, E. Kiltz, T. Lepoint, V. Lyubashevsky, P. Schwabe, G. Seiler, D. Stehlé, *CRYSTALS-Dilithium: A Lattice-Based Digital Signature Scheme*, TCHES 2018.
+3. V. Lyubashevsky, *Lattice Signatures without Trapdoors*, Eurocrypt 2012.
+4. L. Ducas, A. Durmus, T. Lepoint, V. Lyubashevsky, *Lattice Signatures and Bimodal Gaussians*, CRYPTO 2013. (BLISS)
+5. J. H. Cheon 외, *HAETAE: Shorter Lattice-Based Fiat-Shamir Signatures*, TCHES 2024. 그리고 KpqC 최종 HAETAE 명세서.
+6. C. Gentry, C. Peikert, V. Vaikuntanathan, *Trapdoors for Hard Lattices and New Cryptographic Constructions*, STOC 2008.
+7. P. Q. Nguyen, O. Regev, *Learning a Parallelepiped: Cryptanalysis of GGH and NTRU Signatures*, Eurocrypt 2006.
+8. P.-A. Fouque 외, *Falcon: Fast-Fourier Lattice-based Compact Signatures over NTRU* (명세서, 2020); L. Ducas, T. Prest, *Fast Fourier Orthogonalization*, ISSAC 2016.
+9. L. Ducas, E. W. Postlethwaite, L. N. Pulles, W. van Woerden, *Hawk: Module LIP makes Lattice Signatures Fast, Compact and Simple*, Asiacrypt 2022.
+10. E. Kiltz, V. Lyubashevsky, C. Schaffner, *A Concrete Treatment of Fiat-Shamir Signatures in the Quantum Random-Oracle Model*, Eurocrypt 2018.
+11. M. Barbosa 외, *Fixing and Mechanizing the Security Proof of Fiat-Shamir with Aborts and Dilithium*, CRYPTO 2023; J. Devevey, P. Fallahpour, A. Passelègue, D. Stehlé, *A Detailed Analysis of Fiat-Shamir with Aborts*, CRYPTO 2023.
+12. L. Groot Bruinderink, A. Hülsing, T. Lange, Y. Yarom, *Flush, Gauss, and Reload — A Cache Attack on the BLISS Lattice-Based Signature Scheme*, CHES 2016.

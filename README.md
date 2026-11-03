@@ -30,6 +30,7 @@
 | 14장 | LWE — 탐색⇔결정, 최악→평균 환원, Regev 암호, 임베딩 공격 |
 | 15장 | NTRU — 환과 문제, 정확성, NTRU 격자와 밀집 부분격자, overstretched, NTRU+ |
 | 16장 | ML-KEM 해부 — NTT, 압축, K-PKE, 복호 실패 확률 정확 계산, FO·입력 검사, 구현 공격, SMAUG-T |
+| 17장 | 격자 서명 — ML-DSA 해부, 바이모달과 HAETAE, GPV 와 평행사변형 공격, FN-DSA, HAWK 와 그 철회 |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
 | 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |

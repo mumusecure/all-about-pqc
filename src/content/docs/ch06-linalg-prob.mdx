@@ -207,7 +207,7 @@ $\rho_s(x) = e^{-\pi x^2/s^2} = e^{-x^2/(2\sigma^2)}$ 로 맞추면 $\sigma = s/
 - $s \gg \eta_\varepsilon(\mathcal{L})$: 가우시안이 격자의 기본 영역 여러 개에 퍼져서, "어느 격자점 근처인가"라는 정보가 지워집니다.
 - $s \ll \eta_\varepsilon(\mathcal{L})$: 가우시안이 한 격자점 근처에 뭉쳐 있어서, 가장 가까운 격자점을 알아낼 수 있습니다.
 
-Micciancio–Regev(2004)는 $\eta_\varepsilon(\mathcal{L}) \le \sqrt{\ln(2n(1 + 1/\varepsilon))/\pi}\cdot\lambda_n(\mathcal{L})$ 을 보였고, 이 양이 14장 Regev 환원의 근사 인자 계산과 GPV 서명(17장)의 안전성 증명에서 핵심 역할을 합니다.
+Micciancio–Regev(2004)는 $\eta_\varepsilon(\mathcal{L}) \le \sqrt{\ln(2n(1 + 1/\varepsilon))/\pi}\cdot\lambda_n(\mathcal{L})$ 을 보였고, 이 양이 14장 Regev 환원의 근사 인자 계산과 GPV 서명([17장](../ch17-lattice-signatures/))의 안전성 증명에서 핵심 역할을 합니다.
 
 **꼬리 (Banaszczyk).** 원점 중심 $D_{\mathcal{L},s}$ 에서 뽑은 $x$ 는 $\Pr[\|x\| > s\sqrt n] \le 2^{-n}$ 을 만족합니다. 고차원 가우시안은 길이가 대략 $s\sqrt n$ 을 넘지 않는다는 뜻이고, 이것이 다음 절의 "길이 집중" 현상과 이어집니다.
 
@@ -255,7 +255,7 @@ $$
 
 1. **M. Mitzenmacher, E. Upfal**, *Probability and Computing* (2판). Chernoff·Hoeffding 부등식 장. 암호 연구자의 확률 기본기.
 2. **D. Micciancio, O. Regev**, *Worst-case to Average-case Reductions Based on Gaussian Measures*, FOCS 2004 / SIAM J. Comput. 2007. 평활 파라미터를 도입한 논문. 2~3절만 먼저 읽으세요.
-3. **C. Gentry, C. Peikert, V. Vaikuntanathan**, *Trapdoors for Hard Lattices and New Cryptographic Constructions*, STOC 2008. 격자 위 가우시안 샘플링과 그 응용(17장 FN-DSA 의 이론적 뿌리).
+3. **C. Gentry, C. Peikert, V. Vaikuntanathan**, *Trapdoors for Hard Lattices and New Cryptographic Constructions*, STOC 2008. 격자 위 가우시안 샘플링과 그 응용([17장](../ch17-lattice-signatures/) FN-DSA 의 이론적 뿌리).
 4. **S. Bai, A. Langlois, T. Lepoint, D. Stehlé, R. Steinfeld**, *Improved Security Proofs in Lattice-Based Cryptography: Using the Rényi Divergence Rather Than the Statistical Distance*, Asiacrypt 2015.
 
 ## 연습문제
