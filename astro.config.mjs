@@ -38,6 +38,7 @@ export default defineConfig({
         ]},
         { label: '2부 · 격자의 기하와 알고리즘', items: [
           { label: '6장. 수학 II: 선형대수와 확률', slug: 'ch06-linalg-prob' },
+          { label: '7장. 격자 기초', slug: 'ch07-lattices' },
           { label: '9장. LLL 완전 정복', slug: 'ch09-lll' },
         ]},
         { label: '4부 · 격자 암호 설계', items: [

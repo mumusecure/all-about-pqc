@@ -252,3 +252,106 @@ export function isLLLReduced(B: Basis, delta = 0.75, eps = 1e-9): boolean {
 export function gsoLogProfile(B: Basis): number[] {
   return gramSchmidt(B).Bn.map((x) => 0.5 * Math.log2(x));
 }
+
+/* ------------------------------------------------------------------ */
+/* 7장: 쌍대 격자, 소속 판정, 연속 최소값, 보로노이 셀                      */
+/* ------------------------------------------------------------------ */
+
+/** 정방 행렬의 역행렬 (가우스–조르단, 부동소수점). 특이하면 null. */
+export function inverse(M: Basis): Basis | null {
+  const n = M.length;
+  const A = M.map((r, i) => [...r, ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-12) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    const piv = A[c][c];
+    for (let j = 0; j < 2 * n; j++) A[c][j] /= piv;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = A[r][c];
+      if (f !== 0) for (let j = 0; j < 2 * n; j++) A[r][j] -= f * A[c][j];
+    }
+  }
+  return A.map((r) => r.slice(n));
+}
+
+export const transpose = (M: Basis): Basis => M[0].map((_, j) => M.map((r) => r[j]));
+
+/** 행렬 곱 (행 규약) */
+export const matMul = (A: Basis, B: Basis): Basis => A.map((r) => B[0].map((_, j) => r.reduce((s, x, k) => s + x * B[k][j], 0)));
+
+/**
+ * 완전 랭크 격자의 쌍대 기저 D = (B⁻¹)ᵀ.  ⟨b_i, d_j⟩ = δ_ij 를 만족한다.
+ * L* = { y : 모든 x ∈ L 에 대해 ⟨x, y⟩ ∈ ℤ }.
+ */
+export function dualBasis(B: Basis): Basis | null {
+  const inv = inverse(B);
+  return inv ? transpose(inv) : null;
+}
+
+/** v ∈ L(B) ? (완전 랭크) — 좌표 v·B⁻¹ 가 모두 정수인지 */
+export function latticeContains(B: Basis, v: Vec, eps = 1e-9): boolean {
+  const inv = inverse(B);
+  if (!inv) return false;
+  const coords = v.map((_, j) => v.reduce((s, vk, k) => s + vk * inv[k][j], 0));
+  return coords.every((c) => Math.abs(c - Math.round(c)) < eps);
+}
+
+/** 두 완전 랭크 기저가 같은 격자를 생성하는가?  U = B′B⁻¹ 가 정수이고 det U = ±1 */
+export function sameLattice(B: Basis, B2: Basis, eps = 1e-9): boolean {
+  const inv = inverse(B);
+  if (!inv) return false;
+  const U = matMul(B2, inv);
+  if (!U.flat().every((x) => Math.abs(x - Math.round(x)) < eps)) return false;
+  return Math.abs(Math.abs(detInt(U.map((r) => r.map(Math.round)))) - 1) < eps;
+}
+
+/** 2차원 격자에서 길이 ≤ R 인 0 아닌 격자 벡터들 (작은 계수 전수조사) */
+export function shortVectors2D(B: Basis, R: number, C = 40): Vec[] {
+  const out: Vec[] = [];
+  for (let x = -C; x <= C; x++)
+    for (let y = -C; y <= C; y++) {
+      if (!x && !y) continue;
+      const v = [x * B[0][0] + y * B[1][0], x * B[0][1] + y * B[1][1]];
+      if (norm(v) <= R + 1e-9) out.push(v);
+    }
+  return out.sort((a, b) => norm2(a) - norm2(b));
+}
+
+/** 2차원 연속 최소값 (λ₁, λ₂) 과 그것을 이루는 벡터. Gauss 축소 결과가 정확히 이것이다. */
+export function successiveMinima2D(B: Basis): { l1: number; l2: number; v1: Vec; v2: Vec } {
+  const steps = gaussReduce(B[0], B[1]);
+  const last = steps[steps.length - 1];
+  return { l1: norm(last.b1), l2: norm(last.b2), v1: last.b1, v2: last.b2 };
+}
+
+/** 2차원 보로노이 셀: 원점이 다른 어떤 격자점보다 가까운 점들의 볼록 다각형 */
+export function voronoiCell2D(B: Basis): Vec[] {
+  const { l2 } = successiveMinima2D(B);
+  const near = shortVectors2D(B, 2.5 * l2);
+  const big = 10 * l2;
+  let poly: Vec[] = [[-big, -big], [big, -big], [big, big], [-big, big]];
+  for (const v of near) {
+    // 반평면 ⟨x, v⟩ ≤ ‖v‖²/2 로 자르기 (Sutherland–Hodgman)
+    const c = norm2(v) / 2;
+    const inside = (p: Vec) => dot(p, v) <= c + 1e-12;
+    const cut = (p: Vec, q: Vec): Vec => {
+      const t = (c - dot(p, v)) / (dot(q, v) - dot(p, v));
+      return [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])];
+    };
+    const next: Vec[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      if (inside(p)) { next.push(p); if (!inside(q)) next.push(cut(p, q)); }
+      else if (inside(q)) next.push(cut(p, q));
+    }
+    poly = next;
+  }
+  return poly;
+}
+
+/** 다각형 넓이 (신발끈 공식) */
+export const polygonArea = (P: Vec[]): number =>
+  Math.abs(P.reduce((s, p, i) => s + p[0] * P[(i + 1) % P.length][1] - P[(i + 1) % P.length][0] * p[1], 0)) / 2;

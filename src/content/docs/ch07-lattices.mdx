@@ -1,0 +1,299 @@
+---
+title: 7장. 격자 기초
+description: 격자의 정의와 기저, 유니모듈러 변환, 기본 영역과 부피, q-ary 격자, 연속 최소값, Minkowski 정리와 Hermite 상수, 쌍대 격자와 전이 정리.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import LatticeAnatomy from '../../components/LatticeAnatomy.tsx';
+import DualLattice from '../../components/DualLattice.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 격자를 기저로 정의하고, 두 기저가 같은 격자를 생성할 조건(유니모듈러 변환)을 증명할 수 있다.
+2. 기본 영역(평행다면체, 보로노이 셀)과 격자의 부피를 설명하고, LWE 에 쓰이는 q-ary 격자 $\Lambda_q(A)$, $\Lambda_q^\perp(A)$ 의 부피를 계산할 수 있다.
+3. 연속 최소값 $\lambda_1, \dots, \lambda_n$ 을 정의하고, Blichfeldt·Minkowski 정리를 증명해 $\lambda_1$ 의 상한을 얻을 수 있다.
+4. 쌍대 격자의 기저를 계산하고, $\Lambda_q(A)^* = \frac1q\Lambda_q^\perp(A)$ 를 증명할 수 있다.
+5. 쌍대 벡터가 격자를 평행 초평면으로 나눈다는 그림을 이해하고, 전이 정리 $1 \le \lambda_1(\mathcal{L})\lambda_n(\mathcal{L}^*) \le n$ 의 의미를 말할 수 있다.
+
+**선수 지식**: [2장](../ch02-algebra/)의 $\mathbb{Z}_q$, [6장](../ch06-linalg-prob/)의 행렬식·Gram-Schmidt·공의 부피.
+
+</div>
+
+## 1. 직관: 무한히 반복되는 점의 배열
+
+<span class="layer-tag">직관</span>
+
+바둑판의 교차점, 결정(crystal) 속 원자의 배열, 벌집의 중심점들. 모두 **같은 걸음을 정수 번 반복** 해서 얻는 점의 배열입니다. 수학에서는 이것을 **격자(lattice)** 라고 부릅니다.
+
+격자 암호가 쓰는 질문은 놀라울 만큼 단순합니다. "원점이 아닌 격자점 중 가장 가까운 것은?" 2차원에서는 눈으로 보이지만, 500 차원에서는 가장 빠른 알고리즘도 지수 시간이 걸립니다. 이 장에서는 그 질문을 정확하게 묻기 위한 언어를 만듭니다. 격자의 크기(부피), 짧은 벡터의 길이(연속 최소값), 그 길이의 한계(Minkowski), 그리고 격자를 "반대편에서" 보는 방법(쌍대 격자)입니다.
+
+## 2. 격자와 기저
+
+<span class="layer-tag">정식화</span>
+
+**정의 7.1.** 일차독립인 $b_1, \dots, b_n \in \mathbb{R}^d$ 에 대해
+
+$$
+\mathcal{L}(B) = \Big\{ \textstyle\sum_{i=1}^n x_i b_i : x_i \in \mathbb{Z} \Big\} = \{ xB : x \in \mathbb{Z}^n \}
+$$
+
+를 기저 $B$ (행이 $b_i$)가 생성하는 **격자** 라 한다. $n$ 은 랭크, $d$ 는 차원이고, $n = d$ 이면 **완전 랭크** 다.
+
+$\mathbb{R}^d$ 의 덧셈 부분군 $\mathcal{L}$ 이 **이산적**(원점 근처에 다른 점이 없음)이면 반드시 어떤 기저로 생성된다는 것도 알려져 있습니다. 그래서 격자를 "$\mathbb{R}^d$ 의 이산 덧셈 부분군"으로 정의하기도 합니다.
+
+**정리 7.2.** 완전 랭크 기저 $B, B'$ 에 대해 $\mathcal{L}(B) = \mathcal{L}(B')$ $\iff$ $B' = UB$ 인 **유니모듈러** 행렬 $U$ (정수 행렬, $\det U = \pm1$)가 존재한다.
+
+*증명.* ($\Leftarrow$) $B' = UB$ 이면 $B'$ 의 행은 $B$ 의 행의 정수 결합이므로 $\mathcal{L}(B') \subseteq \mathcal{L}(B)$. $U^{-1}$ 도 정수 행렬이므로(행렬식이 $\pm1$ 이라 수반행렬 공식의 분모가 1) 반대 포함도 성립한다. ($\Rightarrow$) $B'$ 의 각 행이 $\mathcal{L}(B)$ 에 있으므로 $B' = UB$ ($U$ 정수), 같은 이유로 $B = VB'$ ($V$ 정수). 그러면 $B = VUB$ 이고 $B$ 가 가역이므로 $VU = I$, 따라서 $\det U \cdot \det V = 1$ 이고 둘 다 정수이므로 $\det U = \pm 1$. $\blacksquare$
+
+**소속 판정.** $v \in \mathcal{L}(B)$ $\iff$ 좌표 $vB^{-1}$ 가 정수 벡터. 9장의 "나쁜 기저" $(11, 6), (19, 11)$ 과 "좋은 기저" $(3, 1), (-1, 2)$ 가 같은 격자인 것도 $U = B'B^{-1}$ 이 정수이고 $\det U = \pm1$ 임을 계산하면 확인됩니다(저장소의 `tests/lattice-basics.test.ts`).
+
+## 3. 기본 영역과 부피
+
+<span class="layer-tag">정식화</span>
+
+**기본 영역** 이란 격자의 평행이동들로 $\mathbb{R}^n$ 을 겹침 없이 빈틈없이 덮는 영역입니다. 대표적인 두 가지:
+
+- **기본 평행다면체** $\mathcal{P}(B) = \{ \sum_i t_i b_i : 0 \le t_i < 1 \}$. 기저에 따라 모양이 달라집니다.
+- **보로노이 셀** $\mathcal{V} = \{ x : \|x\| \le \|x - v\| \ \forall v \in \mathcal{L}\}$. 원점이 다른 어떤 격자점보다 가까운 점들. **기저와 무관** 합니다.
+
+**정리 7.3.** 모든 기본 영역의 부피는 같고, 그 값은 $\operatorname{vol}(\mathcal{L}) = |\det B|$ (일반적으로 $\sqrt{\det BB^\top}$)이다.
+
+평행다면체의 경우 6장의 "행렬식 = 부피"와 정리 7.2 ($|\det U| = 1$)에서 바로 나옵니다. 아래 위젯에서 '기저 바꾸기'를 눌러 보세요. 평행사변형 타일은 계속 바뀌지만 넓이와 보로노이 셀은 그대로입니다.
+
+<LatticeAnatomy client:visible />
+
+부피는 **격자점의 밀도** 의 역수입니다. 반지름 $r$ 인 큰 공 안의 격자점 수는 대략 $V_n r^n / \operatorname{vol}(\mathcal{L})$ 입니다. 6장에서 Gaussian heuristic 을 유도할 때 쓴 바로 그 직관입니다.
+
+**부분격자와 지표.** $\mathcal{L}' \subseteq \mathcal{L}$ 이 같은 랭크의 부분격자이면 $[\mathcal{L} : \mathcal{L}'] = \operatorname{vol}(\mathcal{L}')/\operatorname{vol}(\mathcal{L})$ 은 정수입니다. 예: $2\mathbb{Z}^n \subset \mathbb{Z}^n$ 의 지표는 $2^n$.
+
+### q-ary 격자: LWE 의 격자
+
+행렬 $A \in \mathbb{Z}_q^{m\times n}$ ($m \ge n$) 에서 만드는 두 격자가 격자 암호의 주인공입니다.
+
+$$
+\Lambda_q(A) = \{ y \in \mathbb{Z}^m : y \equiv As \!\!\pmod q \text{ for some } s \in \mathbb{Z}^n \}, \qquad
+\Lambda_q^\perp(A) = \{ y \in \mathbb{Z}^m : A^\top y \equiv 0 \!\!\pmod q \}.
+$$
+
+둘 다 $q\mathbb{Z}^m \subseteq \Lambda \subseteq \mathbb{Z}^m$ 을 만족하는 정수 격자입니다. $q$ 가 소수이고 $A$ 의 랭크가 $n$ 이면
+
+$$
+\operatorname{vol}(\Lambda_q(A)) = q^{m-n}, \qquad \operatorname{vol}(\Lambda_q^\perp(A)) = q^{n}.
+$$
+
+*이유.* $\Lambda_q(A)/q\mathbb{Z}^m$ 은 $\mathbb{Z}_q^m$ 안의 $A$ 의 열공간과 같고 원소가 $q^n$ 개다. 따라서 지표 $[\mathbb{Z}^m : \Lambda_q(A)] = q^m / q^n$. $\Lambda_q^\perp$ 는 $A^\top$ 의 핵이므로 원소가 $q^{m-n}$ 개, 지표는 $q^n$.
+
+- **LWE** $b = As + e$ 는 "$\Lambda_q(A)$ 의 점 $As$ 에서 조금 떨어진 점"이 주어졌을 때 그 격자점을 찾는 문제입니다(BDD, 8장).
+- **SIS** "$A^\top y \equiv 0$ 인 짧은 $y \ne 0$ 찾기"는 $\Lambda_q^\perp(A)$ 의 짧은 벡터 찾기(SVP)입니다. ML-DSA 의 안전성이 여기에 기댑니다(17장).
+
+위젯의 'q-ary $\Lambda_{13}((1,5))$' 는 $m = 2$, $n = 1$, $A = (1, 5)^\top$ 인 가장 작은 예로, 기저 $(1, 5), (0, 13)$, 부피 $13 = q^{m-n}$ 입니다.
+
+## 4. 연속 최소값과 Minkowski 정리
+
+<span class="layer-tag">정식화</span>
+
+**정의 7.4 (연속 최소값).** $\lambda_i(\mathcal{L})$ 은 일차독립인 격자 벡터 $i$ 개를 담는 원점 중심 공의 최소 반지름이다. 특히 $\lambda_1(\mathcal{L}) = \min_{v \in \mathcal{L}\setminus\{0\}}\|v\|$.
+
+$\lambda_1 \le \lambda_2 \le \dots \le \lambda_n$ 이고, 각 값은 어떤 격자 벡터의 길이로 실제로 달성됩니다(공 안의 격자점은 유한개). 2차원에서는 Gauss 축소 기저(9장)가 정확히 $\|b_1\| = \lambda_1$, $\|b_2\| = \lambda_2$ 를 줍니다. 위젯의 초록·보라 벡터가 그것입니다.
+
+<Aside type="caution" title="연속 최소값을 이루는 벡터가 기저는 아닐 수 있다">
+$n \ge 5$ 에서 $\mathcal{L} = \mathbb{Z}^n + \mathbb{Z}\cdot(\tfrac12, \dots, \tfrac12)$ 를 생각하세요. $(\tfrac12,\dots,\tfrac12)$ 의 길이는 $\sqrt n/2 > 1$ 이므로 $\lambda_1 = \dots = \lambda_n = 1$ 이고 $e_1, \dots, e_n$ 이 이를 달성합니다. 하지만 $e_i$ 들은 $\mathbb{Z}^n$ 만 생성하므로 $\mathcal{L}$ 의 기저가 아닙니다(지표 2 인 부분격자). 고차원에서는 "가장 짧은 벡터들을 모으면 좋은 기저"가 자동으로 성립하지 않습니다.
+</Aside>
+
+**하한.** 임의의 기저에 대해 $\lambda_1(\mathcal{L}) \ge \min_i \|b_i^*\|$ 입니다. 0 아닌 $v = \sum x_ib_i$ 에서 $x_k \ne 0$ 인 마지막 $k$ 를 잡으면, $v$ 를 $b_k^*$ 방향으로 사영한 성분이 정확히 $x_kb_k^*$ 이기 때문입니다(9장 보조정리 9.3 과 같은 논증).
+
+**상한.** 부피가 주어졌을 때 최단 벡터는 얼마나 길 수 있을까요?
+
+**정리 7.5 (Blichfeldt).** 가측집합 $S \subseteq \mathbb{R}^n$ 이 $\operatorname{vol}(S) > \operatorname{vol}(\mathcal{L})$ 이면 $x - y \in \mathcal{L}\setminus\{0\}$ 인 서로 다른 $x, y \in S$ 가 존재한다.
+
+*증명.* 기본 평행다면체 $\mathcal{P}$ 의 평행이동 $\mathcal{P} + v$ ($v \in \mathcal{L}$)는 $\mathbb{R}^n$ 을 분할한다. 조각 $S_v = (S \cap (\mathcal{P} + v)) - v$ 는 모두 $\mathcal{P}$ 안에 있고 부피의 합은 $\operatorname{vol}(S) > \operatorname{vol}(\mathcal{P})$ 이므로, 어떤 두 조각 $S_v, S_w$ ($v \ne w$)가 겹친다(비둘기집 원리). 겹친 점 $p$ 에 대해 $x = p + v$, $y = p + w \in S$ 이고 $x - y = v - w \in \mathcal{L}\setminus\{0\}$. $\blacksquare$
+
+**정리 7.6 (Minkowski 볼록체 정리).** $S$ 가 원점 대칭인 볼록집합이고 $\operatorname{vol}(S) > 2^n\operatorname{vol}(\mathcal{L})$ 이면 $S$ 는 0 아닌 격자점을 포함한다. ($S$ 가 컴팩트하면 $\ge$ 로 충분하다.)
+
+*증명.* $\operatorname{vol}(\frac12 S) = 2^{-n}\operatorname{vol}(S) > \operatorname{vol}(\mathcal{L})$ 이므로 Blichfeldt 에 의해 $x, y \in \frac12 S$, $x - y \in \mathcal{L}\setminus\{0\}$. 대칭성으로 $-2y \in S$, 볼록성으로 $x - y = \frac12(2x) + \frac12(-2y) \in S$. $\blacksquare$
+
+**따름정리 7.7.** $\lambda_1(\mathcal{L}) \le \sqrt n \cdot \operatorname{vol}(\mathcal{L})^{1/n}$, 더 정밀하게 $\lambda_1(\mathcal{L}) \le 2\left(\operatorname{vol}(\mathcal{L})/V_n\right)^{1/n} \approx \sqrt{\tfrac{2n}{\pi e}}\operatorname{vol}(\mathcal{L})^{1/n}$.
+
+*증명.* 한 변이 $2\operatorname{vol}^{1/n}$ 인 정육면체는 부피가 $2^n\operatorname{vol}$ 이고 반지름 $\sqrt n\operatorname{vol}^{1/n}$ 인 공 안에 들어간다. 두 번째 식은 부피가 $2^n\operatorname{vol}$ 인 공을 직접 쓴다. $\blacksquare$
+
+<Aside type="tip" title="Minkowski 상한과 Gaussian heuristic 은 정확히 2배 차이">
+Minkowski: $\lambda_1 \le 2(\operatorname{vol}/V_n)^{1/n}$ (모든 격자에서 성립하는 **정리**). GH: $\lambda_1 \approx (\operatorname{vol}/V_n)^{1/n}$ (무작위 격자에서의 **예측**). 위젯의 빨간 원(넓이 $4\cdot\operatorname{vol}$)과 회색 원(넓이 $\operatorname{vol}$)이 각각이며, 2차원에서 반지름 비가 정확히 2 입니다. 최단 벡터는 늘 빨간 원 안에 있고, "보통의" 격자에서는 회색 원 근처에 있습니다.
+</Aside>
+
+**Hermite 상수.** $\gamma_n = \sup_{\mathcal{L}} \lambda_1(\mathcal{L})^2/\operatorname{vol}(\mathcal{L})^{2/n}$. 따름정리 7.7 에 의해 $\gamma_n \le n$ 이고, 정확한 값은 $n \le 8$ 과 $n = 24$ 에서만 알려져 있습니다. 2차원의 최적은 **육각 격자** 로 $\gamma_2 = 2/\sqrt3$ 입니다. 위젯에서 '육각 격자'를 골라 $\lambda_1^2/\operatorname{vol}$ 을 확인해 보세요. 9장의 "제곱근 Hermite 인자 $\delta_0$"라는 이름이 여기서 왔습니다.
+
+**정리 7.8 (Minkowski 제2정리, 증명 생략).** $\prod_{i=1}^n\lambda_i(\mathcal{L}) \le 2^n\operatorname{vol}(\mathcal{L})/V_n$. 즉 연속 최소값의 기하평균도 $\operatorname{vol}^{1/n}$ 수준으로 제한됩니다.
+
+<Quiz
+  client:visible
+  question="기저 (1, 2), (3, 4) 가 생성하는 격자와 ℤ² 의 관계는?"
+  options={[
+    '같은 격자다 (둘 다 정수 벡터이므로)',
+    'ℤ² 의 지표 2 인 부분격자다 (|det| = 2)',
+    'ℤ² 를 진부분집합으로 포함한다',
+    '격자가 아니다',
+  ]}
+  answer={1}
+  explanation="det = 1·4 − 2·3 = −2 이므로 부피가 2 입니다. 정수 벡터로 생성했으니 ℤ² 의 부분격자이고, 지표는 vol 의 비 2/1 = 2 입니다. 예를 들어 (1, 0) 은 이 격자에 속하지 않습니다. 같은 격자이려면 |det| = 1 이어야 합니다(정리 7.2)."
+/>
+
+## 5. 쌍대 격자
+
+<span class="layer-tag">정식화</span>
+
+**정의 7.9.** 격자 $\mathcal{L}$ 의 **쌍대 격자** 는
+
+$$
+\mathcal{L}^* = \{ y \in \operatorname{span}(\mathcal{L}) : \langle x, y\rangle \in \mathbb{Z} \text{ for all } x \in \mathcal{L} \}.
+$$
+
+**정리 7.10.** 완전 랭크 기저 $B$ 에 대해 $D = (B^{-1})^\top$ 는 $\mathcal{L}(B)^*$ 의 기저이고 $\langle b_i, d_j\rangle = \delta_{ij}$ 이다. 따라서 $(\mathcal{L}^*)^* = \mathcal{L}$, $\operatorname{vol}(\mathcal{L}^*) = 1/\operatorname{vol}(\mathcal{L})$.
+
+*증명.* $BD^\top = I$ 이므로 $\langle b_i, d_j\rangle = \delta_{ij}$ 이고, 정수 결합끼리의 내적은 정수이므로 $\mathcal{L}(D) \subseteq \mathcal{L}^*$. 반대로 $y \in \mathcal{L}^*$ 이면 $y = \sum_j \langle b_j, y\rangle d_j$ 이고 계수 $\langle b_j, y\rangle$ 가 정수이므로 $y \in \mathcal{L}(D)$. $\blacksquare$
+
+예: $(\mathbb{Z}^n)^* = \mathbb{Z}^n$, $(q\mathbb{Z}^n)^* = \frac1q\mathbb{Z}^n$. 격자가 촘촘할수록 쌍대는 성깁니다.
+
+**정리 7.11 (q-ary 쌍대성).** $\Lambda_q(A)^* = \frac1q\,\Lambda_q^\perp(A)$.
+
+*증명.* $y \in \Lambda_q^\perp(A)$, $x = As + qz \in \Lambda_q(A)$ 이면 $\langle x, y/q\rangle = (s^\top A^\top y)/q + z^\top y \in \mathbb{Z}$ ($A^\top y \equiv 0$). 따라서 $\frac1q\Lambda_q^\perp \subseteq \Lambda_q^*$. 부피를 비교하면 $\operatorname{vol}(\frac1q\Lambda_q^\perp) = q^{-m}q^n = 1/\operatorname{vol}(\Lambda_q)$ 이므로 두 격자는 같다. $\blacksquare$
+
+LWE 의 격자($\Lambda_q$)와 SIS 의 격자($\Lambda_q^\perp$)가 서로의 쌍대라는 이 사실이, LWE 에 대한 **쌍대 공격**(SIS 해를 찾아 LWE 를 구별)의 출발점입니다.
+
+### 기하학적 의미: 평행 초평면
+
+쌍대 벡터 $y \ne 0$ 하나를 고정하면, 모든 격자점 $x$ 에 대해 $\langle x, y\rangle$ 은 정수입니다. 즉 **격자 전체가 평행 초평면 $\{x : \langle x, y\rangle = k\}$, $k \in \mathbb{Z}$ 위에 놓이고**, 이웃한 초평면 사이 간격은 $1/\|y\|$ 입니다.
+
+<DualLattice client:visible />
+
+- 짧은 쌍대 벡터 = 넓은 간격 = 격자점이 몇 장의 "판"에 몰려 있음.
+- 그래서 쌍대의 짧은 벡터는 원래 격자의 구조를 드러냅니다. 무작위 점 $t$ 가 격자에 *가까운지* 는 $\langle t, y\rangle$ 이 정수에 가까운지로 검사할 수 있고, 이것이 쌍대 공격의 핵심 아이디어입니다(18장).
+
+**정리 7.12 (전이 정리).** 랭크 $n$ 격자에 대해 $1 \le \lambda_1(\mathcal{L})\,\lambda_n(\mathcal{L}^*) \le n$.
+
+하한은 쉽습니다. 최단 벡터 $x \in \mathcal{L}$ 에 대해, $\mathcal{L}^*$ 의 일차독립 벡터 $n$ 개가 모두 $x$ 에 수직일 수는 없으므로 어떤 $y$ 는 $\langle x, y\rangle$ 이 0 이 아닌 정수이고, $1 \le |\langle x, y\rangle| \le \|x\|\|y\| \le \lambda_1\lambda_n^*$. 상한은 Banaszczyk(1993)의 깊은 결과로, 6장의 가우시안 측도 기법으로 증명됩니다. 이 정리는 "격자에 짧은 벡터가 *없다*"는 것을 쌍대의 짧은 벡터들로 **증명** 할 수 있게 해 주며, 격자 문제의 복잡도 이론(8장)에서 핵심 도구입니다.
+
+<Quiz
+  client:visible
+  question="격자 L 에 길이 0.1 인 쌍대 벡터 y ∈ L* 가 있다면, L 의 점들은 어떻게 배열되는가?"
+  options={[
+    '간격 0.1 인 평행선(초평면) 위에 놓인다',
+    '간격 10 인 평행선(초평면) 위에 놓인다',
+    'L 의 최단 벡터 길이가 0.1 이다',
+    'L 의 부피가 0.1 이다',
+  ]}
+  answer={1}
+  explanation="모든 x ∈ L 에 대해 ⟨x, y⟩ ∈ ℤ 이므로 L 은 초평면 ⟨x, y⟩ = k 위에 놓이고, 간격은 1/‖y‖ = 10 입니다. 짧은 쌍대 벡터일수록 간격이 넓어집니다."
+/>
+
+## 6. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **쌍대 공격 논쟁.** 쌍대 공격과 체(sieve) 알고리즘을 결합한 공격들이 LWE 파라미터에 대해 기존 추정보다 강력하다는 주장이 나왔지만, Ducas–Pulles(CRYPTO 2023)는 그 분석에 쓰인 *독립성 가정* 이 실제와 맞지 않는 경우가 있음을 보였습니다. "쌍대 벡터들이 만드는 통계량이 정말 독립처럼 행동하는가"라는 이 장의 기하학적 질문이 표준 파라미터의 안전성 논의로 직결된 사례입니다.
+- **격자 동형 문제(LIP).** 두 격자가 회전만큼만 다른지 판정하는 문제입니다. 기저 $B, B'$ 가 주어질 때 $B' = UBO$ ($U$ 유니모듈러, $O$ 직교)인지 묻습니다. Ducas–van Woerden(Eurocrypt 2022)은 이것을 새로운 암호 가정으로 제안했고, NIST 추가 서명 3라운드 후보 **HAWK** 의 기반이 되었습니다(17장).
+- **역 Minkowski 정리.** Minkowski 정리는 "부피가 작으면 짧은 벡터가 있다"입니다. 그 역방향, 즉 "짧은 벡터가 많지 않으면 모든 부분격자의 부피가 크다"를 Regev–Stephens-Davidowitz(STOC 2017)가 증명했습니다. 격자 기하는 지금도 새 정리가 나오는 살아 있는 수학입니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **O. Regev**, *Lattices in Computer Science* 강의 노트 (Tel Aviv University, 2004), 1~3강. 이 장의 내용을 가장 간결하게 다룹니다.
+2. **D. Micciancio, S. Goldwasser**, *Complexity of Lattice Problems: A Cryptographic Perspective* (Springer, 2002), 1장.
+3. **C. Peikert**, *A Decade of Lattice Cryptography* (2016), 2장. q-ary 격자와 쌍대성.
+4. **L. Ducas, L. Pulles**, *Does the Dual-Sieve Attack on Learning with Errors Even Work?*, CRYPTO 2023. 18장 이후 다시 읽으세요.
+5. **L. Ducas, W. van Woerden**, *On the Lattice Isomorphism Problem, Quadratic Forms, Remarkable Lattices, and Cryptography*, Eurocrypt 2022.
+
+## 연습문제
+
+**★ 1.** 다음 기저 각각이 $\mathbb{Z}^2$ 를 생성하는지 판정하세요. (a) $(2, 3), (3, 5)$ (b) $(1, 2), (3, 4)$ (c) $(2, 0), (0, 1)$. 생성하지 않으면 지표를 구하세요.
+
+<details>
+<summary>해설</summary>
+
+(a) $\det = 10 - 9 = 1$: $\mathbb{Z}^2$ 를 생성. (b) $\det = -2$: 지표 2 인 부분격자. (c) $\det = 2$: 지표 2, $x$ 좌표가 짝수인 점들.
+
+</details>
+
+**★ 2.** $B = \begin{pmatrix}2 & 0\\ 1 & 3\end{pmatrix}$ 의 쌍대 기저를 구하고 $\langle b_i, d_j\rangle = \delta_{ij}$, $\operatorname{vol}(\mathcal{L}^*) = 1/6$ 을 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$B^{-1} = \frac16\begin{pmatrix}3 & 0\\ -1 & 2\end{pmatrix}$, $D = (B^{-1})^\top = \frac16\begin{pmatrix}3 & -1\\ 0 & 2\end{pmatrix}$, 즉 $d_1 = (\frac12, -\frac16)$, $d_2 = (0, \frac13)$. $\langle b_1, d_1\rangle = 1$, $\langle b_2, d_1\rangle = \frac12 - \frac12 = 0$, $\langle b_1, d_2\rangle = 0$, $\langle b_2, d_2\rangle = 1$. $|\det D| = \frac12\cdot\frac13 = \frac16$.
+
+</details>
+
+**★ 3.** $q = 7$, $A = (1, 3)^\top$ ($m = 2$, $n = 1$)일 때 $\Lambda_7(A)$ 와 $\Lambda_7^\perp(A)$ 의 기저를 하나씩 쓰고 부피가 각각 $q^{m-n} = 7$, $q^n = 7$ 임을 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$\Lambda_7(A) = \{ (s, 3s) + 7z \}$: 기저 $(1, 3), (0, 7)$, 부피 7. $\Lambda_7^\perp(A) = \{(y_1, y_2) : y_1 + 3y_2 \equiv 0\}$: 기저 $(7, 0), (-3, 1)$, 부피 7. 정리 7.11 에 의해 첫 번째의 쌍대는 두 번째를 $\frac17$ 배 한 것입니다.
+
+</details>
+
+**★★ 4.** 정리 7.2 의 증명에서 "$\det U = \pm1$ 인 정수 행렬의 역행렬은 정수 행렬"임을 수반행렬 공식으로 보이세요. 또 기본 행 연산(교환, 부호 바꾸기, 한 행에 다른 행의 정수배 더하기)이 모두 유니모듈러임을 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$U^{-1} = \frac{1}{\det U}\operatorname{adj}(U)$ 이고 $\operatorname{adj}(U)$ 의 성분은 정수 소행렬식이므로, $\det U = \pm1$ 이면 $U^{-1}$ 은 정수 행렬. 기본 행 연산의 행렬은 행렬식이 각각 $-1, -1, 1$ 인 정수 행렬입니다. (사실 모든 유니모듈러 행렬은 기본 행 연산의 곱입니다. 이것이 9장 LLL 의 연산들이 격자를 바꾸지 않는 이유입니다.)
+
+</details>
+
+**★★ 5.** 정리 7.6 의 "컴팩트하면 $\ge$ 로 충분하다"를 증명하세요. ($S_k = (1 + \frac1k)S$ 에 정리를 적용하고 유한성을 쓰세요.)
+
+<details>
+<summary>해설</summary>
+
+$\operatorname{vol}(S_k) > 2^n\operatorname{vol}$ 이므로 각 $S_k$ 에 0 아닌 격자점 $v_k$ 가 있습니다. 모든 $v_k$ 는 유계 집합 $2S$ 안에 있고 그 안의 격자점은 유한개이므로, 어떤 $v$ 가 무한히 많은 $k$ 에 대해 $v \in S_k$. $S$ 가 닫혀 있으므로 $v \in \bigcap_k S_k = S$.
+
+</details>
+
+**★★ 6.** 4절 주의 상자의 격자 $\mathcal{L} = \mathbb{Z}^n + \mathbb{Z}\cdot(\frac12,\dots,\frac12)$ 에 대해 (a) $\operatorname{vol}(\mathcal{L}) = \frac12$, (b) $n \ge 5$ 이면 $\lambda_1 = 1$ 임을 보이세요. (c) $n = 4$ 에서는 무엇이 달라지나요?
+
+<details>
+<summary>해설</summary>
+
+(a) $\mathbb{Z}^n \subset \mathcal{L}$ 의 지표가 2 이므로 $\operatorname{vol}(\mathcal{L}) = 1/2$. (b) $\mathcal{L}$ 의 벡터는 좌표가 모두 정수이거나 모두 반정수입니다. 정수 쪽 최단은 1, 반정수 쪽 최단은 $(\pm\frac12, \dots)$ 로 길이 $\sqrt n/2 \ge \sqrt5/2 > 1$. (c) $n = 4$ 이면 $\sqrt4/2 = 1$ 이라 반정수 벡터도 길이 1 이 되고, $\lambda_1$ 을 이루는 벡터가 24 개가 됩니다. 이 격자는 4차원의 특별한 격자 $D_4$ 를 회전·축척한 것과 같고, $\gamma_4 = \sqrt2$ 를 달성합니다.
+
+</details>
+
+**★★ 7.** 따름정리 7.7 로부터 $\lambda_1(\mathcal{L})\,\lambda_1(\mathcal{L}^*) \le n$ 을 유도하세요. (전이 정리의 쉬운 버전)
+
+<details>
+<summary>해설</summary>
+
+$\lambda_1(\mathcal{L}) \le \sqrt n\operatorname{vol}(\mathcal{L})^{1/n}$, $\lambda_1(\mathcal{L}^*) \le \sqrt n\operatorname{vol}(\mathcal{L}^*)^{1/n} = \sqrt n\operatorname{vol}(\mathcal{L})^{-1/n}$. 곱하면 $\le n$. Hermite 상수로 쓰면 $\le \gamma_n$ 이고, 2차원에서 $\le 2/\sqrt3$ 입니다(쌍대 격자 위젯에서 확인).
+
+</details>
+
+**★★★ 8.** 기저 $B$ 의 쌍대 기저 $D$ 의 순서를 뒤집은 $D' = (d_n, \dots, d_1)$ 을 생각하세요. $D'$ 의 Gram-Schmidt 벡터가 $d'^*_i = b_{n+1-i}^*/\|b_{n+1-i}^*\|^2$ 임을 보이고, 이로부터 "$B$ 의 GSO 프로파일 $\log\|b_i^*\|$ 을 뒤집고 부호를 바꾸면 쌍대의 프로파일"임을 설명하세요. (9장 GSA 그림을 떠올리세요. 이 성질은 BKZ 의 쌍대 버전에 쓰입니다.)
+
+<details>
+<summary>힌트</summary>
+
+$\langle b_i, d_j\rangle = \delta_{ij}$ 를 쓰면 $d_n$ 은 $b_1, \dots, b_{n-1}$ 에 수직이므로 $b_n^*$ 방향이고, $\langle b_n, d_n\rangle = \langle b_n^*, d_n\rangle = 1$ 에서 $d_n = b_n^*/\|b_n^*\|^2$. 귀납적으로 다음 벡터들을 같은 방식으로 다루세요.
+
+</details>
+
+**★★★ 9.** 전이 정리의 하한 $\lambda_1(\mathcal{L})\lambda_n(\mathcal{L}^*) \ge 1$ 의 증명을 자세히 쓰고, 등호가 성립하는 격자의 예를 드세요.
+
+<details>
+<summary>해설</summary>
+
+본문의 논증에서 "$n$ 개의 일차독립 쌍대 벡터가 모두 $x$ 에 수직일 수 없다"는 $x \ne 0$ 이 $\operatorname{span}(\mathcal{L}^*) = \operatorname{span}(\mathcal{L})$ 에 있기 때문입니다. 등호: $\mathbb{Z}^n$ 은 $\lambda_1 = \lambda_n^* = 1$.
+
+</details>
+
+**★★★ 10. (구현)** 2×2, 3×3 정수 기저를 받아 **Hermite 정규형(HNF)** 을 계산하는 함수를 구현하세요. 같은 격자의 서로 다른 기저 두 개가 같은 HNF 를 내는지 확인하고, 이를 이용해 `sameLattice` 를 정확한 정수 연산만으로 다시 구현하세요. (HNF 는 정수 격자마다 유일한 표준 기저라서, Micciancio 는 GGH 류 암호에서 "공개키로 가장 정보가 적은 기저"로 HNF 를 쓰자고 제안했습니다.)
+
+## 요약
+
+- 격자 = 기저 벡터의 정수 결합. 두 기저는 유니모듈러 행렬로 연결될 때만 같은 격자를 만든다.
+- 모든 기본 영역의 부피는 $\operatorname{vol}(\mathcal{L}) = |\det B|$. 보로노이 셀은 기저와 무관하다.
+- q-ary 격자: $\operatorname{vol}(\Lambda_q(A)) = q^{m-n}$ (LWE 의 격자), $\operatorname{vol}(\Lambda_q^\perp(A)) = q^n$ (SIS 의 격자).
+- 연속 최소값 $\lambda_i$. 하한 $\lambda_1 \ge \min\|b_i^*\|$, 상한(Minkowski) $\lambda_1 \le 2(\operatorname{vol}/V_n)^{1/n}$. Gaussian heuristic 은 그 절반이다.
+- 쌍대 격자 $\mathcal{L}^*$: 기저 $(B^{-1})^\top$, 부피 $1/\operatorname{vol}$, $\Lambda_q(A)^* = \frac1q\Lambda_q^\perp(A)$. 쌍대 벡터는 격자를 간격 $1/\|y\|$ 인 초평면으로 나눈다.
+- 다음: 8장에서 SVP, CVP, BDD, uSVP 를 정의하고 그 어려움을 비교한다.
