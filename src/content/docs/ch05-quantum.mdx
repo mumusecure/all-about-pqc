@@ -1,0 +1,271 @@
+---
+title: 5장. 양자 위협 — 쇼어, 그로버, 그리고 격자
+description: 큐비트·측정·간섭의 최소한, 그로버의 진폭 증폭과 그 한계(병렬화, NIST 보안 등급), 쇼어 알고리즘(위수 찾기, 양자 푸리에 변환, 연분수), 양자 자원 추정, 숨은 부분군 문제와 격자 문제가 버티는 이유, 격자에 대한 양자 공격의 현재.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import GroverSim from '../../components/GroverSim.tsx';
+import ShorSim from '../../components/ShorSim.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 큐비트, 중첩, 측정, 간섭, 유니터리를 정의하고, "양자컴퓨터는 모든 답을 동시에 시도한다"가 왜 틀린 설명인지 말할 수 있다.
+2. 그로버 알고리즘을 진폭의 회전으로 이해하고, 최적 반복 횟수와 병렬화의 한계, NIST 보안 등급의 의미를 계산할 수 있다.
+3. 쇼어 알고리즘을 "인수분해 → 위수 찾기 → 주기 찾기(QFT) → 연분수" 순서로 설명하고, 작은 $N$ 에서 직접 실행할 수 있다.
+4. 숨은 부분군 문제(HSP)의 틀로 쇼어의 성공을 설명하고, 격자 문제가 왜 같은 방식으로 풀리지 않는지(이면체군 HSP) 말할 수 있다.
+5. 격자에 대한 알려진 양자 공격(체의 그로버 가속, 이데알 격자 공격)과 2024년 "양자 LWE 알고리즘" 사건을 통해, 현재 격자 암호의 양자 안전성 근거를 정직하게 평가할 수 있다.
+
+**선수 지식**: [0장](../ch00-why-pqc/), [1장](../ch01-definitions/)(구체적 안전성), [2장](../ch02-algebra/)(군, 위수, 유클리드 호제법). 복소수와 벡터의 내적. 선형대수가 더 필요하면 [6장](../ch06-linalg-prob/) 2절을 참고하세요.
+
+</div>
+
+## 1. 직관: 양자컴퓨터는 "병렬 컴퓨터"가 아니다
+
+<span class="layer-tag">직관</span>
+
+흔한 설명은 "양자컴퓨터는 $2^n$ 개의 답을 동시에 계산한다"입니다. 반은 맞고 반은 틀렸습니다. $n$ 큐비트 상태는 $2^n$ 개의 **진폭** 을 가지고, 한 번의 연산이 그 모두를 바꾸는 것은 사실입니다. 하지만 마지막에 **측정** 하면 진폭의 제곱에 비례하는 확률로 답 **하나** 만 나옵니다. 무작위로 고른 답을 보는 것과 다를 바가 없습니다.
+
+양자 알고리즘의 기술은 **간섭** 입니다. 진폭은 확률과 달리 음수(일반적으로 복소수)가 될 수 있어서, 틀린 답들의 진폭이 서로 **상쇄** 되고 맞는 답의 진폭이 **보강** 되도록 연산을 설계하면, 측정했을 때 맞는 답이 높은 확률로 나옵니다. 이것이 가능하려면 문제에 **구조** 가 있어야 합니다.
+
+- 구조가 전혀 없는 탐색(정답이 어디 있는지 아무 단서가 없음): 그로버로 $\sqrt N$ 배 가속. 그 이상은 불가능합니다.
+- 주기라는 강한 구조(인수분해, 이산로그): 쇼어로 **지수적** 가속. 그래서 RSA 와 ECC 가 무너집니다.
+- 격자 문제: 알려진 구조로는 지수적 가속이 나오지 않습니다. 이것이 PQC 의 근거입니다.
+
+## 2. 최소한의 양자 계산
+
+<span class="layer-tag">정식화</span>
+
+**큐비트.** 상태는 $\mathbb{C}^2$ 의 단위 벡터 $|\psi\rangle = \alpha|0\rangle + \beta|1\rangle$, $|\alpha|^2 + |\beta|^2 = 1$. **측정** 하면 확률 $|\alpha|^2$ 로 0, $|\beta|^2$ 로 1 이 나오고 상태는 그 값으로 무너집니다.
+
+**여러 큐비트.** $n$ 큐비트의 상태는 $\mathbb{C}^{2^n}$ 의 단위 벡터 $\sum_{x\in\{0,1\}^n}\alpha_x|x\rangle$ (텐서곱).
+
+**연산.** 측정 전의 모든 연산은 **유니터리** 행렬($U^\dagger U = I$, 노름 보존)입니다. 대표적인 것:
+
+$$
+H = \tfrac{1}{\sqrt2}\begin{pmatrix}1 & 1\\ 1 & -1\end{pmatrix},\qquad
+H|0\rangle = \tfrac{|0\rangle + |1\rangle}{\sqrt2},\qquad
+H^{\otimes n}|0^n\rangle = \tfrac{1}{\sqrt{2^n}}\sum_x|x\rangle .
+$$
+
+**간섭의 예.** $HH|0\rangle = H\frac{|0\rangle + |1\rangle}{\sqrt2} = \frac{(|0\rangle + |1\rangle) + (|0\rangle - |1\rangle)}{2} = |0\rangle$. $|1\rangle$ 의 진폭 $+\tfrac12$ 과 $-\tfrac12$ 이 **상쇄** 되었습니다. 확률로는 일어날 수 없는 일입니다.
+
+**오라클.** 함수 $f$ 를 양자 회로로 만들면 $U_f|x\rangle|y\rangle = |x\rangle|y \oplus f(x)\rangle$. 1장의 QROM 에서 공격자가 해시를 "중첩으로 질의"한다는 것이 이것입니다.
+
+**복제 불가 정리.** 임의의 미지 상태 $|\psi\rangle$ 를 $|\psi\rangle|\psi\rangle$ 로 복사하는 유니터리는 없습니다. 1장·4장에서 QROM 증명과 되감기가 어려웠던 근본 이유입니다.
+
+## 3. 그로버 알고리즘
+
+<span class="layer-tag">정식화</span>
+
+$N$ 개 후보 중 $f(x) = 1$ 인 정답 $M$ 개를 찾는 문제입니다. 균등 중첩 $|s\rangle = \frac{1}{\sqrt N}\sum_x|x\rangle$ 에서 시작해, 다음 두 반사를 반복합니다.
+
+1. **오라클 반사** $O$: 정답의 진폭 부호를 뒤집는다.
+2. **확산 반사** $D = 2|s\rangle\langle s| - I$: 모든 진폭을 평균에 대해 뒤집는다.
+
+<GroverSim client:visible />
+
+**정리 5.1.** $\sin\theta = \sqrt{M/N}$ 일 때, $k$ 번 반복 후 정답을 측정할 확률은 $\sin^2((2k+1)\theta)$ 이다. 따라서 $k \approx \frac{\pi}{4}\sqrt{N/M}$ 번이면 확률이 1 에 가깝다.
+
+*증명 스케치.* 상태는 항상 "정답들의 균등 중첩" $|g\rangle$ 와 "오답들의 균등 중첩" $|b\rangle$ 이 펼치는 평면 안에 있다. 처음 상태는 $|s\rangle = \sin\theta|g\rangle + \cos\theta|b\rangle$. $O$ 는 $|b\rangle$ 축에 대한 반사, $D$ 는 $|s\rangle$ 축에 대한 반사이고, 두 반사의 합성은 각도 $2\theta$ 의 **회전** 이다. $k$ 번 후 각도는 $(2k+1)\theta$. $\blacksquare$
+
+**최적성.** Bennett–Bernstein–Brassard–Vazirani(1997)는 구조 없는 탐색에 $\Omega(\sqrt N)$ 번의 질의가 **필요** 함을 보였습니다. 그로버보다 빠를 수 없습니다.
+
+### 3.1 대칭키에 대한 의미와 그 한계
+
+128비트 키 전수조사는 그로버로 약 $\frac{\pi}{4}2^{64}$ 번의 반복이 필요합니다. 그런데
+
+- 각 반복은 AES 전체를 **가역 양자 회로** 로 계산해야 하고, 오류 정정 오버헤드가 큽니다.
+- 그로버는 **순차적** 입니다. 기계 $P$ 대로 탐색 공간을 나누면 각 기계의 깊이는 $\sqrt{N/P}$, 총 작업량은 $P\sqrt{N/P} = \sqrt{NP}$ 로 **커집니다**. 병렬화의 이득은 $\sqrt P$ 뿐입니다.
+
+그래서 NIST 는 PQC 의 **보안 등급** 을 "AES 키 탐색 또는 SHA 충돌 탐색만큼 어렵다"로 정의하고, 양자 회로의 **최대 깊이(MAXDEPTH)** 를 $2^{40}$, $2^{64}$, $2^{96}$ 같은 값으로 제한한 상태에서 비교하도록 했습니다.
+
+| NIST 등급 | 기준 | 예 |
+|---|---|---|
+| 1 | AES-128 키 탐색 | ML-KEM-512 |
+| 2 | SHA-256 충돌 탐색 | ML-DSA-44 |
+| 3 | AES-192 키 탐색 | ML-KEM-768, ML-DSA-65 |
+| 4 | SHA-384 충돌 탐색 | |
+| 5 | AES-256 키 탐색 | ML-KEM-1024, ML-DSA-87 |
+
+## 4. 쇼어 알고리즘
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 인수분해 → 위수 찾기 (고전적 환원)
+
+홀수 합성수 $N$ 과 $\gcd(a, N) = 1$ 인 무작위 $a$ 에 대해, $a$ 의 위수 $r$ ($a^r \equiv 1$ 인 최소 $r$)을 안다고 하자. $r$ 이 짝수이고 $a^{r/2} \not\equiv -1 \pmod N$ 이면
+
+$$
+(a^{r/2} - 1)(a^{r/2} + 1) = a^r - 1 \equiv 0 \pmod N
+$$
+
+인데 두 인수 모두 $N$ 의 배수가 아니므로, $\gcd(a^{r/2} \pm 1, N)$ 이 자명하지 않은 인수입니다. $N$ 이 서로 다른 두 소인수 이상을 가지면 무작위 $a$ 가 이 조건을 만족할 확률은 $\tfrac12$ 이상입니다.
+
+**예: $N = 15$.** $a = 7$: $7^1 = 7$, $7^2 = 49 \equiv 4$, $7^3 \equiv 13$, $7^4 \equiv 1$ 이므로 $r = 4$. $7^2 \equiv 4$ 에서 $\gcd(3, 15) = 3$, $\gcd(5, 15) = 5$. $a = 14$ 이면 $r = 2$ 이지만 $14 \equiv -1$ 이라 실패하고, 다른 $a$ 를 고릅니다.
+
+**위수 찾기는 고전적으로 어렵습니다.** 쇼어의 공헌은 이것을 양자적으로 빠르게 푸는 것입니다.
+
+### 4.2 위수 찾기 → 주기 찾기 (양자 부분)
+
+1. 두 레지스터를 $\frac{1}{\sqrt Q}\sum_{x=0}^{Q-1}|x\rangle|0\rangle$ 로 준비한다($Q = 2^t \ge N^2$).
+2. 모듈러 거듭제곱 회로로 $\frac{1}{\sqrt Q}\sum_x|x\rangle|a^x \bmod N\rangle$ 을 만든다. ($f(x) = a^x$ 는 주기 $r$ 인 함수)
+3. 둘째 레지스터를 측정하면 첫째 레지스터는 어떤 $x_0$ 에 대해 $\sum_j|x_0 + jr\rangle$ (주기 $r$ 의 "빗") 상태로 무너진다.
+4. **양자 푸리에 변환** $|x\rangle \mapsto \frac{1}{\sqrt Q}\sum_y e^{2\pi ixy/Q}|y\rangle$ 을 적용하면, 진폭이 $y \approx jQ/r$ 근처에서 보강 간섭하고 나머지에서 상쇄된다.
+5. 측정한 $y$ 에 대해 $y/Q \approx j/r$. **연분수** 로 분모가 $N$ 보다 작은 근사분수를 찾으면 $r$ (또는 그 약수)이 나온다. $|y/Q - j/r| < 1/(2Q) \le 1/(2r^2)$ 이면 Legendre 의 정리에 의해 $j/r$ 은 반드시 근사분수 중 하나다.
+
+QFT 는 $O(t^2)$ 게이트로 구현되고, 모듈러 거듭제곱이 회로 비용의 대부분입니다. 전체가 $\log N$ 에 대한 다항 시간입니다.
+
+<ShorSim client:visible />
+
+이산로그도 같은 틀로 풀립니다. $X = g^x$ 에서 함수 $f(u, v) = g^uX^{-v}$ 는 $(u, v) \mapsto (u + x, v + 1)$ 방향으로 주기적이고, 2차원 QFT 로 그 "숨은 방향"을 찾습니다. 타원곡선 이산로그도 마찬가지라 X25519, ECDSA 가 함께 무너집니다.
+
+### 4.3 얼마나 큰 양자컴퓨터가 필요한가
+
+| 대상 | 추정 | 출처 |
+|---|---|---|
+| RSA-2048 | 잡음 있는 물리 큐비트 약 2천만 개, 8시간 | Gidney–Ekerå (2019 발표, 2021 출판) |
+| RSA-2048 | 잡음 있는 물리 큐비트 **백만 개 미만**, 일주일 이내 | Gidney (2025) |
+| 256비트 타원곡선 이산로그 | 논리 큐비트 약 2,330 개 | Roetteler–Naehrig–Svore–Lauter (2017) |
+
+**논리 큐비트** 는 오류 정정된 이상적 큐비트이고, 하나를 만드는 데 수백~수천 개의 **물리 큐비트** 가 필요합니다. 추정은 알고리즘·회로·오류 정정 기법이 개선되면서 계속 줄어 왔습니다. 0장의 Mosca 부등식에서 $z$ 가 불확실하지만 줄어드는 방향이라고 한 이유입니다.
+
+<Quiz
+  client:visible
+  question="그로버 알고리즘을 P 대의 양자컴퓨터로 나누어 돌리면 전체 작업량은?"
+  options={[
+    'P 배 줄어든다',
+    '√P 배 줄어든다',
+    '오히려 √P 배 늘어나 √(N·P) 가 된다 (시간은 √P 배 줄지만)',
+    '변하지 않는다',
+  ]}
+  answer={2}
+  explanation="각 기계가 N/P 개를 탐색하면 깊이는 √(N/P) 로 줄지만(시간 단축), 총 작업량은 P·√(N/P) = √(N·P) 로 늘어납니다. 고전 전수조사는 병렬화해도 총 작업량이 N 으로 그대로인 것과 대조적입니다. 그래서 깊이 제한이 있으면 그로버의 이득이 크게 줄어듭니다."
+/>
+
+## 5. 숨은 부분군 문제: 왜 격자는 버티는가
+
+<span class="layer-tag">정식화</span>
+
+**정의 5.2 (HSP).** 군 $G$ 와 부분군 $H \le G$ 에 대해, 함수 $f : G \to S$ 가 $H$ 의 잉여류 위에서 상수이고 서로 다른 잉여류에서는 다른 값을 가진다($f(g_1) = f(g_2) \iff g_1H = g_2H$). $f$ 에 대한 오라클이 주어질 때 $H$ 를 찾아라.
+
+| 문제 | 군 $G$ | 숨은 부분군 $H$ | 양자 알고리즘 |
+|---|---|---|---|
+| Simon 문제 | $\mathbb{Z}_2^n$ | $\{0, s\}$ | 다항 시간 (Simon 1994) |
+| 위수 찾기·인수분해 | $\mathbb{Z}$ | $r\mathbb{Z}$ | 다항 시간 (Shor) |
+| 이산로그 | $\mathbb{Z}_p \times \mathbb{Z}_p$ | $\langle(x, 1)\rangle$ | 다항 시간 (Shor) |
+| **유일 최단 벡터 (uSVP)** | **이면체군** $D_N$ | 반사 하나 | **준지수 시간만 알려짐** |
+| 그래프 동형 | 대칭군 $S_n$ | 자기동형군 | 효율적 양자 알고리즘 모름 |
+
+**아벨군** 위의 HSP 는 그 군의 QFT 로 항상 효율적으로 풀립니다. 쇼어 알고리즘이 성공한 이유가 이것입니다. 그런데 Regev(2002, 2004)는 **격자의 uSVP 가 이면체군의 HSP(정확히는 그 변형인 이면체 잉여류 문제)로 환원됨** 을 보였습니다. 이면체군은 아벨군이 아니고, 이 문제에 대한 최선의 양자 알고리즘은 Kuperberg(2005)의 $2^{O(\sqrt{\log N})}$ 시간 알고리즘입니다. 이것은 다항식보다는 느리고, 게다가 Regev 의 환원이 요구하는 형태의 인스턴스에는 바로 적용되지 않아 격자 문제에 대한 실질적 공격으로 이어지지 않았습니다.
+
+정리하면, **"양자컴퓨터가 지수적으로 빠른 이유(아벨 HSP)"가 격자 문제에는 통하지 않는다** 는 것이 격자 암호의 양자 안전성에 대한 가장 근본적인 직관입니다. 증명이 아니라, 수십 년간의 시도가 실패했다는 사실과 이 구조적 설명이 근거입니다.
+
+## 6. 격자에 대한 양자 공격의 현재
+
+<span class="layer-tag">연구 관점</span>
+
+- **다항식 크기의 가속은 있다.** SVP 체(8장)에 그로버 류 탐색을 쓰면 지수가 $2^{0.292n}$ 에서 $2^{0.265n}$ (Laarhoven), $2^{0.2570n}$ (Chailloux–Loyer 2021) 으로 줄어듭니다. 열거에도 제곱근 수준의 가속이 있습니다(Aono–Nguyen–Shen 2018). 이런 가속은 파라미터에 이미 반영되어 있고, 큰 양자 메모리가 필요하다는 점에서 실제 이득은 논쟁적입니다.
+- **구조가 강하면 깨질 수 있다.** 원분체의 **주 이데알** 에서 짧은 생성원을 찾는 문제는 양자 다항 시간에 풀리고(Biasse–Song 2016, Cramer–Ducas–Peikert–Regev 2016), 이데알 격자의 SVP 는 $2^{\tilde O(\sqrt n)}$ 근사 인자까지 양자 다항 시간에 풀립니다(Cramer–Ducas–Wesolowski 2017). 하지만 이 공격들은 Ring/Module-LWE 의 파라미터에는 직접 적용되지 않습니다. 3부(대수적 격자)에서 자세히 봅니다.
+- **2024년의 사건.** 2024년 4월, LWE 를 양자 다항 시간에 푸는 알고리즘을 주장한 프리프린트(Y. Chen, ePrint 2024/555)가 나와 큰 파장을 일으켰지만, 약 열흘 만에 연구자들이 증명의 오류를 찾았고 저자도 이를 인정했습니다. 이 사건은 (1) 격자 암호의 양자 안전성이 **증명이 아니라 가정** 이라는 것, (2) 그 가정을 공동체가 얼마나 빠르고 엄밀하게 검증하는지를 동시에 보여 주었습니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **M. A. Nielsen, I. L. Chuang**, *Quantum Computation and Quantum Information*, 4~6장 (회로, QFT, 위수 찾기, 그로버). 표준 교과서.
+2. **P. W. Shor**, *Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer*, SIAM J. Comput. 1997.
+3. **A. M. Childs, W. van Dam**, *Quantum Algorithms for Algebraic Problems*, Rev. Mod. Phys. 2010. HSP 의 전체 지형.
+4. **O. Regev**, *Quantum Computation and Lattice Problems*, SIAM J. Comput. 2004. uSVP 와 이면체 HSP 의 연결.
+5. **C. Gidney**, *How to Factor 2048 Bit RSA Integers with Less than a Million Noisy Qubits*, arXiv:2505.15917, 2025.
+
+## 연습문제
+
+**★ 1.** $H|1\rangle$ 을 계산하고, $HH|1\rangle = |1\rangle$ 임을 보이세요. 어느 진폭이 상쇄되나요?
+
+<details>
+<summary>해설</summary>
+
+$H|1\rangle = (|0\rangle - |1\rangle)/\sqrt2$. $HH|1\rangle = \tfrac12[(|0\rangle + |1\rangle) - (|0\rangle - |1\rangle)] = |1\rangle$. $|0\rangle$ 의 진폭 $+\tfrac12$ 과 $-\tfrac12$ 이 상쇄됩니다.
+
+</details>
+
+**★ 2.** $N = 15$ 에서 $a = 2, 4, 14$ 각각의 위수를 구하고, 쇼어의 고전 후처리가 성공하는지 판정하세요.
+
+<details>
+<summary>해설</summary>
+
+$a = 2$: $2, 4, 8, 1$ → $r = 4$, $2^2 = 4$, $\gcd(3, 15) = 3$, $\gcd(5, 15) = 5$ 성공. $a = 4$: $r = 2$, $4^1 = 4 \not\equiv -1$ → $\gcd(3,15) = 3$ 성공. $a = 14$: $r = 2$ 이지만 $14 \equiv -1$ → 실패, 다른 $a$ 를 고릅니다.
+
+</details>
+
+**★ 3.** 위젯에서 $N = 21$, $a = 2$ 로 측정값 $y = 427$ ($Q = 512$)이 나왔다고 하자. $427/512$ 의 연분수 근사분수를 손으로 구해 위수 $r = 6$ 을 찾고 $21$ 을 인수분해하세요.
+
+<details>
+<summary>해설</summary>
+
+$427/512 = [0; 1, 5, 42, \dots]$. 근사분수: $0/1$, $1/1$, $5/6$, $211/253$. 분모가 $21$ 보다 작은 마지막 것은 $5/6$, $2^6 = 64 \equiv 1 \pmod{21}$ 이므로 $r = 6$. $2^3 = 8$, $\gcd(7, 21) = 7$, $\gcd(9, 21) = 3$. $21 = 7\times3$.
+
+</details>
+
+**★★ 4.** 정리 5.1 의 증명을 완성하세요. 특히 $D$ 가 $|s\rangle$ 축에 대한 반사이고 $O$ 가 $|b\rangle$ 축에 대한 반사임을 보이고, 두 반사의 합성이 각 $2\theta$ 의 회전임을 평면 기하로 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$O$ 는 $|g\rangle$ 성분의 부호만 바꾸므로 $|b\rangle$ 축에 대한 반사입니다. $D = 2|s\rangle\langle s| - I$ 는 $|s\rangle$ 성분을 그대로 두고 수직 성분의 부호를 바꾸므로 $|s\rangle$ 축에 대한 반사입니다. 평면에서 두 직선(사이각 $\theta$)에 대한 반사를 차례로 하면 사이각의 두 배인 $2\theta$ 만큼 회전합니다.
+
+</details>
+
+**★★ 5.** 128비트 키를 깊이 제한 $2^{40}$ 아래에서 그로버로 찾으려면, 탐색 공간을 몇 개로 나눠야 하고 총 그로버 반복은 몇 번인가요? (상수 $\pi/4$ 를 포함해 $\log_2$ 로 답하세요.)
+
+<details>
+<summary>해설</summary>
+
+각 부분의 깊이 $\frac\pi4\sqrt{2^{128}/P} \le 2^{40}$ 이려면 $P \ge (\pi/4)^2 2^{128}/2^{80} \approx 2^{47.3}$. 총 반복 $P\cdot2^{40} \approx 2^{87.3}$. 고전 전수조사 $2^{128}$ 보다는 작지만 "$2^{64}$" 와는 거리가 멉니다. NIST 등급이 깊이 제한을 두는 이유입니다.
+
+</details>
+
+**★★ 6.** 이산로그 $X = g^x$ 에서 $f(u, v) = g^uX^{-v}$ 가 부분군 $H = \{(tx, t) : t \in \mathbb{Z}_p\}$ 의 잉여류 위에서 상수이고, 서로 다른 잉여류에서는 값이 다름을 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$f(u + tx, v + t) = g^{u+tx}X^{-v-t} = g^uX^{-v}\cdot g^{tx}X^{-t} = f(u, v)$. 반대로 $f(u, v) = f(u', v')$ 이면 $g^{(u - u') - x(v - v')} = 1$ 이므로 $u - u' = x(v - v')$, 즉 $(u - u', v - v') \in H$.
+
+</details>
+
+**★★★ 7.** $r$ 이 $Q$ 를 나누지 않을 때, 각 $j$ 에 대해 $y = \mathrm{round}(jQ/r)$ 을 측정할 확률이 적어도 $\frac{4}{\pi^2 r}$ 정도임을 보이세요. (힌트: 등비급수의 합을 $|\sin(m\phi/2)/\sin(\phi/2)|^2$ 꼴로 쓰고 $|\phi| \le \pi r/Q$ 를 이용)
+
+**★★★ 8. (읽기)** Regev(2004)를 읽고, uSVP 에서 이면체 잉여류 문제로 가는 환원의 핵심 아이디어를 반 쪽으로 요약하세요. Kuperberg 알고리즘이 이 환원과 결합해 격자 문제를 준지수 시간에 풀지 못하는 이유는 무엇인가요?
+
+**★★★ 9. (조사)** 2024년 Chen 의 프리프린트(ePrint 2024/555)와 그 오류를 지적한 논의를 찾아 읽고, (a) 주장된 알고리즘의 큰 그림, (b) 오류가 어디서 발견되었는지, (c) 이 사건이 PQC 표준화 논의에 준 교훈을 한 쪽으로 정리하세요. 1차 출처와 날짜를 꼭 적으세요.
+
+## 요약
+
+- 양자 상태는 진폭의 벡터이고, 측정은 답 하나만 준다. 양자 가속은 **간섭** 을 설계할 수 있는 **구조** 에서 나온다.
+- 그로버: 두 반사의 합성 = $2\theta$ 회전, $\frac\pi4\sqrt{N/M}$ 번에 거의 확실히 성공. $\Omega(\sqrt N)$ 이 최적이고, 병렬화 이득은 $\sqrt P$ 뿐이다. NIST 보안 등급은 깊이 제한 아래 AES·SHA 와 비교해 정의된다.
+- 쇼어: 인수분해 → 위수 찾기 → (양자) 주기 찾기: QFT 후 측정값 $y/Q \approx j/r$ → 연분수로 $r$ → $\gcd(a^{r/2}\pm1, N)$. 이산로그도 같다. RSA·ECC 는 다항 시간에 깨진다.
+- 자원 추정은 줄어 왔다: RSA-2048 에 백만 개 미만의 잡음 있는 물리 큐비트(2025 추정).
+- 아벨군 HSP 는 양자로 쉽지만, uSVP 는 **이면체군 HSP** 로 이어지고 그것은 준지수 시간 알고리즘만 알려져 있다. 이것이 격자의 양자 안전성에 대한 구조적 직관이다.
+- 격자에 대한 양자 가속은 지수의 상수 정도(체 $2^{0.257n}$)이고, 강한 대수 구조(주 이데알)에는 더 강한 공격이 있다. 2024년의 주장과 반박은 이 가정이 살아 있는 연구 대상임을 보여 준다.
+- 1부 끝. 다음: 2부([6장](../ch06-linalg-prob/))에서 격자를 다룰 수학 도구를 준비한다.
+
+## 참고문헌
+
+- P. W. Shor, *Algorithms for quantum computation: discrete logarithms and factoring*, FOCS 1994; SIAM J. Comput. 26(5), 1997.
+- D. R. Simon, *On the power of quantum computation*, FOCS 1994.
+- L. K. Grover, *A fast quantum mechanical algorithm for database search*, STOC 1996.
+- C. H. Bennett, E. Bernstein, G. Brassard, U. Vazirani, *Strengths and weaknesses of quantum computing*, SIAM J. Comput. 26(5), 1997.
+- O. Regev, *Quantum computation and lattice problems*, FOCS 2002; SIAM J. Comput. 33(3), 2004.
+- G. Kuperberg, *A subexponential-time quantum algorithm for the dihedral hidden subgroup problem*, SIAM J. Comput. 35(1), 2005.
+- A. M. Childs, W. van Dam, *Quantum algorithms for algebraic problems*, Rev. Mod. Phys. 82, 2010.
+- J.-F. Biasse, F. Song, *Efficient quantum algorithms for computing class groups and solving the principal ideal problem in arbitrary degree number fields*, SODA 2016.
+- R. Cramer, L. Ducas, C. Peikert, O. Regev, *Recovering short generators of principal ideals in cyclotomic rings*, Eurocrypt 2016.
+- R. Cramer, L. Ducas, B. Wesolowski, *Short Stickelberger class relations and application to Ideal-SVP*, Eurocrypt 2017.
+- M. Roetteler, M. Naehrig, K. M. Svore, K. Lauter, *Quantum resource estimates for computing elliptic curve discrete logarithms*, Asiacrypt 2017.
+- Y. Aono, P. Q. Nguyen, Y. Shen, *Quantum lattice enumeration and tweaking discrete pruning*, Asiacrypt 2018.
+- A. Chailloux, J. Loyer, *Lattice sieving via quantum random walks*, Asiacrypt 2021.
+- C. Gidney, M. Ekerå, *How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits*, Quantum 5, 2021.
+- C. Gidney, *How to factor 2048 bit RSA integers with less than a million noisy qubits*, arXiv:2505.15917, 2025.
+- NIST, *Submission Requirements and Evaluation Criteria for the Post-Quantum Cryptography Standardization Process*, 2016.

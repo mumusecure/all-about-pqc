@@ -38,6 +38,7 @@ export default defineConfig({
           { label: '2장. 수학 I: 정수론과 대수', slug: 'ch02-algebra' },
           { label: '3장. 공개키 암호의 구조와 FO 변환', slug: 'ch03-pke-structure' },
           { label: '4장. 식별 프로토콜, Fiat–Shamir, 영지식', slug: 'ch04-sigma-fiat-shamir' },
+          { label: '5장. 양자 위협', slug: 'ch05-quantum' },
         ]},
         { label: '2부 · 격자의 기하와 알고리즘', items: [
           { label: '6장. 수학 II: 선형대수와 확률', slug: 'ch06-linalg-prob' },
