@@ -355,3 +355,47 @@ export function voronoiCell2D(B: Basis): Vec[] {
 /** 다각형 넓이 (신발끈 공식) */
 export const polygonArea = (P: Vec[]): number =>
   Math.abs(P.reduce((s, p, i) => s + p[0] * P[(i + 1) % P.length][1] - P[(i + 1) % P.length][0] * p[1], 0)) / 2;
+
+/* ------------------------------------------------------------------ */
+/* 8장: CVP / BDD 알고리즘                                               */
+/* ------------------------------------------------------------------ */
+
+/** Babai 반올림: 좌표 t·B⁻¹ 를 반올림한 격자점 (완전 랭크) */
+export function babaiRound(B: Basis, t: Vec): Vec {
+  const inv = inverse(B)!;
+  const c = t.map((_, j) => roundHalfAway(t.reduce((s, tk, k) => s + tk * inv[k][j], 0)));
+  return B[0].map((_, j) => c.reduce((s, ci, i) => s + ci * B[i][j], 0));
+}
+
+/**
+ * Babai 최근접 평면: 마지막 GSO 방향부터 차례로 ‘가장 가까운 초평면’을 고른다.
+ * 출력 v 는 t − v ∈ { Σ cᵢ bᵢ* : |cᵢ| ≤ 1/2 } 를 만족한다.
+ */
+export function babaiNearestPlane(B: Basis, t: Vec): Vec {
+  const { bstar, Bn } = gramSchmidt(B);
+  let r = t.slice();
+  const v = new Array(t.length).fill(0);
+  for (let i = B.length - 1; i >= 0; i--) {
+    const c = roundHalfAway(dot(r, bstar[i]) / Bn[i]);
+    for (let j = 0; j < t.length; j++) {
+      r[j] -= c * B[i][j];
+      v[j] += c * B[i][j];
+    }
+  }
+  return v;
+}
+
+/** 2차원 정확한 CVP: Babai 결과 주변 격자점들을 전수조사 */
+export function closestVector2D(B: Basis, t: Vec): Vec {
+  const red = successiveMinima2D(B);
+  const RB: Basis = [red.v1, red.v2];
+  const c0 = babaiRound(RB, t);
+  let best = c0, bd = norm2(sub(t, c0));
+  for (let a = -3; a <= 3; a++)
+    for (let b = -3; b <= 3; b++) {
+      const v = [c0[0] + a * RB[0][0] + b * RB[1][0], c0[1] + a * RB[0][1] + b * RB[1][1]];
+      const d = norm2(sub(t, v));
+      if (d < bd - 1e-12) { bd = d; best = v; }
+    }
+  return best;
+}

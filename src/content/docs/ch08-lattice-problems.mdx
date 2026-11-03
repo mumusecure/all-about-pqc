@@ -1,0 +1,247 @@
+---
+title: 8장. 격자 문제와 난이도
+description: SVP, GapSVP, SIVP, CVP, BDD, uSVP 의 정의와 서로의 환원 관계, Babai 알고리즘과 '좋은 기저'의 의미, 근사 인자에 따른 복잡도 지도, 정확한 SVP 알고리즘의 비용.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import DecodingRegions from '../../components/DecodingRegions.tsx';
+import HardnessMap from '../../components/HardnessMap.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. SVP, GapSVP, SIVP, CVP, BDD, uSVP 를 정확히 정의하고, 탐색·결정·근사 버전을 구별할 수 있다.
+2. BDD 의 해가 유일하기 위한 조건($\alpha \le \tfrac12$)을 증명하고, Kannan 임베딩으로 BDD 를 uSVP 로 바꿀 수 있다.
+3. Babai 의 반올림·최근접 평면 알고리즘을 실행하고, 그 복호 영역이 $\mathcal{P}_{1/2}(B)$, $\mathcal{P}_{1/2}(B^*)$ 임을 증명할 수 있다. 즉 **"좋은 기저 = 비밀키"** 의 정확한 의미를 말할 수 있다.
+4. 근사 인자 $\gamma$ 에 따른 복잡도 지도(NP-어려움, NP ∩ coNP, 암호 구간, 다항 시간)를 그리고, 격자 암호가 어느 구간에 기대는지 설명할 수 있다.
+5. 정확한 SVP 알고리즘(열거, 체)의 비용 $2^{O(n\log n)}$, $2^{0.292n}$ 을 알고, 그것이 실제 파라미터 선택과 어떻게 이어지는지 말할 수 있다.
+
+**선수 지식**: [7장](../ch07-lattices/)(격자, 부피, 연속 최소값, 쌍대 격자), [6장](../ch06-linalg-prob/)(Gram-Schmidt).
+
+</div>
+
+## 1. 직관: 격자에게 던지는 네 가지 질문
+
+<span class="layer-tag">직관</span>
+
+격자가 주어졌을 때 물을 수 있는 가장 자연스러운 질문들입니다.
+
+| 질문 | 이름 | 암호에서의 역할 |
+|---|---|---|
+| 원점 말고 가장 가까운 격자점은? | **SVP** (최단 벡터 문제) | SIS 기반 서명(ML-DSA)의 안전성, 격자 축소의 목표 |
+| 주어진 점 $t$ 에서 가장 가까운 격자점은? | **CVP** (최근접 벡터 문제) | 가장 일반적인 "복호" 문제 |
+| $t$ 가 어떤 격자점에 *아주* 가깝다고 약속될 때, 그 점은? | **BDD** (유계 거리 복호) | **LWE 그 자체** ($b = As + e$) |
+| 최단 벡터가 *유난히* 짧다고 약속될 때, 그것은? | **uSVP** (유일 최단 벡터) | LWE 공격의 실제 형태 (14장 임베딩) |
+
+2차원에서는 모두 눈으로 풀립니다. 그런데 정답을 찾는 쉬운 방법이 **좋은 기저가 있을 때만** 통한다는 것이 핵심입니다. 같은 격자라도 나쁜 기저만 가진 사람은 같은 질문에 답하지 못합니다. 격자 암호의 비밀키는 결국 "좋은 기저" 또는 그에 준하는 짧은 벡터입니다.
+
+## 2. 정식화: 문제들의 정의
+
+<span class="layer-tag">정식화</span>
+
+이하 $\mathcal{L} = \mathcal{L}(B)$ 는 랭크 $n$ 격자, $\gamma \ge 1$ 은 **근사 인자** 입니다. $\gamma = 1$ 이면 정확한 문제입니다.
+
+**정의 8.1 (SVP$_\gamma$).** $B$ 가 주어질 때 $0 < \|v\| \le \gamma\,\lambda_1(\mathcal{L})$ 인 $v \in \mathcal{L}$ 을 찾아라.
+
+**정의 8.2 (GapSVP$_\gamma$, 결정 버전).** $B$ 와 $d > 0$ 이 주어지고 $\lambda_1 \le d$ 또는 $\lambda_1 > \gamma d$ 중 하나가 약속될 때, 어느 쪽인지 판정하라.
+
+**정의 8.3 (SIVP$_\gamma$).** 일차독립인 $v_1, \dots, v_n \in \mathcal{L}$ 을 $\max_i\|v_i\| \le \gamma\,\lambda_n(\mathcal{L})$ 이 되도록 찾아라.
+
+**정의 8.4 (CVP$_\gamma$).** 목표점 $t$ 가 주어질 때 $\|t - v\| \le \gamma\cdot\operatorname{dist}(t, \mathcal{L})$ 인 $v \in \mathcal{L}$ 을 찾아라.
+
+**정의 8.5 (BDD$_\alpha$).** $\operatorname{dist}(t, \mathcal{L}) < \alpha\,\lambda_1(\mathcal{L})$ 이 약속된 $t$ 에 대해 가장 가까운 격자점을 찾아라.
+
+**정의 8.6 (uSVP$_\gamma$).** $\lambda_2(\mathcal{L}) > \gamma\,\lambda_1(\mathcal{L})$ 이 약속될 때 최단 벡터를 찾아라.
+
+**보조정리 8.7.** $\alpha \le \tfrac12$ 이면 BDD$_\alpha$ 의 해는 유일하다.
+
+*증명.* 두 격자점 $v \ne w$ 가 모두 $t$ 에서 $\alpha\lambda_1$ 미만 거리에 있다면 $\|v - w\| \le \|v - t\| + \|t - w\| < 2\alpha\lambda_1 \le \lambda_1$ 인데, $v - w$ 는 0 아닌 격자 벡터이므로 모순. $\blacksquare$
+
+**LWE 는 BDD 다.** 14장의 $b = As + e$ 는 q-ary 격자 $\Lambda_q(A)$ 의 점 $As \bmod q$ 에서 $\|e\|$ 만큼 떨어진 점입니다. $\|e\| \approx \sigma\sqrt m$ 은 Gaussian heuristic 으로 예측한 $\lambda_1(\Lambda_q(A))$ 보다 훨씬 작게 설계되므로, LWE 는 작은 $\alpha$ 에 대한 BDD 인스턴스입니다.
+
+## 3. 문제 사이의 환원
+
+<span class="layer-tag">정식화</span>
+
+"문제 $X$ 를 풀 수 있으면 문제 $Y$ 도 풀 수 있다"를 $Y \le X$ 로 씁니다.
+
+- **결정 ≤ 탐색**: SVP$_\gamma$ 를 풀면 GapSVP$_\gamma$ 도 풀린다(찾은 벡터의 길이를 $\gamma d$ 와 비교). 정확한 경우에는 반대 방향도 성립하지만, 근사 버전에서는 반대 방향 환원에 손실이 있습니다.
+- **SVP ≤ CVP** (Goldreich–Micciancio–Safra–Seifert 1999): 같은 근사 인자에서 CVP 가 SVP 보다 어렵거나 같다(연습문제 7).
+- **BDD ↔ uSVP** (Lyubashevsky–Micciancio 2009): 대략 BDD$_{1/(2\gamma)}$ ≤ uSVP$_\gamma$ ≤ BDD$_{1/\gamma}$. 작은 손실을 빼면 두 문제는 같다.
+
+### Kannan 임베딩: BDD 를 uSVP 로
+
+$t = v + e$ ($v \in \mathcal{L}$, $e$ 작음)일 때, 기저를 한 차원 키워
+
+$$
+B' = \begin{pmatrix} B & 0 \\ t & M \end{pmatrix}
+$$
+
+로 두면 $\mathcal{L}(B')$ 에 벡터 $(t, M) - (v, 0) = (e, M)$ 이 있습니다. $M \approx \|e\|$ 로 잡으면 이 벡터의 길이는 $\approx\sqrt2\|e\|$ 이고, $\|e\|$ 가 $\lambda_1(\mathcal{L})$ 보다 충분히 작으면 이것이 $\mathcal{L}(B')$ 의 **유일하게 짧은 벡터** 가 됩니다. 14장의 LWE 공격이 정확히 이 구성(짧은 비밀까지 넣은 변형)이었고, 거기서 본 "gap"이 uSVP 의 $\gamma = \lambda_2/\lambda_1$ 입니다.
+
+## 4. Babai 알고리즘: 좋은 기저가 왜 비밀키인가
+
+<span class="layer-tag">정식화</span>
+
+**Babai 반올림.** 좌표 $c = tB^{-1}$ 을 반올림해 $v = \lfloor c\rceil B$ 를 출력합니다.
+
+**Babai 최근접 평면.** $i = n, n-1, \dots, 1$ 순서로, 남은 벡터 $r$ (처음엔 $t$)을 $b_i^*$ 방향으로 사영한 좌표 $c_i = \lfloor\langle r, b_i^*\rangle/\|b_i^*\|^2\rceil$ 를 정하고 $r \leftarrow r - c_ib_i$. 마지막에 $v = t - r$. 이름대로, $b_1,\dots,b_{i-1}$ 이 펼치는 초평면들의 평행이동 중 $r$ 에 가장 가까운 것을 하나씩 고르는 알고리즘입니다.
+
+**정리 8.8 (복호 영역).**
+
+1. 반올림은 $t - v \in \mathcal{P}_{1/2}(B) = \{\sum_i c_ib_i : |c_i| \le \tfrac12\}$ 인 $v$ 를 출력한다.
+2. 최근접 평면은 $t - v \in \mathcal{P}_{1/2}(B^*) = \{\sum_i c_ib_i^* : |c_i| \le \tfrac12\}$ 인 $v$ 를 출력한다.
+
+따라서 $t = v + e$ 에서 오차 $e$ 가 해당 영역 안에 있으면 정답 $v$ 를 돌려준다. 특히 $\|e\| < \tfrac12\min_i\|b_i^*\|$ 이면 최근접 평면이 BDD 를 푼다.
+
+*증명 (2).* 단계 $i$ 에서 $c_i$ 를 고르면 $r$ 의 $b_i^*$ 방향 좌표가 $[-\tfrac12, \tfrac12]$ 로 들어가고, 이후 단계($j < i$)에서 빼는 $b_j$ 는 $b_i^*$ 에 수직이므로 그 좌표는 더 이상 바뀌지 않는다. 끝나면 모든 $b_i^*$ 좌표가 $\tfrac12$ 이하다. 마지막 주장: $\|e\| < \tfrac12\|b_i^*\|$ 이면 $|\langle e, b_i^*\rangle|/\|b_i^*\|^2 \le \|e\|/\|b_i^*\| < \tfrac12$. $\blacksquare$
+
+<DecodingRegions client:visible />
+
+숫자로 보면 차이가 극적입니다. 같은 격자(부피 7, $\lambda_1 = \sqrt5 \approx 2.24$)에서
+
+| 기저 | $\min_i\|b_i^*\|$ | 최근접 평면이 보장하는 BDD 반경 | 이론상 최대 ($\lambda_1/2$) |
+|---|---|---|---|
+| 좋은 기저 $(3,1), (-1,2)$ | $\sqrt{4.9} \approx 2.21$ | $\approx 1.11$ | $\approx 1.12$ |
+| 나쁜 기저 $(11,6), (19,11)$ | $\sqrt{0.312} \approx 0.56$ | $\approx 0.28$ | $\approx 1.12$ |
+
+좋은 기저는 거의 최적의 복호 능력을 주고, 나쁜 기저는 4배 작은 오차만 고칠 수 있습니다. 위젯 그림 전체에서 정답 비율을 세어 보면 나쁜 기저는 반올림 약 15%, 최근접 평면 약 26% 에 그치고, 좋은 기저는 각각 약 94%, 95% 입니다. 예를 들어 $t = (2.5, 2.4)$ 의 정답은 $(2, 3)$ 이지만, 나쁜 기저로는 반올림도 최근접 평면도 $(5, 4)$ 를 냅니다(위젯 기본값).
+
+부피는 같으므로 $\prod\|b_i^*\| = 7$ 로 고정입니다. **좋은 기저 = GSO 길이가 고른 기저** 이고, 그래서 격자 축소(9장)의 목표가 "GSO 프로파일을 평평하게"였습니다. 고차원으로 가면 이 차이가 지수적으로 벌어집니다. 이것이 GGH 암호와 GPV 서명(17장)의 원리입니다. 비밀키는 좋은 기저, 공개키는 나쁜 기저입니다.
+
+<Quiz
+  client:visible
+  question="최근접 평면 알고리즘이 BDD 를 확실히 푸는 오차 반경 ½·min‖bᵢ*‖ 을 키우려면 기저를 어떻게 바꿔야 하나?"
+  options={[
+    '기저 벡터들을 더 길게 만든다',
+    'GSO 길이 ‖bᵢ*‖ 들을 고르게(평평하게) 만든다. 곱은 부피로 고정이므로 최솟값이 커진다',
+    '부피가 더 큰 격자로 바꾼다',
+    '기저 벡터의 순서를 무작위로 섞는다',
+  ]}
+  answer={1}
+  explanation="∏‖bᵢ*‖ = vol(L) 은 기저와 무관하게 고정입니다. 따라서 최솟값을 키우는 유일한 방법은 값들을 고르게 만드는 것, 즉 격자 축소입니다. LLL·BKZ 가 하는 일이 정확히 이것입니다."
+/>
+
+## 5. 근사 인자에 따른 복잡도 지도
+
+<span class="layer-tag">정식화</span>
+
+격자 문제가 "어렵다"는 말은 **근사 인자 $\gamma$ 에 따라 전혀 다른 뜻** 입니다.
+
+<HardnessMap client:visible />
+
+<Aside type="caution" title="격자 암호는 NP-어려움에 기대지 않는다">
+흔한 오해: "격자 문제는 NP-어려우니까 격자 암호는 안전하다." 실제로 최악→평균 환원(14장 정리 14.3)이 쓰는 근사 인자는 $\gamma = \mathrm{poly}(n)$ 이고, 이 구간의 GapSVP 는 NP-어렵지 **않다고** 믿어집니다($\gamma \ge \sqrt n$ 이면 NP ∩ coNP). 격자 암호의 안전성은 "이 구간에서 수십 년간 $2^{o(n)}$ 알고리즘이 나오지 않았다"는 **경험적 사실** 과, 그것이 양자컴퓨터에도 성립한다는 믿음에 기댑니다. 이 정직한 이해가 연구자의 출발점입니다.
+</Aside>
+
+## 6. 정확한 SVP 는 얼마나 비싼가
+
+<span class="layer-tag">정식화</span>
+
+근사가 아니라 최단 벡터를 정확히(또는 작은 상수 배 안에서) 찾는 알고리즘은 크게 두 계열입니다.
+
+| 계열 | 아이디어 | 시간 | 메모리 |
+|---|---|---|---|
+| **열거** (Kannan 1983, Fincke–Pohst, Schnorr–Euchner) | 가지치기한 탐색 트리로 공 안의 모든 격자점 순회 | $2^{O(n\log n)}$ | 다항식 |
+| **체(sieving)** (Ajtai–Kumar–Sivakumar 2001, …) | 짧은 벡터 목록을 서로 빼며 점점 줄이기 | 휴리스틱 $2^{0.292n + o(n)}$ (Becker–Ducas–Gama–Laarhoven 2016) | $2^{0.2075n}$ |
+| 양자 체 | 근방 탐색에 그로버 류 가속 | $2^{0.257n+o(n)}$ (Chailloux–Loyer 2021) | 지수적 |
+
+이 숫자들이 실제 파라미터 선택의 출발점입니다. 9장의 LLL 은 다항 시간에 $\gamma = 2^{O(n)}$ 을 주고, 10장의 **BKZ** 는 블록 크기 $\beta$ 짜리 정확한 SVP(위 알고리즘)를 반복해 그 사이를 메웁니다. 18장의 비용 모델은 대략 "BKZ-$\beta$ 한 번 ≈ $\beta$ 차원 체 몇 번 ≈ $2^{0.292\beta}$"로 시작합니다.
+
+**현실의 기록.** 공개 SVP 챌린지에서는 GPU 기반 체(G6K 라이브러리)로 180 차원 이상의 격자가 풀렸습니다(Ducas–Stevens–van Woerden, Eurocrypt 2021). ML-KEM-512 를 깨려면 대략 $\beta \approx 400$ 수준의 블록이 필요하다고 추정되므로, 아직 큰 여유가 있습니다(18장에서 정확히 계산합니다).
+
+## 7. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **세밀한(fine-grained) 난이도.** "다항 시간이냐 아니냐"를 넘어, "$2^{0.292n}$ 보다 빨라질 수 있는가"를 묻는 연구가 있습니다. Bennett–Golovnev–Stephens-Davidowitz(FOCS 2017)는 강한 지수 시간 가설(SETH) 아래 일부 $\ell_p$ 노름의 CVP 가 $2^{(1-\varepsilon)n}$ 보다 빨리 풀리지 않음을 보였습니다. 구체적 파라미터 선택에 이론적 근거를 주려는 방향입니다.
+- **구조화된 격자의 난이도.** Ring/Module-LWE 의 격자는 대수 구조를 가집니다. 이데알 격자에서는 큰 근사 인자의 SVP 에 대해 일반 격자보다 나은 양자 알고리즘이 있습니다(12장). 반대로 모듈 격자에서 SVP 의 NP-어려움을 보이려는 연구도 진행 중입니다. 예를 들어 일부 랭크 2 원분체 모듈에서 SVP 가 NP-어렵다는 2026년 프리프린트(arXiv:2609.01469)가 있습니다. 3부의 주제와 곧바로 이어지는 질문입니다.
+- **체 알고리즘의 공학.** 체는 메모리가 지수적으로 필요해서, 실제 공격 비용은 "연산 수"만으로 정해지지 않습니다. 메모리 접근 비용을 넣은 모델(18장)은 파라미터 논쟁의 한가운데에 있습니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **O. Regev**, *Lattices in Computer Science* 강의 노트, LLL·Babai 강과 NP ∩ coNP 강.
+2. **D. Aharonov, O. Regev**, *Lattice Problems in NP ∩ coNP*, J. ACM 2005. 3장의 쌍대 격자와 6장의 가우시안 측도가 어떻게 증명에 쓰이는지 볼 수 있는 아름다운 논문.
+3. **V. Lyubashevsky, D. Micciancio**, *On Bounded Distance Decoding, Unique Shortest Vectors, and the Minimum Distance Problem*, CRYPTO 2009.
+4. **A. Becker, L. Ducas, N. Gama, T. Laarhoven**, *New Directions in Nearest Neighbor Searching with Applications to Lattice Sieving*, SODA 2016. $2^{0.292n}$ 의 출처.
+5. **M. Albrecht, L. Ducas, G. Herold, E. Kirshanova, E. Postlethwaite, M. Stevens**, *The General Sieve Kernel and New Records in Lattice Reduction*, Eurocrypt 2019. 현대 격자 축소 실험의 표준 도구 G6K.
+
+## 연습문제
+
+**★ 1.** 좋은 기저 $(3, 1), (-1, 2)$ 로 $t = (2.5, 2.4)$ 에 Babai 반올림을 손으로 적용하세요. 나쁜 기저 $(11,6), (19,11)$ 로도 해 보고 결과를 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+좋은 기저: $B^{-1} = \frac17\begin{pmatrix}2 & -1\\ 1 & 3\end{pmatrix}$, $tB^{-1} = \frac17(2.5\cdot2 + 2.4\cdot1,\; -2.5 + 2.4\cdot3) = (1.057, 0.671)$ → $(1, 1)$ → $v = (3,1) + (-1,2) = (2, 3)$. 정답입니다($\|t - v\| \approx 0.78$). 나쁜 기저: $B^{-1} = \frac17\begin{pmatrix}11 & -6\\ -19 & 11\end{pmatrix}$, $tB^{-1} = \frac17(27.5 - 45.6,\; -15 + 26.4) = (-2.586, 1.629)$ → $(-3, 2)$ → $v = -3(11,6) + 2(19,11) = (5, 4)$. 거리 $\approx 2.97$ 로 오답입니다.
+
+</details>
+
+**★ 2.** 정의 8.5 에서 $\alpha > \tfrac12$ 이면 BDD 의 해가 유일하지 않을 수 있는 예를 $\mathbb{Z}$ (1차원 격자)에서 드세요. $\alpha = \tfrac12$ 일 때는 왜 여전히 유일한가요?
+
+<details>
+<summary>해설</summary>
+
+$\mathbb{Z}$ 에서 $\lambda_1 = 1$ 이고, $t = 0.5$ 는 0 과 1 모두에서 거리 $0.5$ 입니다. $\alpha > \tfrac12$ 이면 $0.5 < \alpha$ 이므로 $t$ 가 약속을 만족하는데 해가 둘입니다. $\alpha = \tfrac12$ 이면 약속이 엄격한 부등호 $\operatorname{dist} < \tfrac12$ 이므로 이런 $t$ 가 배제되고, 보조정리 8.7 의 증명($\|v - w\| < 2\alpha\lambda_1 = \lambda_1$)도 그대로 성립해 해가 유일합니다. 즉 $\tfrac12$ 이 정확한 경계입니다.
+
+</details>
+
+**★ 3.** SVP$_\gamma$ 를 푸는 오라클로 GapSVP$_\gamma$ 를 푸는 알고리즘을 쓰세요. 반대 방향이 쉽지 않은 이유는?
+
+<details>
+<summary>해설</summary>
+
+오라클이 준 $v$ 에 대해 $\|v\| \le \gamma d$ 이면 "$\lambda_1 \le d$", 아니면 "$\lambda_1 > \gamma d$"라고 답합니다. $\lambda_1 \le d$ 이면 $\|v\| \le \gamma\lambda_1 \le \gamma d$, $\lambda_1 > \gamma d$ 이면 $\|v\| \ge \lambda_1 > \gamma d$ 이므로 정확합니다. 반대 방향은 "값의 대략적인 크기"만 알려 주는 결정 오라클로 "벡터 자체"를 찾아야 해서, 근사 인자를 유지한 채 환원하기 어렵습니다.
+
+</details>
+
+**★★ 4.** 정리 8.8 의 (1)을 증명하세요. 그리고 반올림이 최근접 평면보다 일반적으로 나쁜 이유를 복호 영역의 모양으로 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+$t = cB$ 이고 $v = \lfloor c\rceil B$ 이면 $t - v = (c - \lfloor c\rceil)B$, 계수가 모두 $[-\tfrac12, \tfrac12]$. 두 영역 $\mathcal{P}_{1/2}(B)$, $\mathcal{P}_{1/2}(B^*)$ 의 부피는 같지만($\prod\|b_i^*\| = \operatorname{vol}$), 기저가 직교에서 멀면 $\mathcal{P}_{1/2}(B)$ 는 길쭉한 평행다면체가 되어 원점 근처의 작은 공조차 담지 못합니다. 반면 $\mathcal{P}_{1/2}(B^*)$ 는 직육면체라 반지름 $\tfrac12\min\|b_i^*\|$ 인 공을 담습니다.
+
+</details>
+
+**★★ 5.** Kannan 임베딩에서 $t = v + e$, $\|e\| = \delta$, $M = \delta$ 라 하자. $\mathcal{L}(B')$ 의 벡터 중 마지막 좌표가 0 이 아닌 것은 $k(t, M) + (w, 0)$ 꼴임을 보이고, $|k| \ge 2$ 이거나 $k = \pm1$ 이면서 $w \ne -v$ 인 벡터는 길이가 대략 $\min(2\delta, \operatorname{dist}(t,\mathcal{L}\setminus\{v\}))$ 이상임을 논증해, $\delta \ll \lambda_1$ 일 때 $(e, M)$ 이 유일하게 짧은 벡터가 됨을 설명하세요.
+
+<details>
+<summary>힌트</summary>
+
+$k = \pm1$ 이면 벡터는 $\pm(t - u, M)$ ($u \in \mathcal{L}$) 꼴이고, $u \ne v$ 이면 $\|t - u\| \ge \|v - u\| - \delta \ge \lambda_1 - \delta$. $|k| \ge 2$ 이면 마지막 좌표만으로 $|k|M \ge 2\delta$. 마지막 좌표가 0 인 벡터는 $\mathcal{L}$ 의 벡터라 $\lambda_1$ 이상. 따라서 $\lambda_2(\mathcal{L}(B')) \gtrsim \min(2\delta, \lambda_1 - \delta)$ 이고 $\lambda_1(\mathcal{L}(B')) \le \sqrt2\delta$. 이것이 BDD → uSVP 환원의 핵심 계산입니다.
+
+</details>
+
+**★★ 6.** LLL 축소 기저($\delta = \tfrac34$)에 최근접 평면을 쓰면 CVP 의 근사 인자 $2^{O(n)}$ 를 얻는다는 Babai 의 정리를 다음 순서로 보이세요. (a) LLL 조건에서 $\|b_n^*\|^2 \ge 2^{-(n-1)}\lambda_1^2$ 꼴의 하한, (b) $\|t - v\|^2 \le \tfrac14\sum_i\|b_i^*\|^2$, (c) 두 식을 결합.
+
+<details>
+<summary>힌트</summary>
+
+(b) 는 정리 8.8(2) 에서 바로 나옵니다. 정확한 근사 인자 $2(2/\sqrt3)^n$ 까지 얻으려면, 정답 $u$ 와 출력 $v$ 의 GSO 좌표를 비교하는 귀납법이 필요합니다(Babai 1986). 지금은 "$2^{O(n)}$"까지만 보이면 충분합니다.
+
+</details>
+
+**★★★ 7.** SVP ≤ CVP 를 증명하세요(Goldreich–Micciancio–Safra–Seifert). 힌트: 각 $i$ 에 대해 $b_i$ 를 $2b_i$ 로 바꾼 격자 $\mathcal{L}_i$ 와 목표점 $t = b_i$ 로 CVP 를 풀고, 결과 $v_i$ 로 $b_i - v_i$ 를 후보로 삼으세요. 최단 벡터 $s = \sum c_jb_j$ 에서 어떤 $c_i$ 는 홀수여야 하는 이유도 설명하세요.
+
+<details>
+<summary>힌트</summary>
+
+$s$ 의 모든 계수가 짝수이면 $s/2 \in \mathcal{L}$ 이 더 짧아 모순이므로 어떤 $c_i$ 가 홀수입니다. 그 $i$ 에 대해 $b_i - s \in \mathcal{L}_i$ 이므로 $\operatorname{dist}(b_i, \mathcal{L}_i) \le \|s\| = \lambda_1$. 반대로 $b_i - v_i$ 는 $b_i$ 계수가 홀수인 0 아닌 격자 벡터입니다. 모든 $i$ 의 후보 중 가장 짧은 것을 고르면 $\gamma$-근사 SVP 해가 됩니다.
+
+</details>
+
+**★★★ 8. (구현 · 포트폴리오)** `src/lib/lattice.ts` 의 `babaiNearestPlane` 과 `lll` 로, 20차원 q-ary 격자($q = 97$)에서 무작위 BDD 인스턴스 $t = v + e$ ($e$ 는 반지름 $r$ 인 구 위의 무작위 점)를 만드세요. (a) 원래 q-ary 기저, (b) LLL($\delta = 0.75$), (c) LLL($\delta = 0.99$) 기저 각각에 대해 성공률이 50% 가 되는 $r$ 을 찾고, $\tfrac12\min\|b_i^*\|$ 및 $\lambda_1/2$ 의 GH 추정치와 비교하세요. "기저가 좋아질수록 복호 반경이 커진다"를 숫자로 보이는 1쪽 보고서를 만드세요.
+
+**★★★ 9. (읽기)** Aharonov–Regev(2005)를 읽고, "GapSVP$_{\sqrt n}$ 이 NP-어렵다면 다항 위계가 붕괴한다"는 결론이 어떤 논리로 나오는지 반 쪽으로 요약하세요. 그들의 coNP 증명서에서 쌍대 격자(7장)와 가우시안(6장)이 각각 어떤 역할을 하나요?
+
+## 요약
+
+- SVP(최단), CVP(최근접), BDD(약속된 근접), uSVP(유일 최단), 그리고 각각의 근사·결정 버전. **LWE 는 BDD** 이고, 실제 공격은 임베딩으로 **uSVP** 로 바꿔 푼다.
+- BDD$_\alpha$ 는 $\alpha \le \tfrac12$ 에서 해가 유일하다(약속이 엄격한 부등호이므로). BDD 와 uSVP 는 작은 손실을 빼면 같은 문제다.
+- Babai 반올림·최근접 평면의 복호 영역은 $\mathcal{P}_{1/2}(B)$, $\mathcal{P}_{1/2}(B^*)$. GSO 가 고른 기저일수록 복호 반경이 커진다. **좋은 기저 = 비밀키.**
+- 근사 인자 지도: 작은 $\gamma$ 는 NP-어렵고, $\gamma \ge \sqrt n$ 은 NP ∩ coNP, 암호는 $\gamma = \mathrm{poly}(n)$ 에 기대며, $2^{O(n)}$ 은 LLL 로 다항 시간이다.
+- 정확한 SVP: 열거 $2^{O(n\log n)}$ (메모리 다항), 체 $2^{0.292n}$ (메모리 지수). 이것이 BKZ(10장)와 공격 비용 모델(18장)의 기본 단위다.
+- 다음: [9장](../ch09-lll/)에서 다항 시간 축소 알고리즘 LLL 을 증명과 함께 완전히 다룬다.
