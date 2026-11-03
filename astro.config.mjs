@@ -46,6 +46,9 @@ export default defineConfig({
           { label: '8장. 격자 문제와 난이도', slug: 'ch08-lattice-problems' },
           { label: '9장. LLL 완전 정복', slug: 'ch09-lll' },
         ]},
+        { label: '3부 · 대수적 격자', items: [
+          { label: '11장. 대수적 정수론 입문', slug: 'ch11-algebraic-nt' },
+        ]},
         { label: '4부 · 격자 암호 설계', items: [
           { label: '14장. LWE', slug: 'ch14-lwe' },
           { label: '15장. NTRU', slug: 'ch15-ntru' },

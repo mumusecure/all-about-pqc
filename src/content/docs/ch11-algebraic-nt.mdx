@@ -1,0 +1,275 @@
+---
+title: 11장. 대수적 정수론 입문
+description: 수체와 정수환, 원분체와 갈루아 군, 정규 임베딩(곱셈은 좌표별 곱, 길이는 √n 배), 체 노름과 대각합, 이데알과 유일 분해, 비주이데알과 류수, 이데알 격자의 기하, 소수의 분해와 NTT, 모듈 미리보기.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import EmbeddingViz from '../../components/EmbeddingViz.tsx';
+import IdealLattice from '../../components/IdealLattice.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 수체 $K$ 와 정수환 $\mathcal{O}_K$ 를 정의하고, 원분체 $\mathbb{Q}(\zeta_m)$ 의 차수·정수환·갈루아 군을 말할 수 있다.
+2. **정규 임베딩** 으로 $\mathbb{Z}[x]/(x^n+1)$ 의 원소를 $n$ 개의 복소수로 보고, 곱셈이 좌표별 곱이 되며 2의 거듭제곱 원분체에서 $\|\sigma(a)\| = \sqrt n\,\|a\|$ 임을 증명할 수 있다.
+3. 체 노름 $N(a) = \prod_j\sigma_j(a)$ 와 대각합을 계산하고, 노름이 곱셈 행렬의 행렬식임을 설명할 수 있다.
+4. 이데알의 노름, 주이데알과 비주이데알, 이데알의 유일 분해와 류수(class number)를 예로 설명할 수 있다.
+5. 이데알이 **격자** 가 됨을 보이고, 이데알 격자에서 $\lambda_1$ 이 좁은 범위에 갇혀 있다는 사실(그래서 결정 문제는 쉽다)을 증명할 수 있다.
+6. 소수 $q$ 가 $\mathcal{O}_K$ 에서 어떻게 분해되는지 계산해 NTT 의 구조(ML-KEM, NTRU+)를 설명할 수 있다.
+
+**선수 지식**: [2장](../ch02-algebra/)(환, 이데알, 몫환, CRT, $\mathbb{Z}_q[x]/(x^n+1)$), [7장](../ch07-lattices/)(격자, 부피, Minkowski), [6장](../ch06-linalg-prob/)(복소 내적, 행렬식).
+
+</div>
+
+## 1. 직관: 다항식을 "값의 목록"으로 보기
+
+<span class="layer-tag">직관</span>
+
+2장에서 $\mathbb{Z}_q[x]/(x^n+1)$ 의 원소를 $x^n + 1$ 의 근(mod $q$)에서의 **값** 으로 바꾸면 곱셈이 좌표별 곱이 된다는 것(NTT 의 원리)을 보았습니다. 같은 일을 $\bmod q$ 없이 **복소수** 에서 하면 어떨까요? $x^n + 1$ 의 복소근 $\omega_0, \dots, \omega_{n-1}$ (단위원 위의 점들)에서 다항식 $a$ 의 값 $a(\omega_j)$ 를 모은 것이 **정규 임베딩(canonical embedding)** 입니다.
+
+이 관점은 격자 암호의 대수적 이론 전체의 언어입니다.
+
+- 곱셈이 좌표별 곱이 되어, "곱하면 얼마나 커지나"를 정확히 분석할 수 있습니다(16장의 노이즈 분석).
+- 원소의 "크기"(노름)가 기하학적 의미를 가집니다.
+- Ring-LWE 의 오차 분포, 안전성 증명, 그리고 구조를 이용한 공격(부분체 공격, 주이데알 공격)이 모두 이 언어로 쓰입니다.
+
+## 2. 수체와 정수환
+
+<span class="layer-tag">정식화</span>
+
+**정의 11.1.** **수체** 는 $\mathbb{Q}$ 의 유한 차 확대체 $K = \mathbb{Q}(\alpha) \cong \mathbb{Q}[x]/(f)$ ($f$ 는 $\alpha$ 의 최소다항식, 차수 $n = [K : \mathbb{Q}]$)이다. 정수 계수 일계수(monic) 다항식의 근이 되는 $K$ 의 원소를 **대수적 정수** 라 하고, 그 전체를 **정수환** $\mathcal{O}_K$ 라 한다.
+
+$\mathcal{O}_K$ 는 $K$ 안의 "정수"이고, $\mathbb{Z}$ 가 $\mathbb{Q}$ 에서 하는 역할을 합니다. 예:
+
+- $K = \mathbb{Q}(i)$: $\mathcal{O}_K = \mathbb{Z}[i]$ (가우스 정수).
+- $K = \mathbb{Q}(\sqrt{-5})$: $\mathcal{O}_K = \mathbb{Z}[\sqrt{-5}]$.
+- $K = \mathbb{Q}(\sqrt5)$: $\mathcal{O}_K = \mathbb{Z}[\frac{1+\sqrt5}{2}] \supsetneq \mathbb{Z}[\sqrt5]$. 황금비 $\frac{1+\sqrt5}{2}$ 는 $x^2 - x - 1$ 의 근이라 대수적 정수입니다. $\mathbb{Z}[\alpha]$ 가 항상 정수환 전체인 것은 아닙니다.
+
+### 2.1 원분체
+
+$\zeta_m = e^{2\pi i/m}$ 을 원시 $m$ 제곱근이라 하면 **원분체** $K = \mathbb{Q}(\zeta_m)$ 는
+
+- 차수 $n = \varphi(m)$, 최소다항식은 $m$ 번째 원분 다항식 $\Phi_m(x)$.
+- 정수환은 $\mathcal{O}_K = \mathbb{Z}[\zeta_m] \cong \mathbb{Z}[x]/(\Phi_m)$ (정수환이 단순한 형태라는 것이 원분체가 암호에서 사랑받는 이유).
+- **갈루아 군** 은 $(\mathbb{Z}/m\mathbb{Z})^*$: 각 $k$ 에 대해 자기동형 $\sigma_k : \zeta_m \mapsto \zeta_m^k$.
+
+**2의 거듭제곱 원분체.** $m = 2n$, $n = 2^k$ 이면 $\Phi_{2n}(x) = x^n + 1$. 그래서 2장부터 써 온 $\mathbb{Z}[x]/(x^n+1)$ 이 바로 $\mathbb{Q}(\zeta_{2n})$ 의 정수환입니다. ML-KEM, ML-DSA, Falcon 이 이 환을 씁니다. NTRU+ 의 $x^n - x^{n/2} + 1$ 은 $m = 2^a3^b$ 꼴의 원분 다항식입니다(예: $n = 768$ 이면 $m = 2304$, $\varphi(2304) = 768$).
+
+## 3. 정규 임베딩, 노름, 대각합
+
+<span class="layer-tag">정식화</span>
+
+**정의 11.2.** 차수 $n$ 인 $K$ 의 체 준동형 $K \to \mathbb{C}$ 는 정확히 $n$ 개 있다(최소다항식의 근 하나로 $\alpha$ 를 보내는 것). 이들을 $\sigma_1, \dots, \sigma_n$ 이라 할 때 **정규 임베딩** 은
+
+$$
+\sigma : K \to \mathbb{C}^n, \qquad \sigma(a) = (\sigma_1(a), \dots, \sigma_n(a)).
+$$
+
+$K = \mathbb{Q}[x]/(x^n+1)$ 이면 $\sigma_j(a) = a(\omega_j)$, $\omega_j = e^{i\pi(2j+1)/n}$ ($x^n + 1$ 의 근들).
+
+**성질.** (1) 덧셈과 곱셈이 좌표별이다: $\sigma(ab) = \sigma(a)\odot\sigma(b)$. (2) 복소 임베딩은 켤레 쌍으로 나오므로 $\sigma(K)$ 는 $n$ 차원 **실** 공간 안에 놓인다.
+
+<EmbeddingViz client:visible />
+
+**정리 11.3.** $\varphi = x^n + 1$ ($n$ 은 2의 거듭제곱)이면 모든 $a \in \mathbb{R}[x]/(x^n+1)$ 에 대해 $\|\sigma(a)\|_2 = \sqrt n\,\|a\|_2$ (오른쪽은 계수 벡터의 노름).
+
+*증명.* $\sigma(a) = Va$, $V_{jk} = \omega_j^k$. $V$ 의 두 열 $k \ne l$ 의 내적은 $\sum_j\omega_j^{k}\overline{\omega_j^{l}} = \sum_j\omega_j^{k-l}$ 이고, $\omega_j = \zeta\cdot\zeta^{2j}$ ($\zeta = e^{i\pi/n}$)이므로 이는 $\zeta^{k-l}\sum_{j}(\zeta^{2(k-l)})^j = 0$ ($0 < |k - l| < n$ 이면 $\zeta^{2(k-l)} \ne 1$ 인 $n$ 제곱근의 합). 같은 열의 노름 제곱은 $n$. 따라서 $V^*V = nI$, $\|Va\|^2 = n\|a\|^2$. $\blacksquare$
+
+즉 2의 거듭제곱 원분체에서는 **계수 기하와 임베딩 기하가 상수 배만 다릅니다.** 그래서 이 교과서가 지금까지 계수 벡터로 한 격자 계산(14·15장)이 대수적 관점과 모순되지 않았습니다. 다른 원분체(예: $m$ 이 홀수 소수)에서는 $V$ 가 직교에 가깝지 않아 두 기하가 크게 달라지고, Ring-LWE 의 오차를 어느 기하로 정의하느냐가 안전성에 영향을 줍니다(Peikert 2016).
+
+**정의 11.4 (노름과 대각합).** $N(a) = \prod_j\sigma_j(a)$, $\mathrm{Tr}(a) = \sum_j\sigma_j(a)$. 둘 다 유리수이고, $a \in \mathcal{O}_K$ 이면 정수이다.
+
+- $N(a)$ 는 "$a$ 를 곱하는 사상"의 행렬식입니다. 15장 연습문제 7 의 $|\det\operatorname{rot}(a)| = \prod|a(\zeta)|$ 가 이것입니다.
+- $N(ab) = N(a)N(b)$. $N(a) = \pm1$ 인 원소는 **단원** (곱셈 역원이 $\mathcal{O}_K$ 안에 있음)입니다. 예: $\mathbb{Z}[x]/(x^4+1)$ 에서 $N(1 + x) = 2$, $N(1 + x + x^2) = 1$ 이므로 $1 + x + x^2$ 는 단원입니다(연습문제 3).
+- $x^n + 1$ 이면 $\mathrm{Tr}(a) = n\,a_0$ (상수항의 $n$ 배).
+- 갈루아 자기동형 $\sigma_k$ 는 임베딩들을 **치환** 할 뿐이므로 노름과 대각합을 보존합니다(위젯의 'x → x³').
+
+## 4. 이데알과 유일 분해
+
+<span class="layer-tag">정식화</span>
+
+$\mathbb{Z}$ 에서는 모든 수가 소수의 곱으로 유일하게 분해됩니다. 정수환에서는 **원소** 의 분해가 유일하지 않을 수 있습니다.
+
+$$
+6 = 2\cdot3 = (1 + \sqrt{-5})(1 - \sqrt{-5}) \quad\text{in } \mathbb{Z}[\sqrt{-5}].
+$$
+
+노름 $N(x + y\sqrt{-5}) = x^2 + 5y^2$ 을 쓰면 $2, 3, 1 \pm\sqrt{-5}$ 의 노름은 $4, 9, 6, 6$ 입니다. 노름이 2 나 3 인 원소가 없으므로($x^2 + 5y^2 = 2, 3$ 은 해가 없음) 네 원소 모두 더 쪼개지지 않고, 두 분해는 본질적으로 다릅니다. Kummer 는 이 문제를 **이데알** 로 해결했습니다.
+
+**정리 11.5 (Dedekind).** $\mathcal{O}_K$ 의 0 이 아닌 모든 이데알은 소이데알의 곱으로 (순서를 빼면) 유일하게 분해된다.
+
+위 예에서 $\mathfrak{p} = (2, 1 + \sqrt{-5})$, $\mathfrak{q} = (3, 1 + \sqrt{-5})$, $\bar{\mathfrak{q}} = (3, 1 - \sqrt{-5})$ 로 두면 $(2) = \mathfrak{p}^2$, $(3) = \mathfrak{q}\bar{\mathfrak{q}}$, $(1 + \sqrt{-5}) = \mathfrak{p}\mathfrak{q}$ 이고, 두 분해가 모두 $\mathfrak{p}^2\mathfrak{q}\bar{\mathfrak{q}}$ 로 합쳐집니다.
+
+**이데알의 노름.** $N(I) = |\mathcal{O}_K/I|$ (몫환의 크기). 주이데알이면 $N((a)) = |N(a)|$.
+
+**주이데알과 류수.** 원소 하나로 생성되는 이데알 $(a)$ 가 **주이데알** 입니다. 모든 이데알이 주이데알이면 원소의 분해도 유일합니다. "주이데알이 아닌 정도"를 재는 유한군이 **이데알 류군**, 그 크기가 **류수** $h_K$ 입니다. $\mathbb{Z}[i]$ 는 $h = 1$, $\mathbb{Z}[\sqrt{-5}]$ 는 $h = 2$ 입니다. 원분체 $\mathbb{Q}(\zeta_{23})$ 은 류수가 3 이라 $\mathbb{Z}[\zeta_{23}]$ 에서 원소의 분해가 유일하지 않은데, 이 사실을 놓친 것이 페르마의 마지막 정리에 대한 19세기 "증명"의 오류였습니다.
+
+## 5. 이데알 격자
+
+<span class="layer-tag">정식화</span>
+
+이데알 $I \subseteq \mathcal{O}_K$ 는 랭크 $n$ 의 $\mathbb{Z}$-가군이므로, 정규 임베딩으로 보내면 $\sigma(I)$ 는 $n$ 차원 **격자** 입니다. 이것이 **이데알 격자** 입니다.
+
+<IdealLattice client:visible />
+
+**부피.** $\operatorname{vol}(\sigma(\mathcal{O}_K)) = \sqrt{|\Delta_K|}$ ($\Delta_K$ 는 판별식), $\operatorname{vol}(\sigma(I)) = N(I)\sqrt{|\Delta_K|}$. 2의 거듭제곱 원분체에서는 $|\Delta_K| = n^n$ 이라 $\operatorname{vol}(\sigma(\mathcal{O}_K)) = n^{n/2}$ 입니다. 정리 11.3 과 맞는지 검산해 보세요. 계수 격자 $\mathbb{Z}^n$ (부피 1)을 $\sqrt n$ 배 늘리면 부피가 $n^{n/2}$ 입니다.
+
+**정리 11.6 (이데알 격자의 최단 벡터).** 2의 거듭제곱 원분체의 이데알 $I$ 에 대해
+
+$$
+\sqrt n\,N(I)^{1/n} \;\le\; \lambda_1(\sigma(I)) \;\le\; n\,N(I)^{1/n}, \qquad \lambda_1(\sigma(I)) = \lambda_n(\sigma(I)).
+$$
+
+*증명.* (하한) $0 \ne a \in I$ 이면 $(a) \subseteq I$ 이므로 $|N(a)| \ge N(I)$. 산술–기하 평균으로 $\frac1n\|\sigma(a)\|^2 = \frac1n\sum_j|\sigma_j(a)|^2 \ge \left(\prod_j|\sigma_j(a)|^2\right)^{1/n} = |N(a)|^{2/n} \ge N(I)^{2/n}$. (상한) 7장 따름정리 7.7 로 $\lambda_1 \le \sqrt n\operatorname{vol}^{1/n} = \sqrt n\,(N(I)n^{n/2})^{1/n} = n\,N(I)^{1/n}$. ($\lambda_1 = \lambda_n$) $I$ 는 $x$ 곱셈에 닫혀 있고 $x$ 곱셈은 길이를 보존하므로, 최단 벡터 $v$ 의 $v, xv, \dots, x^{n-1}v$ 가 일차독립인 같은 길이의 벡터 $n$ 개다. $\blacksquare$
+
+<Aside type="caution" title="결정 문제는 쉽다, 탐색 문제는 어렵다(고 믿어진다)">
+정리 11.6 에 의해 이데알 격자의 $\lambda_1$ 은 $N(I)$ 만 알면 $\sqrt n$ 배 범위 안에서 정해집니다. 그래서 이데알 격자에서 **GapSVP$_{\sqrt n}$ 은 자명하게 풀립니다**. 일반 격자의 GapSVP$_{\sqrt n}$ 이 NP ∩ coNP 의 어려운 문제(8장)인 것과 대조적입니다. 그런데 최단 벡터를 실제로 **찾는** 것(SVP)은 이데알 격자에서도 어렵다고 믿어지고, 이 "구조는 있지만 탐색은 어렵다"는 틈이 구조화 격자 암호가 서 있는 자리입니다. 동시에, 구조가 어디까지 공격에 쓰일 수 있는지가 끊임없이 연구되는 이유이기도 합니다(7절).
+</Aside>
+
+<Quiz
+  client:visible
+  question="ℤ[√−5] 의 이데알 (2, 1 + √−5) 가 주이데알이 아님을 보이는 가장 짧은 논증은?"
+  options={[
+    '2 가 소수이기 때문',
+    '노름이 2 인데, x² + 5y² = 2 인 원소가 없어서 그 노름을 갖는 생성원이 있을 수 없기 때문',
+    '1 + √−5 가 단원이기 때문',
+    '이데알의 원소가 두 개뿐이기 때문',
+  ]}
+  answer={1}
+  explanation="주이데알 (α) 라면 N(α) = N(I) = 2 여야 합니다. 그런데 노름 x² + 5y² = 2 인 원소가 없으므로 불가능합니다. 위젯에서 점선 원(반지름 √2) 위에 이데알의 점이 하나도 없는 것이 이 사실의 그림입니다."
+/>
+
+## 6. 소수의 분해와 NTT
+
+<span class="layer-tag">정식화</span>
+
+정수 소수 $q$ 가 생성하는 이데알 $(q) = q\mathcal{O}_K$ 는 소이데알들로 분해됩니다. 원분체 $\mathbb{Q}(\zeta_m)$ 에서 $q \nmid m$ 이면
+
+$$
+q\mathcal{O}_K = \mathfrak{q}_1\cdots\mathfrak{q}_g, \qquad g = \varphi(m)/f, \quad f = (q \bmod m \text{ 의 곱셈 위수}),
+$$
+
+각 $\mathcal{O}_K/\mathfrak{q}_i$ 는 $q^f$ 개 원소의 유한체입니다. CRT(2장)에 의해
+
+$$
+R_q = \mathcal{O}_K/q\mathcal{O}_K \;\cong\; \prod_{i=1}^{g}\mathbb{F}_{q^f}.
+$$
+
+이것이 NTT 의 대수적 정체입니다.
+
+| 스킴 | $m$ | $n = \varphi(m)$ | $q$ | $f$ | 분해 |
+|---|---|---|---|---|---|
+| ML-KEM | 512 | 256 | 3329 | 2 | 128 개의 $\mathbb{F}_{q^2}$ (2장의 "불완전 NTT") |
+| Kyber 1라운드 | 512 | 256 | 7681 | 1 | 256 개의 $\mathbb{F}_q$ (완전 분해) |
+| NTRU+768 | 2304 | 768 | 3457 | 2 | 384 개의 $\mathbb{F}_{q^2}$ |
+
+$f = 1$ ($q \equiv 1 \bmod m$)이면 완전히 쪼개져 곱셈이 점별 곱이 되고, $f = 2$ 이면 작은 2차 다항식 곱셈이 남습니다. ML-KEM 이 $q = 3329$ 로 바꾼 것은 더 작은 $q$ 로 효율과 크기를 얻는 대신 완전 분해를 포기한 설계 선택입니다(16장).
+
+## 7. 모듈 미리보기와 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+**모듈.** $R^k$ 의 부분 $R$-가군을 정규 임베딩으로 보낸 것이 **모듈 격자** (차원 $nk$)입니다. $k = 1$ 이면 이데알 격자, $n = 1$ ($R = \mathbb{Z}$)이면 일반 격자입니다. ML-KEM 은 $n = 256$, $k = 2, 3, 4$ 인 모듈 격자 위의 문제(Module-LWE)에 기댑니다. 12장에서 정식으로 다룹니다.
+
+**구조는 공격의 지렛대.**
+
+- **부분체.** $\mathbb{Q}(\zeta_{2n}) \supset \mathbb{Q}(\zeta_{n}) \supset \cdots$ 처럼 부분체 탑이 있으면, 노름 사상 $N_{K/L}$ 으로 문제를 작은 체로 "내릴" 수 있습니다. overstretched NTRU 에 대한 부분체 공격(Cheon–Jeong–Lee 2016, Albrecht–Bai–Ducas 2016, 15장)이 이것입니다.
+- **주이데알과 단원.** 주이데알에서 짧은 생성원을 찾는 문제는 양자 다항 시간에 풀립니다(Biasse–Song 2016 + Cramer–Ducas–Peikert–Regev 2016, 5장). 원분체 단원군의 구조(원분 단원)가 핵심 역할을 합니다.
+- **Stickelberger 와 이데알 SVP.** 류군의 구조를 이용해 이데알 격자의 SVP 를 $2^{\tilde O(\sqrt n)}$ 근사로 푸는 양자 알고리즘(Cramer–Ducas–Wesolowski 2017), 전처리를 허용한 개선(Pellet-Mary–Hanrot–Stehlé 2019)이 있습니다.
+- **모듈은 아직 안전하다.** 위 공격들은 이데알(랭크 1)의 대수 구조를 강하게 씁니다. 랭크 2 이상의 모듈에서는 구조를 이용한 실질적 공격이 알려져 있지 않고, 모듈 격자의 **축소 알고리즘**(module-LLL, 13장)을 이해하는 것이 이 질문의 최전선입니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **I. Stewart, D. Tall**, *Algebraic Number Theory and Fermat's Last Theorem*. 이 장 수준의 가장 친절한 입문서. 수체, 정수환, 이데알, 류군.
+2. **D. A. Marcus**, *Number Fields*. 연습문제가 풍부한 표준 교과서. 원분체와 소수 분해 장.
+3. **V. Lyubashevsky, C. Peikert, O. Regev**, *A Toolkit for Ring-LWE Cryptography*, Eurocrypt 2013. 정규 임베딩, 쌍대 이데알, 원분체의 암호학적 활용을 정리한 핵심 문헌.
+4. **C. Peikert**, *How (Not) to Instantiate Ring-LWE*, SCN 2016. 기하의 선택이 왜 중요한지.
+5. **R. Cramer, L. Ducas, C. Peikert, O. Regev**, *Recovering Short Generators of Principal Ideals in Cyclotomic Rings*, Eurocrypt 2016. 구조가 공격으로 바뀌는 대표 사례.
+
+## 연습문제
+
+**★ 1.** $\mathbb{Z}[\sqrt{-5}]$ 에서 $2, 3, 1 \pm\sqrt{-5}$ 가 모두 기약원(더 쪼개지지 않음)임을 노름으로 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$a = bc$ 이고 $b, c$ 가 단원이 아니면 $N(a) = N(b)N(c)$, $N(b), N(c) > 1$. $N(2) = 4$ 이면 $N(b) = 2$ 여야 하고, $N(3) = 9$ 이면 $N(b) = 3$, $N(1 \pm\sqrt{-5}) = 6$ 이면 $N(b) \in \{2, 3\}$ 이어야 합니다. 그런데 $x^2 + 5y^2 \in \{2, 3\}$ 의 정수해가 없으므로 모두 기약입니다(단원은 노름 1 인 $\pm1$ 뿐).
+
+</details>
+
+**★ 2.** $\mathbb{Z}[x]/(x^4+1)$ 에서 $N(1 + x) = 2$ 임을 $\Phi(x) = x^4 + 1 = \prod_j(x - \omega_j)$ 를 써서 보이세요. 임의의 2의 거듭제곱 $n$ 에서도 $N(1 + x) = 2$ 인가요?
+
+<details>
+<summary>해설</summary>
+
+$N(1 + x) = \prod_j(1 + \omega_j) = \prod_j(-1)(-1 - \omega_j) = (-1)^n\Phi(-1) = \Phi(-1) = (-1)^n + 1 = 2$ ($n$ 짝수). 모든 2의 거듭제곱 $n$ 에서 성립합니다. 사실 $(2) = (1 + \zeta)^n$ 으로 2 는 이 체에서 **완전 분기** 합니다(연습문제 8).
+
+</details>
+
+**★ 3.** 위젯이나 계산으로 $N(1 + x + x^2) = 1$ ($n = 4$)을 확인하고, 그 역원을 찾아 보세요. (힌트: $1 + x + x^2$ 와 무언가를 곱해 $x^4 = -1$ 로 정리)
+
+<details>
+<summary>해설</summary>
+
+노름이 1 이면 단원입니다. 역원은 $1 - x^2 + x^3$ 입니다. 검산: $(1 + x + x^2)(1 - x^2 + x^3) = 1 + x - x^2 + x^2 + x^3 - x^3 + x^4 - x^4 + x^5 = 1 + x + x^5$, 그리고 $x^5 = x\cdot x^4 = -x$ 이므로 결과는 $1$. 원분체에는 이런 단원이 무한히 많고(디리클레 단원 정리), 그 구조가 주이데알 공격(7절)의 핵심입니다.
+
+</details>
+
+**★★ 4.** 정리 11.3 의 증명에서 $V^*V = nI$ 를 $n = 4$ 일 때 직접 확인하세요. $\varphi(x) = x^2 + x + 1$ ($m = 3$)이면 같은 성질이 성립하나요?
+
+<details>
+<summary>해설</summary>
+
+$n = 4$ 의 근은 $e^{i\pi/4}, e^{3i\pi/4}, e^{5i\pi/4}, e^{7i\pi/4}$ 이고, 열 $k, l$ 의 내적은 $\sum_j e^{i\pi(2j+1)(k-l)/4}$ 로 $k \ne l$ 이면 0 입니다. $m = 3$ 이면 근이 $\omega, \omega^2$ ($\omega = e^{2\pi i/3}$)이고 열 0, 1 의 내적은 $\omega + \omega^2 = -1 \ne 0$ 이라 직교하지 않습니다. 이런 체에서는 계수 노름과 정규 노름이 상수 배로 대응하지 않습니다.
+
+</details>
+
+**★★ 5.** 정리 11.6 에서 결론 "$\mathrm{GapSVP}_{\sqrt n}$ 은 이데알 격자에서 쉽다"를 정확히 진술하고, 판정 알고리즘을 쓰세요. ($N(I)$ 는 기저의 행렬식으로 계산됩니다.)
+
+<details>
+<summary>해설</summary>
+
+입력 $(I, d)$ 에 대해 "$\lambda_1 \le d$" 와 "$\lambda_1 > \sqrt n\,d$" 중 참인 쪽을 답해야 합니다. $L = \sqrt n\,N(I)^{1/n}$ 으로 두면 정리 11.6 에 의해 $L \le \lambda_1 \le \sqrt n\,L$ 입니다. 알고리즘: $d < L$ 이면 "$\lambda_1 > \sqrt n\,d$"라고 답하고(이때 $\lambda_1 \ge L > d$ 이므로 "$\le d$"는 불가능), $d \ge L$ 이면 "$\lambda_1 \le d$"라고 답합니다(이때 $\lambda_1 \le \sqrt n L \le \sqrt n d$ 이므로 "$> \sqrt n d$"는 불가능). $N(I)$ 는 기저 행렬식으로 계산되므로 다항 시간입니다.
+
+</details>
+
+**★★ 6.** 6절의 표를 검산하세요: (a) $3329 \bmod 512$ 의 위수가 2 임을, (b) $7681 \equiv 1 \pmod{512}$ 임을, (c) $3457 \bmod 2304$ 의 위수가 2 임을 보이세요.
+
+<details>
+<summary>해설</summary>
+
+(a) $3329 = 6\cdot512 + 257$, $257^2 = 66049 = 129\cdot512 + 1$. (b) $7681 = 15\cdot512 + 1$. (c) $3457 = 2304 + 1153$, $1153^2 = 1329409 = 577\cdot2304 + 1$. 따라서 각각 $f = 2, 1, 2$ 입니다.
+
+</details>
+
+**★★★ 7.** 주이데알 $(a)$ 에 대해 $N((a)) = |\mathcal{O}_K/(a)| = |N(a)|$ 임을 보이세요. (힌트: $a$ 곱셈은 $\mathcal{O}_K \cong \mathbb{Z}^n$ 위의 선형사상이고, 그 상의 지표는 행렬식의 절댓값)
+
+**★★★ 8.** 2의 거듭제곱 $n$ 에 대해 $\mathbb{Z}[\zeta_{2n}]$ 에서 $(2) = (1 + \zeta)^n$ 임을 보이세요. (힌트: $N(1 + \zeta) = 2$ 이고, $2/(1+\zeta)^n$ 이 단원임을 보이면 됩니다.)
+
+**★★★ 9. (읽기)** Lyubashevsky–Peikert–Regev, *A Toolkit for Ring-LWE Cryptography* 의 2~3절을 읽고, (a) 쌍대 이데알 $R^\vee$ 가 무엇인지, (b) 2의 거듭제곱 원분체에서 $R^\vee = \frac1n R$ 인 이유를 정리 11.3 과 연결해 설명하세요.
+
+## 요약
+
+- 수체 $K$, 정수환 $\mathcal{O}_K$. 원분체 $\mathbb{Q}(\zeta_m)$: 차수 $\varphi(m)$, 정수환 $\mathbb{Z}[\zeta_m]$, 갈루아 군 $(\mathbb{Z}/m)^*$. $m = 2n$ 이면 $\mathbb{Z}[x]/(x^n+1)$.
+- 정규 임베딩 $\sigma(a) = (a(\omega_j))_j$: 곱셈이 좌표별 곱. 2의 거듭제곱 원분체에서는 $\|\sigma(a)\| = \sqrt n\|a\|$ 라 계수 기하와 같다.
+- 노름 $N(a) = \prod\sigma_j(a)$ = 곱셈 행렬의 행렬식, 곱셈적. 노름 $\pm1$ 은 단원.
+- 원소의 분해는 유일하지 않을 수 있지만 이데알의 분해는 유일하다(Dedekind). 류수는 주이데알이 아닌 정도를 잰다.
+- 이데알은 격자다. 이데알 격자는 $\lambda_1 = \lambda_n$ 이고 $\lambda_1$ 이 $\sqrt n$ 배 범위에 갇혀 있어 결정 문제는 쉽다. 탐색은 어렵다고 믿어진다.
+- 소수 $q$ 의 분해 $g = \varphi(m)/f$ 가 NTT 의 구조를 정한다(ML-KEM: 128 개의 $\mathbb{F}_{q^2}$).
+- 구조는 공격의 지렛대다(부분체, 주이데알, Stickelberger). 랭크 2 이상의 모듈에는 아직 실질적 구조 공격이 없다.
+- 다음: 12장에서 Ring-LWE 와 Module-LWE 를 정식화한다.
+
+## 참고문헌
+
+- I. Stewart, D. Tall, *Algebraic Number Theory and Fermat's Last Theorem*, 4판, CRC Press, 2015.
+- D. A. Marcus, *Number Fields*, 2판, Springer, 2018.
+- J. Neukirch, *Algebraic Number Theory*, Springer, 1999.
+- V. Lyubashevsky, C. Peikert, O. Regev, *A toolkit for Ring-LWE cryptography*, Eurocrypt 2013.
+- C. Peikert, *How (not) to instantiate Ring-LWE*, SCN 2016.
+- R. Cramer, L. Ducas, C. Peikert, O. Regev, *Recovering short generators of principal ideals in cyclotomic rings*, Eurocrypt 2016.
+- R. Cramer, L. Ducas, B. Wesolowski, *Short Stickelberger class relations and application to Ideal-SVP*, Eurocrypt 2017.
+- A. Pellet-Mary, G. Hanrot, D. Stehlé, *Approx-SVP in ideal lattices with pre-processing*, Eurocrypt 2019.
+- M. Albrecht, S. Bai, L. Ducas, *A subfield lattice attack on overstretched NTRU assumptions*, CRYPTO 2016.
+- J. H. Cheon, J. Jeong, C. Lee, *An algorithm for NTRU problems and cryptanalysis of the GGH multilinear map without a low-level encoding of zero*, LMS J. Comput. Math. 2016.
