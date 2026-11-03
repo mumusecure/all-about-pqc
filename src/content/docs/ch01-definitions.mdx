@@ -94,7 +94,7 @@ $\mathrm{Adv}^{\text{ind-cpa}}(\mathcal{A}) = \left|\Pr[b' = b] - \tfrac12\right
 
 *증명.* 도전 암호문 $c^* = (u, v)$ 에 대해 $c' = (u, v + \lfloor q/2\rfloor)$ 는 $c^*$ 와 다른 암호문이므로 복호 질의가 허용된다. 복호의 위상 $w' = v + \lfloor q/2\rfloor - \langle u, s\rangle = w + \lfloor q/2\rfloor$ 이므로 $\mathsf{Dec}(c') = 1 - b$ (노이즈가 경계를 넘지 않는 한). 공격자는 $1 - \mathsf{Dec}(c')$ 를 출력해 이긴다. $\blacksquare$
 
-이처럼 암호문을 변조해 관련된 평문의 암호문을 만들 수 있는 성질을 **가변성(malleability)** 이라 합니다. 격자 암호는 구조상 가변적이라서, 실제 스킴(ML-KEM 등)은 **Fujisaki–Okamoto 변환** 으로 IND-CPA 스킴을 IND-CCA KEM 으로 바꿉니다. 복호 후 다시 암호화해서 같은 암호문이 나오는지 확인하는 것이 핵심 아이디어입니다(3장, 16장).
+이처럼 암호문을 변조해 관련된 평문의 암호문을 만들 수 있는 성질을 **가변성(malleability)** 이라 합니다. 격자 암호는 구조상 가변적이라서, 실제 스킴(ML-KEM 등)은 **Fujisaki–Okamoto 변환** 으로 IND-CPA 스킴을 IND-CCA KEM 으로 바꿉니다. 복호 후 다시 암호화해서 같은 암호문이 나오는지 확인하는 것이 핵심 아이디어입니다([3장](../ch03-pke-structure/) 4절, 16장).
 
 ### 2.6 KEM 과 서명
 

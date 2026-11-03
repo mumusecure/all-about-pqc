@@ -1,0 +1,247 @@
+---
+title: 3장. 공개키 암호의 구조 — KEM, DEM, 서명, FO 변환
+description: Diffie–Hellman 과 RSA 를 짧게 복습하고, KEM/DEM 하이브리드 암호화, Fujisaki–Okamoto 변환(재암호화 검사와 암묵적 거부), ML-KEM 의 FO 구조, 서명의 두 패러다임, TLS 의 하이브리드 키 교환을 다룬다.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FOLab from '../../components/FOLab.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. Diffie–Hellman 키 교환과 RSA 의 원리를 작은 수로 실행하고, 각각이 어떤 어려운 문제에 기대며 왜 쇼어 알고리즘에 깨지는지 말할 수 있다.
+2. KEM 과 DEM 을 정의하고, "IND-CCA KEM + 안전한 DEM ⇒ IND-CCA 공개키 암호"인 이유를 설명할 수 있다.
+3. Fujisaki–Okamoto 변환의 두 단계(탈무작위화 + 재암호화 검사, 키 유도)를 쓰고, 변조 공격이 어디서 막히는지 실험으로 확인할 수 있다.
+4. 명시적 거부와 암묵적 거부의 차이, 그리고 FO 증명에 복호 실패 확률이 들어가는 이유를 설명할 수 있다.
+5. FIPS 203 의 ML-KEM 이 정확히 어떤 FO 구조인지 읽고, TLS 의 하이브리드 키 교환이 왜 "둘 중 하나만 안전해도" 안전한지 말할 수 있다.
+
+**선수 지식**: [1장](../ch01-definitions/)(IND-CPA·IND-CCA, KEM, EUF-CMA, ROM), [2장](../ch02-algebra/)(ℤ_q, 군), [14장](../ch14-lwe/) 3절(Regev 암호). 14장을 아직 안 읽었다면 4절의 실험은 "Regev 암호 = 노이즈 섞인 일차식으로 만든 공개키 암호" 정도로만 알고 봐도 충분합니다.
+
+</div>
+
+## 1. 직관: 공개키 암호는 "키 배달부"다
+
+<span class="layer-tag">직관</span>
+
+공개키 암호는 느리고, 한 번에 보낼 수 있는 양도 작습니다. 그래서 실제 시스템은 공개키 암호로 **짧은 무작위 키 하나** 만 안전하게 전달하고, 진짜 데이터는 그 키로 빠른 대칭키 암호(AES-GCM 등)가 처리합니다.
+
+- **KEM** (Key Encapsulation Mechanism): 무작위 공유키 $K$ 를 만들어 "캡슐" $c$ 에 담아 보낸다.
+- **DEM** (Data Encapsulation Mechanism): $K$ 로 데이터를 암호화·인증한다.
+
+여러분이 지금 이 페이지를 HTTPS 로 받는 과정이 바로 이것입니다. TLS 1.3 핸드셰이크에서 브라우저와 서버는 키 교환(요즘은 X25519 + ML-KEM-768 하이브리드)으로 공유키를 만들고, 그 뒤 모든 데이터는 AES-GCM 이나 ChaCha20-Poly1305 로 보냅니다. **PQC 전환에서 바꿔야 하는 것은 앞부분(KEM)과 인증서의 서명뿐** 이고, 대칭키 부분은 키 길이만 충분하면 그대로 둡니다.
+
+## 2. 고전 공개키 암호 복습 (짧게)
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 Diffie–Hellman
+
+군 $\mathbb{G} = \langle g\rangle$ (위수 $p$)에서 앨리스는 $a$ 를 골라 $A = g^a$, 밥은 $b$ 를 골라 $B = g^b$ 를 보냅니다. 둘 다 $K = g^{ab}$ 를 계산할 수 있습니다($B^a = A^b$). 도청자는 $g^a, g^b$ 만 보고 $g^{ab}$ 를 구해야 합니다(**CDH 문제**). 공유키가 무작위와 구별되지 않으려면 **DDH 가정** 이 필요합니다.
+
+**작은 예제.** $\mathbb{Z}_{23}^*$, $g = 5$, $a = 6$, $b = 15$: $A = 5^6 \bmod 23 = 8$, $B = 5^{15} \bmod 23 = 19$, $K = 19^6 = 8^{15} = 2 \pmod{23}$.
+
+DH 는 그대로 KEM 이 됩니다. 수신자의 공개키가 $A = g^a$ 이면 $\mathsf{Encaps}$: $r$ 을 골라 $c = g^r$, $K = H(A^r)$. $\mathsf{Decaps}$: $K = H(c^a)$. 오늘날의 X25519 는 이것을 타원곡선 군에서 합니다.
+
+### 2.2 RSA
+
+$N = pq$, $ed \equiv 1 \pmod{\varphi(N)}$. 교과서식 RSA 는 $c = m^e \bmod N$, $m = c^d \bmod N$ 입니다. 예: $p = 61$, $q = 53$, $N = 3233$, $e = 17$, $d = 2753$ 이면 $m = 65 \mapsto c = 2790 \mapsto 65$.
+
+- 교과서식 RSA 는 **결정적** 이라 IND-CPA 가 아니고(1장 명제 1.5), **곱셈 성질** $(m_1m_2)^e = m_1^em_2^e$ 때문에 가변적입니다. 실제로는 OAEP 패딩(암호화)과 PSS(서명)를 씁니다.
+- 안전성은 인수분해의 어려움에 기댑니다.
+
+**두 가지 모두 쇼어 알고리즘에 깨집니다.** 이산로그와 인수분해는 둘 다 "숨은 주기 찾기"로 바뀌고, 양자 푸리에 변환이 주기를 다항 시간에 찾기 때문입니다(5장). 그래서 KEM 의 기반 문제를 LWE·NTRU 같은 격자 문제로 바꾸는 것이 PQC 전환의 핵심입니다.
+
+## 3. KEM 과 DEM
+
+<span class="layer-tag">정식화</span>
+
+**정의 3.1 (KEM).** $(\mathsf{KeyGen}, \mathsf{Encaps}, \mathsf{Decaps})$: $\mathsf{Encaps}(pk) \to (c, K)$, $\mathsf{Decaps}(sk, c) \to K$ (또는 실패). IND-CCA 게임(1장 2.6절): 공격자는 $(c^*, K_b)$ ($K_0$ 은 진짜, $K_1$ 은 무작위)를 받고, $c^*$ 가 아닌 캡슐의 $\mathsf{Decaps}$ 를 물을 수 있다.
+
+**정의 3.2 (DEM).** 대칭키 $K$ 로 쓰는 인증 암호. 실제로는 AES-GCM, ChaCha20-Poly1305 같은 **AEAD**. 요구 성질은 "일회용 키에 대한 IND-CCA", 즉 위조된 암호문은 거부되어야 한다.
+
+**정리 3.3 (KEM/DEM 합성, Cramer–Shoup 2003).** KEM 이 IND-CCA 이고 DEM 이 일회용 IND-CCA 이면, 하이브리드 암호 $(c_1, c_2) = (\text{캡슐}, \mathsf{DEM}.\mathsf{Enc}_K(m))$ 는 IND-CCA 공개키 암호이다.
+
+*증명 스케치 (게임 홉).* $G_0$: 실제 게임. $G_1$: 도전 암호문의 $K$ 를 무작위 $K'$ 로 바꾼다. 복호 질의 중 캡슐이 $c_1^*$ 와 같은 것은 $K'$ 로 답한다. 차이는 KEM 의 IND-CCA 이득으로 묶인다. $G_1$ 에서 $c_2^*$ 는 독립적인 무작위 키로 만든 DEM 암호문이므로, 공격자의 이득은 DEM 의 일회용 IND-CCA 이득으로 묶인다. $\blacksquare$
+
+DEM 이 인증을 하지 않으면(예: 그냥 CTR 모드) 공격자가 $c_2^*$ 를 조금 바꿔 복호 질의를 해서 평문을 알아낼 수 있습니다(연습문제 3). **"키는 KEM 이, 무결성은 DEM 이"** 책임지는 분업입니다.
+
+## 4. Fujisaki–Okamoto 변환
+
+<span class="layer-tag">정식화</span>
+
+1장에서 Regev 암호가 가변적이라 IND-CCA 가 아님을 보았습니다. 격자 기반 PKE 는 대부분 그렇습니다. **Fujisaki–Okamoto(FO) 변환** 은 IND-CPA(또는 OW-CPA) PKE 를 (Q)ROM 에서 IND-CCA KEM 으로 바꾸는 표준 방법입니다. Hofheinz–Hövelmanns–Kiltz(2017)의 모듈식 분석을 따라 두 단계로 봅니다.
+
+**단계 T (탈무작위화 + 재암호화 검사).** 암호화의 동전을 메시지의 해시로 정합니다: $c = \mathsf{Enc}(pk, m; G(m))$. 복호는 $m' = \mathsf{Dec}(sk, c)$ 를 구한 뒤 **다시 암호화** 해서 $\mathsf{Enc}(pk, m'; G(m')) = c$ 인지 확인하고, 아니면 거부합니다.
+
+**단계 U (키 유도).** 무작위 $m$ 을 위 방식으로 암호화한 $c$ 를 캡슐로 쓰고 $K = H(m)$ (또는 $H(m, c)$). 검사에 실패하면
+
+- **명시적 거부** ($U^{\perp}$): $\bot$ 을 돌려준다.
+- **암묵적 거부** ($U^{\not\perp}$): 비밀값 $z$ 로 만든 $\bar K = H'(z, c)$ 를 돌려준다. 겉보기엔 평범한 키라서 공격자는 거부되었는지조차 모른다.
+
+**왜 막히는가.** 정직하게 만든 암호문은 동전이 $G(m)$ 으로 정해져 있으므로, 유효한 암호문을 만들려면 **$m$ 을 알아야** 합니다($G$ 를 그 $m$ 에서 질의해야 함). 공격자가 도전 암호문을 변조해 만든 $c'$ 는 어떤 $m'$ 에 대해서도 $\mathsf{Enc}(pk, m'; G(m'))$ 과 같을 확률이 무시 가능하므로 거부됩니다. 즉 복호 오라클은 "공격자가 이미 아는 것"만 알려 주고, 쓸모가 없어집니다.
+
+<FOLab client:visible />
+
+### 4.1 복호 실패는 공짜가 아니다
+
+FO 의 안전성 정리에는 대략 다음과 같은 항이 들어갑니다.
+
+$$
+\mathrm{Adv}^{\text{ind-cca}}_{\text{KEM}} \;\lesssim\; (\text{IND-CPA 이득}) + Q_G\cdot\delta + \cdots
+$$
+
+$Q_G$ 는 공격자의 해시 질의 수, $\delta$ 는 기반 PKE 의 복호 실패 확률입니다. 직관적으로, 공격자는 해시 질의를 많이 해서 "복호에 실패하는 메시지"를 찾을 수 있고, 실패는 비밀키에 대한 정보를 흘립니다(20장의 복호 실패 공격). 그래서 ML-KEM 은 $\delta$ 를 아주 작게($2^{-139}$ ~ $2^{-175}$) 설계합니다. 14장과 6장에서 공들여 계산한 실패 확률이 여기서 안전성의 일부가 됩니다.
+
+### 4.2 ML-KEM 의 FO 구조 (FIPS 203)
+
+ML-KEM 은 IND-CPA PKE 인 **K-PKE**(Module-LWE 기반, 16장) 위에 FO 를 얹은 것입니다. 해시는 $G$ = SHA3-512, $H$ = SHA3-256, $J$ = SHAKE256 입니다.
+
+- **Encaps**: 무작위 32바이트 $m$ → $(K, r) = G(m \,\|\, H(ek))$ → $c = \mathsf{K\text{-}PKE.Encrypt}(ek, m; r)$ → $(K, c)$.
+- **Decaps**: $m' = \mathsf{K\text{-}PKE.Decrypt}(dk_{\mathrm{PKE}}, c)$ → $(K', r') = G(m' \,\|\, h)$ → $\bar K = J(z \,\|\, c)$ → $c' = \mathsf{K\text{-}PKE.Encrypt}(ek, m'; r')$ → $c \ne c'$ 이면 $\bar K$, 아니면 $K'$.
+
+위젯의 (C) 가 정확히 이 모양입니다. 눈여겨볼 점:
+
+- **$H(ek)$ 를 섞는 이유**: 같은 $m$ 이라도 공개키마다 다른 동전·키가 나오게 해서 다중 사용자 공격을 막고, 공유키를 공개키에 묶습니다(1장 5절의 결합 성질).
+- **암묵적 거부**: 거부 여부가 출력으로 드러나지 않습니다. 단, **비교 연산 $c \ne c'$ 와 선택을 상수 시간으로** 해야 합니다. 비교에 걸리는 시간이 새면 복호 오라클이 되살아납니다(5절).
+
+<Quiz
+  client:visible
+  question="FO 변환에서 '복호 후 재암호화해서 같은지 확인'하는 단계가 막는 것은?"
+  options={[
+    '복호 실패',
+    '공격자가 도전 암호문을 변조해 복호 오라클에서 정보를 얻는 것',
+    '양자컴퓨터의 쇼어 알고리즘',
+    '공개키의 크기 증가',
+  ]}
+  answer={1}
+  explanation="유효한 암호문은 동전이 G(m) 으로 정해져 있어 m 을 알아야만 만들 수 있습니다. 변조된 암호문은 재암호화 결과와 달라 거부되므로, 복호 오라클이 공격자가 모르는 정보를 주지 못합니다. 복호 실패는 오히려 FO 안전성 정리의 손실 항(Q·δ)으로 나타납니다."
+/>
+
+## 5. 서명의 두 패러다임
+
+<span class="layer-tag">정식화</span>
+
+| 패러다임 | 아이디어 | 고전 예 | PQC 예 |
+|---|---|---|---|
+| **해시 후 서명 (hash-and-sign)** | 메시지를 해시해 "트랩도어로만 역을 구할 수 있는" 함수의 역원을 구한다 | RSA-FDH, RSA-PSS | **FN-DSA**(GPV: NTRU 격자의 좋은 기저로 가우시안 샘플링), UOV |
+| **Fiat–Shamir** | 대화형 식별 프로토콜(약속–도전–응답)의 도전을 해시로 대체 | Schnorr, (EC)DSA | **ML-DSA**, HAETAE, SQIsign, MPCitH 서명 |
+
+교과서식 RSA 서명 $\sigma = m^d$ 는 곱셈 성질 때문에 바로 위조됩니다: $\sigma_1\sigma_2$ 는 $m_1m_2$ 의 유효한 서명입니다(예: $N = 3233$ 에서 5 와 7 의 서명을 곱하면 35 의 서명). 그래서 메시지를 먼저 해시하고, ROM 에서 EUF-CMA 를 증명합니다. Fiat–Shamir 는 4장의 주제이고, 두 패러다임의 격자 버전은 17장에서 다룹니다.
+
+## 6. 하이브리드 키 교환: "둘 중 하나만 안전하면"
+
+<span class="layer-tag">정식화</span>
+
+전환기에는 PQC 알고리즘 자체에 대한 신뢰가 고전 알고리즘만큼 쌓이지 않았습니다. 그래서 TLS 1.3 은 X25519 와 ML-KEM-768 을 **둘 다** 실행하고 공유 비밀을 이어 붙여 키 유도 함수에 넣는 **하이브리드 키 교환** 을 씁니다.
+
+$$
+K = \mathrm{KDF}\big(ss_{\text{ML-KEM}} \,\|\, ss_{\text{X25519}} \,\|\, \text{transcript}\big).
+$$
+
+KDF 가 (이중) 의사난수 함수처럼 동작하면, 두 공유 비밀 중 **하나만 비밀이어도** $K$ 는 무작위와 구별되지 않습니다. 양자컴퓨터가 X25519 를 깨도 ML-KEM 이 지키고, ML-KEM 에 예상 못한 약점이 발견돼도 X25519 가 (고전 공격자에 대해) 지킵니다. 이런 결합의 이론은 **KEM 결합기(combiner)** 로 연구되었고(Giacon–Heuer–Poettering 2018), X25519 와 ML-KEM-768 을 효율적으로 묶는 전용 하이브리드 KEM 인 **X-Wing** 같은 설계도 제안되었습니다.
+
+## 7. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **QROM 에서의 FO.** 양자 공격자는 $G$ 를 중첩으로 질의하므로 "공격자가 $m$ 을 질의했는가"를 관찰하는 고전 증명이 통하지 않습니다(1장 4.4절). Saito–Xagawa–Yamakawa(Eurocrypt 2018), Jiang 외(CRYPTO 2018), Bindel 외(TCC 2019) 등이 암묵적 거부 FO 의 QROM 증명을 점점 타이트하게 만들었고, 이것이 ML-KEM 이 암묵적 거부를 쓰는 이론적 이유 중 하나입니다.
+- **FO 의 부채널.** 재암호화와 비교는 비밀에 의존하는 계산입니다. 비교가 상수 시간이 아니면 타이밍으로 거부 여부가 새고, 이것만으로 비밀키를 복구할 수 있습니다(Guo–Johansson–Nilsson, CRYPTO 2020). 전력 분석으로 복호 결과를 엿보는 일반적 공격도 있습니다(Ravi 외, TCHES 2020). **증명된 IND-CCA 안전성은 상수 시간 구현이 있어야 현실이 됩니다.**
+- **복호 실패와 안전성 정리.** $Q\cdot\delta$ 항을 줄이거나, 실패가 있는 스킴에 대한 더 정밀한 분석은 계속 연구되고 있습니다(20장).
+- **KEM 의 새로운 성질.** 프로토콜이 요구하는 결합 성질, 익명성(암호문이 어느 공개키용인지 숨기기) 같은 성질이 표준 IND-CCA 를 넘어 연구되고 있습니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **NIST FIPS 203**, *Module-Lattice-Based Key-Encapsulation Mechanism Standard* (2024). ML-KEM 의 Encaps/Decaps 알고리즘 부분. 이 장 4.2절과 대조하며 읽으세요.
+2. **D. Hofheinz, K. Hövelmanns, E. Kiltz**, *A Modular Analysis of the Fujisaki–Okamoto Transformation*, TCC 2017. T 와 U 단계로 FO 를 분해한 표준 분석.
+3. **R. Cramer, V. Shoup**, *Design and Analysis of Practical Public-Key Encryption Schemes Secure against Adaptive Chosen Ciphertext Attack*, SIAM J. Comput. 2003. KEM/DEM 의 원전.
+4. **E. Fujisaki, T. Okamoto**, *Secure Integration of Asymmetric and Symmetric Encryption Schemes*, CRYPTO 1999 (J. Cryptology 2013).
+5. **Q. Guo, T. Johansson, A. Nilsson**, *A Key-Recovery Timing Attack on Post-Quantum Primitives Using the Fujisaki–Okamoto Transformation and Its Application on FrodoKEM*, CRYPTO 2020. 구현이 증명을 무너뜨리는 사례.
+
+## 연습문제
+
+**★ 1.** $\mathbb{Z}_{23}^*$, $g = 5$ 에서 $a = 6$, $b = 15$ 로 Diffie–Hellman 을 손으로 실행해 $K = 2$ 를 확인하세요. 도청자가 $a$ 를 찾으려면 무엇을 풀어야 하나요?
+
+<details>
+<summary>해설</summary>
+
+$5^2 = 2$, $5^4 = 4$, $5^6 = 5^4\cdot5^2 = 8$. $B = 5^{15}$: $5^8 = 16$, $5^{15} = 5^8\cdot5^4\cdot5^2\cdot5 = 16\cdot4\cdot2\cdot5 = 640 \equiv 19$. $K = 8^{15} \equiv 19^6 \equiv 2$. 도청자는 $5^a \equiv 8$ 인 $a$ (이산로그)를 풀어야 합니다. 작은 군에서는 전수조사로 바로 풀리지만, 256비트 타원곡선 군에서는 고전적으로 약 $2^{128}$ 의 일이 필요하고, 양자컴퓨터에서는 쇼어 알고리즘으로 다항 시간입니다.
+
+</details>
+
+**★ 2.** $N = 3233$, $e = 17$, $d = 2753$ 에서 5 와 7 의 교과서식 RSA 서명을 곱하면 35 의 유효한 서명이 됨을 확인하세요(곱 $= 1934$). 해시를 먼저 적용하면 왜 이 위조가 막히나요?
+
+<details>
+<summary>해설</summary>
+
+$\sigma_5\sigma_7 = 5^d7^d = 35^d$. 계산하면 $1934$ 이고 $1934^{17} \equiv 35$. 해시 후 서명 $\sigma = H(m)^d$ 에서는 $\sigma_1\sigma_2 = (H(m_1)H(m_2))^d$ 이 되는데, $H(m_1)H(m_2) = H(m^*)$ 인 $m^*$ 를 찾는 것은 ROM 에서 어렵습니다.
+
+</details>
+
+**★★ 3.** DEM 으로 인증 없는 CTR 모드($c_2 = m \oplus \text{키스트림}(K)$)를 쓰면 정리 3.3 의 결론이 깨짐을 보이세요. 공격자가 복호 오라클을 어떻게 쓰나요?
+
+<details>
+<summary>해설</summary>
+
+도전 $(c_1^*, c_2^*)$ 에 대해 $(c_1^*, c_2^* \oplus \Delta)$ 는 다른 암호문이므로 질의할 수 있고, 답은 $m_b \oplus \Delta$ 입니다. $\Delta$ 를 빼면 $m_b$ 가 나옵니다. 인증 태그가 있는 AEAD 라면 변조된 $c_2$ 가 거부되어 이 공격이 막힙니다.
+
+</details>
+
+**★★ 4.** 위젯 (B) 에서 공격자가 변조 대신 **자기가 고른 $m'$ 을 정직하게 암호화** 한 $c' = \mathsf{Enc}(pk, m'; G(m'))$ 를 질의하면 어떻게 되나요? 이것이 왜 공격이 아닌지 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+재암호화 검사를 통과해 $m'$ 이 돌아옵니다. 하지만 공격자는 이미 $m'$ 을 알고 있으므로 아무 정보도 얻지 못합니다. FO 의 핵심은 "복호 오라클이 공격자가 이미 아는 것만 알려 준다"는 것이고, ROM 증명에서는 $G$ 질의 목록을 보고 이 답을 시뮬레이션합니다(평문 인지, plaintext awareness).
+
+</details>
+
+**★★ 5.** 명시적 거부($\bot$)와 암묵적 거부($\bar K = J(z \| c)$)를 비교하세요. 암묵적 거부에서 $\bar K$ 가 **결정적** (같은 $c$ 에 항상 같은 값)이어야 하는 이유는?
+
+<details>
+<summary>해설</summary>
+
+명시적 거부는 "틀렸다"는 1비트를 알려 주고, 구현에서 오류 처리 경로가 달라져 부채널이 생기기 쉽습니다. 암묵적 거부는 출력이 항상 "키처럼 보이는 값"이라 이 정보를 숨기고, QROM 증명도 더 깔끔합니다. $\bar K$ 가 매번 무작위라면 같은 $c$ 를 두 번 질의해 답이 다르면 거부된 것임을 알 수 있으므로, $z$ 로 결정적으로 만들어야 합니다(테스트 `tests/fo.test.ts` 가 확인).
+
+</details>
+
+**★★ 6.** 4.1절의 $Q_G\cdot\delta$ 항에서 $Q_G = 2^{64}$ 일 때 $\delta = 2^{-164}$ 과 $\delta = 2^{-40}$ 각각의 기여를 계산하세요. 후자라면 무엇이 문제인가요?
+
+<details>
+<summary>해설</summary>
+
+$2^{64}\cdot2^{-164} = 2^{-100}$ 으로 무시할 만합니다. $2^{64}\cdot2^{-40} = 2^{24} > 1$ 이라 정리가 아무것도 보장하지 못합니다. 실제로도 실패 확률이 크면 실패를 유발하는 메시지를 찾는 공격이 현실적이 됩니다. 그래서 KEM 은 실패 확률을 $2^{-128}$ 보다 충분히 작게 잡습니다.
+
+</details>
+
+**★★★ 7.** 정리 3.3 의 증명을 완성하세요. 특히 $G_1$ 에서 복호 질의 $(c_1, c_2)$ 중 $c_1 = c_1^*$, $c_2 \ne c_2^*$ 인 것을 어떻게 답하는지, 그리고 그것이 왜 DEM 의 일회용 IND-CCA 로 처리되는지 설명하세요.
+
+**★★★ 8. (구현)** `src/lib/fo.ts` 를 확장해, 비교 $c \ne c'$ 를 **일부러 상수 시간이 아니게** (앞에서부터 다른 곳을 만나면 바로 반환) 구현하고, 변조 위치에 따라 비교 시간이 달라짐을 측정하세요. 이것이 Guo–Johansson–Nilsson(2020)의 공격과 어떻게 연결되는지 반 쪽으로 정리하세요. (JavaScript 타이머의 정밀도 한계도 함께 적으세요.)
+
+**★★★ 9. (읽기)** FIPS 203 의 ML-KEM.Encaps/Decaps 알고리즘을 찾아, 4.2절의 요약과 한 줄씩 대응시키세요. 입력 검사(캡슐 길이, 공개키의 형식 검사)는 왜 필요할까요?
+
+## 요약
+
+- 실제 공개키 암호는 **KEM + DEM**: KEM 이 짧은 키를 배달하고, AEAD 가 데이터를 맡는다. IND-CCA KEM + 일회용 IND-CCA DEM ⇒ IND-CCA PKE.
+- DH 와 RSA 는 이산로그·인수분해에 기대고, 쇼어 알고리즘에 깨진다. PQC 전환은 KEM 과 서명의 기반 문제를 바꾸는 일이다.
+- 격자 PKE 는 가변적이라 그대로는 IND-CCA 가 아니다. **FO 변환**: 동전 = 해시(m), 복호 후 재암호화 검사, 키 = 해시(m). 변조된 암호문은 거부된다.
+- 암묵적 거부는 거부 사실까지 숨긴다(ML-KEM). FO 안전성에는 $Q\cdot\delta$ 항이 들어가므로 복호 실패 확률이 안전성의 일부다.
+- 서명은 해시 후 서명(FN-DSA)과 Fiat–Shamir(ML-DSA) 두 갈래다.
+- 하이브리드 키 교환은 두 공유 비밀을 KDF 로 묶어 둘 중 하나만 안전해도 안전하다.
+- 증명된 안전성은 상수 시간 구현이 있어야 현실이 된다.
+- 다음: 4장에서 Fiat–Shamir 와 영지식을, 16장에서 K-PKE 의 내부(Module-LWE, NTT, 압축)를 다룬다.
+
+## 참고문헌
+
+- W. Diffie, M. Hellman, *New directions in cryptography*, IEEE Trans. Inf. Theory, 1976.
+- R. Rivest, A. Shamir, L. Adleman, *A method for obtaining digital signatures and public-key cryptosystems*, CACM, 1978.
+- E. Fujisaki, T. Okamoto, *Secure integration of asymmetric and symmetric encryption schemes*, CRYPTO 1999; J. Cryptology 26, 2013.
+- R. Cramer, V. Shoup, *Design and analysis of practical public-key encryption schemes secure against adaptive chosen ciphertext attack*, SIAM J. Comput. 33(1), 2003.
+- D. Hofheinz, K. Hövelmanns, E. Kiltz, *A modular analysis of the Fujisaki–Okamoto transformation*, TCC 2017.
+- T. Saito, K. Xagawa, T. Yamakawa, *Tightly-secure key-encapsulation mechanism in the quantum random oracle model*, Eurocrypt 2018.
+- H. Jiang, Z. Zhang, L. Chen, H. Wang, Z. Ma, *IND-CCA-secure key encapsulation mechanism in the quantum random oracle model, revisited*, CRYPTO 2018.
+- F. Giacon, F. Heuer, B. Poettering, *KEM combiners*, PKC 2018.
+- Q. Guo, T. Johansson, A. Nilsson, *A key-recovery timing attack on post-quantum primitives using the Fujisaki–Okamoto transformation and its application on FrodoKEM*, CRYPTO 2020.
+- P. Ravi, S. S. Roy, A. Chattopadhyay, S. Bhasin, *Generic side-channel attacks on CCA-secure lattice-based PKE and KEMs*, TCHES 2020.
+- NIST, [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final), 2024.

@@ -36,6 +36,7 @@ export default defineConfig({
         { label: '1부 · 기초', items: [
           { label: '1장. 암호학을 정의로 다루기', slug: 'ch01-definitions' },
           { label: '2장. 수학 I: 정수론과 대수', slug: 'ch02-algebra' },
+          { label: '3장. 공개키 암호의 구조와 FO 변환', slug: 'ch03-pke-structure' },
         ]},
         { label: '2부 · 격자의 기하와 알고리즘', items: [
           { label: '6장. 수학 II: 선형대수와 확률', slug: 'ch06-linalg-prob' },
