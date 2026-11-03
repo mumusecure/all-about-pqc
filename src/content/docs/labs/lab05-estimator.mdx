@@ -1,0 +1,82 @@
+---
+title: "Lab 5. 나만의 LWE 추정기 만들기"
+description: 표준 라이브러리만으로 primal(uSVP)·dual·희소 비밀 하이브리드의 비용 모델을 구현하고, ML-KEM 의 core-SVP 를 재현한 뒤, lattice estimator 와 비교한다.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+<div class="goals">
+
+**목표**: 18장의 모델을 100 줄 남짓한 코드로 구현해 ML-KEM 의 공식 추정치를 재현하고, 그다음 "어느 가정이 몇 비트를 움직이는가"를 표로 만든다.
+
+**선수**: [18장](../../ch18-parameter-estimation/), [10장](../../ch10-bkz-sieving/)의 $\delta_\beta$ 와 core-SVP. **소요 시간**: 2~4시간 (lattice estimator 비교는 SageMath 필요).
+
+</div>
+
+## 준비
+
+<Steps>
+
+1. 저장소의 `labs` 폴더에서 실행합니다. 외부 패키지 없음, 1 초 안쪽.
+
+   ```bash
+   cd all-about-pqc/labs
+   python3 lab05_estimator.py
+   ```
+
+   ```text
+   ML-KEM-512: n = 512, log2 q = 11.70, σ_s = 1.225, σ_e = 1.225, m ≤ 512
+     primal  β =  406 (m =  472, d =  985)   core-SVP  118.6  양자  107.6  반복 포함  147.9
+     dual    β =  404 (m =  488, 반복 2^0.0)  core-SVP  118.0  양자  107.1  반복 포함  147.3
+   ...
+   참고: Kyber 3라운드 명세의 core-SVP (고전) 118 / 182 / 256
+   ```
+
+2. 임의의 파라미터와 희소 비밀도 됩니다.
+
+   ```bash
+   python3 lab05_estimator.py --n 640 --logq 15 --sigma 2.8
+   python3 lab05_estimator.py --sparse 64
+   ```
+
+3. (선택) SageMath 에 lattice estimator 저장소를 받아 `PYTHONPATH` 에 넣고 비교합니다.
+
+   ```bash
+   sage -python lab05_estimator.py --compare
+   ```
+
+</Steps>
+
+<Aside type="caution" title="이 추정기의 한계">
+교육용 근사입니다. 실제 분포(CBD, 이산 가우시안)를 표준편차 하나로 줄였고, dual 은 가장 단순한 판이며, 하이브리드는 '좌표 버리기'만 있습니다. 실제 파라미터 결정에는 lattice estimator 를 쓰세요.
+</Aside>
+
+## 과제
+
+**과제 1. 코드와 수식 대응.** `primal`, `dual`, `drop_hybrid` 의 각 줄을 18장의 휴리스틱 18.1, 3절의 식, 4절의 $p$ 와 대응시키세요. 특히 비밀 재조정 `nu` 와 `c` 가 왜 서로 역수 관계인지 설명하세요.
+
+**과제 2. 민감도 표.** ML-KEM-768 을 기준으로 다음을 하나씩 바꾸고 core-SVP 가 몇 비트 움직이는지 표로 만드세요.
+
+| 바꾼 것 | primal β | 비트 변화 |
+|---|---|---|
+| 기본 | 623 | 0 |
+| 표본 수 상한 $m \le 2n$ | | |
+| $\sigma$ 를 10% 키움 | | |
+| $\log_2 q$ 를 1 늘림 | | |
+| $\delta_\beta$ 에서 $(\pi\beta)^{1/\beta}$ 항을 뺌 | | |
+
+마지막 줄은 "공식의 작은 근사가 얼마나 큰 차이를 만드는가"를 보는 실험입니다.
+
+**과제 3. 다른 스킴.** FrodoKEM-640 형태($n = 640$, $q = 2^{15}$, $\sigma \approx 2.8$)와 15장의 NTRU 파라미터(NTRU 를 LWE 처럼 보면?)에 돌려 보세요. NTRU 를 LWE 모델로 추정하는 것의 문제점은 19장의 주제입니다.
+
+**과제 4. lattice estimator 와의 차이.** `--compare` 로 Kyber 세 집합의 primal·dual 을 돌리고, 자체 추정기와의 차이를 (a) 분포 모델, (b) 표본 수, (c) 비용 모델, (d) 공격 변형으로 나눠 설명하세요.
+
+<Aside type="tip" title="포트폴리오로 만들기">
+"공식 추정치를 직접 재현했고, 각 가정이 몇 비트를 움직이는지 정량화했다"는 1쪽 보고서는 파라미터 분석을 하는 연구실에 바로 보여 줄 수 있는 결과물입니다. 과제 2 의 표가 핵심입니다.
+</Aside>
+
+## 생각해 볼 질문
+
+1. primal 과 dual 이 거의 같은 비용을 주는 것은 우연인가요? (힌트: 두 공격은 서로의 쌍대 격자에서 일하고, 같은 GSA 와 $\delta_\beta$ 를 씁니다.)
+2. 보안 추정에서 "최솟값"을 취하는 것이 보수적인 이유와, 그래도 놓칠 수 있는 공격은 무엇인가요?
+3. 추정치가 1 비트 틀리면 실제 공격 비용은 몇 배 틀린 것인가요? 10 비트라면?

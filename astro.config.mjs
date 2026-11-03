@@ -57,6 +57,9 @@ export default defineConfig({
           { label: '16장. ML-KEM 해부', slug: 'ch16-mlkem' },
           { label: '17장. 격자 서명', slug: 'ch17-lattice-signatures' },
         ]},
+        { label: '5부 · 격자 암호해석', items: [
+          { label: '18장. LWE 파라미터의 구체적 안전성', slug: 'ch18-parameter-estimation' },
+        ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
         ]},
@@ -64,6 +67,7 @@ export default defineConfig({
           { label: 'Lab 1. LLL로 토이 LWE 공격하기', slug: 'labs/lab01-lll-lwe-attack' },
           { label: 'Lab 3. ML-KEM 을 바닥부터 구현하기', slug: 'labs/lab03-mlkem' },
           { label: 'Lab 4. BKZ 와 체를 직접 돌려 보기', slug: 'labs/lab04-bkz-sieve' },
+          { label: 'Lab 5. 나만의 LWE 추정기 만들기', slug: 'labs/lab05-estimator' },
         ]},
       ],
     }),

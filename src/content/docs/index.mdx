@@ -53,7 +53,9 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   <LinkCard title="논문 읽기 1. MiNTRU 격자 분석" description="overstretched 영역의 밀집 부분격자 공격을 절별로 읽고, 핵심 계산을 검산하고, 작은 파라미터에서 재현" href="./papers/p01-mintru/" />
   <LinkCard title="16장. ML-KEM 해부" description="q = 3329 와 128 개의 2차 슬롯 NTT, 압축, K-PKE, 복호 잡음과 실패 확률의 정확 계산, FO 와 입력 검사, KyberSlash, SMAUG-T 비교" href="./ch16-mlkem/" />
   <LinkCard title="17장. 격자 서명" description="ML-DSA 의 서명 루프와 힌트, 바이모달과 HAETAE, GPV 와 평행사변형 공격, FN-DSA, HAWK 의 철회" href="./ch17-lattice-signatures/" />
+  <LinkCard title="18장. LWE 파라미터의 구체적 안전성" description="primal 공격의 성공 조건, dual 과 하이브리드, 비용 모델의 차이, lattice estimator 로 ML-KEM 의 118/182/256 재현" href="./ch18-parameter-estimation/" />
   <LinkCard title="Lab 1. LLL 로 토이 LWE 공격하기" description="Python 표준 라이브러리만으로 공격을 재현하고 실패 경계를 측정" href="./labs/lab01-lll-lwe-attack/" />
   <LinkCard title="Lab 3. ML-KEM 을 바닥부터 구현하기" description="표준 라이브러리만으로 FIPS 203 을 구현하고 실패 확률을 계산하며 상수 시간 압축을 만든다" href="./labs/lab03-mlkem/" />
   <LinkCard title="Lab 4. BKZ 와 체를 직접 돌려 보기" description="표준 라이브러리만으로 BKZ 와 Gauss sieve 를 구현해 δ 와 목록 크기를 측정" href="./labs/lab04-bkz-sieve/" />
+  <LinkCard title="Lab 5. 나만의 LWE 추정기 만들기" description="primal·dual·하이브리드 비용 모델을 구현해 ML-KEM 의 core-SVP 를 재현" href="./labs/lab05-estimator/" />
 </CardGrid>

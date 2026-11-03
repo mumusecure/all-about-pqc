@@ -176,7 +176,7 @@ $$
 <span class="layer-tag">연구 관점</span>
 
 - **overstretched 경계의 정밀화.** 밀집 부분격자 공격이 언제 uSVP 공격보다 먼저 성공하는지, 그 경계를 정확히 예측하는 모델은 여전히 연구 주제입니다(Kirchner–Fouque 2017 → *NTRU Fatigue* 2021). 논문 읽기 1 의 열린 질문(예측보다 공격이 잘 되는 이유)도 같은 선 위에 있습니다.
-- **하이브리드 공격.** Howgrave-Graham(CRYPTO 2007)은 격자 축소와 중간 만남(meet-in-the-middle) 탐색을 섞어 3진 비밀의 NTRU 를 더 싸게 공격했습니다. 비밀 분포가 작고 희소할수록 이런 조합 공격의 비용 분석이 중요합니다(18장).
+- **하이브리드 공격.** Howgrave-Graham(CRYPTO 2007)은 격자 축소와 중간 만남(meet-in-the-middle) 탐색을 섞어 3진 비밀의 NTRU 를 더 싸게 공격했습니다. 비밀 분포가 작고 희소할수록 이런 조합 공격의 비용 분석이 중요합니다([18장](../ch18-parameter-estimation/)).
 - **복호 실패와 안전성.** 복호 실패가 있는 NTRU 변형은 실패를 일부러 유도하는 공격의 대상이 되었습니다(Howgrave-Graham 외, *The Impact of Decryption Failures on the Security of NTRU Encryption*, CRYPTO 2003). NIST 제출본이 실패율 0 을 택한 배경입니다.
 - **구조의 선택.** $x^n - 1$, $x^n + 1$, $x^p - x - 1$, 원분 삼항식. 어떤 환을 고르느냐는 효율(NTT 가능 여부)과 "구조를 이용한 공격" 위험 사이의 절충입니다. 이것이 3부(대수적 격자)의 질문으로 이어집니다.
 

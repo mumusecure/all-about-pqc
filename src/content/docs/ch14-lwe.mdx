@@ -119,7 +119,7 @@ LWE 가 특별한 이유는 **평균적인(무작위) 인스턴스의 어려움�
 이후 Peikert(2009)가 지수 크기 $q$ 에 대해, Brakerski–Langlois–Peikert–Regev–Stehlé(2013)가 다항 크기 $q$ 에 대해 **고전(classical)** 환원을 얻었습니다.
 
 <Aside type="caution" title="대학원 수준의 함정: 환원은 파라미터를 정해주지 않는다">
-이 정리는 "LWE 를 깨면 *모든* 격자의 최악 경우를 깬다"는 강력한 **질적** 보증입니다. 하지만 환원에는 다항식 크기의 손실이 있어서(non-tight), ML-KEM 의 실제 파라미터 $n=768$, $q=3329$ 가 "몇 비트 안전한가"를 이 정리로 계산할 수는 없습니다. 실제 파라미터는 **알려진 최선의 공격 비용** 으로 정합니다. 그래서 격자 축소와 암호해석(9, 10, 18장)이 표준화의 핵심 근거가 됩니다. "증명이 있으니 안전하다"와 "파라미터가 안전하다"는 다른 주장입니다.
+이 정리는 "LWE 를 깨면 *모든* 격자의 최악 경우를 깬다"는 강력한 **질적** 보증입니다. 하지만 환원에는 다항식 크기의 손실이 있어서(non-tight), ML-KEM 의 실제 파라미터 $n=768$, $q=3329$ 가 "몇 비트 안전한가"를 이 정리로 계산할 수는 없습니다. 실제 파라미터는 **알려진 최선의 공격 비용** 으로 정합니다. 그래서 격자 축소와 암호해석(9, 10, [18장](../ch18-parameter-estimation/))이 표준화의 핵심 근거가 됩니다. "증명이 있으니 안전하다"와 "파라미터가 안전하다"는 다른 주장입니다.
 </Aside>
 
 <Quiz
@@ -222,7 +222,7 @@ $$
 2. 같은 $n$ 에서 $\sigma$ 를 1 → 2 로 올리면 경계가 어떻게 움직이나요?
 3. $q = 3329, \sigma = 2$ 로 바꾸면 같은 $n$ 에서도 훨씬 쉽게 풀립니다. 왜일까요? ($\alpha = \sigma/q$ 와 gap 을 보세요.)
 
-이 교과서의 실험 환경(LLL, $\delta = 0.99$)에서는 대략 $q = 97, \sigma = 1$ 일 때 $n = 32 \sim 40$, $\sigma = 2$ 일 때 $n = 24 \sim 32$ 사이에서 성공률이 급격히 떨어집니다. 실제 ML-KEM 의 768 차원은 이 경계보다 한참 위에 있고, 게다가 공격자는 LLL 보다 훨씬 강한 BKZ 를 쓸 수 있습니다. **"LLL 보다 강한 공격을 상정해도 안전한 파라미터"를 고르는 방법** 이 18장의 주제입니다.
+이 교과서의 실험 환경(LLL, $\delta = 0.99$)에서는 대략 $q = 97, \sigma = 1$ 일 때 $n = 32 \sim 40$, $\sigma = 2$ 일 때 $n = 24 \sim 32$ 사이에서 성공률이 급격히 떨어집니다. 실제 ML-KEM 의 768 차원은 이 경계보다 한참 위에 있고, 게다가 공격자는 LLL 보다 훨씬 강한 BKZ 를 쓸 수 있습니다. **"LLL 보다 강한 공격을 상정해도 안전한 파라미터"를 고르는 방법** 이 [18장](../ch18-parameter-estimation/)의 주제입니다.
 
 ### 4.3 다른 공격들 (목록)
 
@@ -231,7 +231,7 @@ $$
 - **대수적 공격 (Arora–Ge)**: 오차의 범위가 좁고 샘플이 매우 많을 때.
 - **하이브리드 공격**: 비밀의 일부를 추측(또는 중간 만남)하고 나머지를 격자 축소로.
 
-이 공격들의 비용을 한꺼번에 추정하는 도구가 **lattice estimator**(Albrecht–Player–Scott 2015 에서 출발)이며, 18장에서 직접 써 봅니다.
+이 공격들의 비용을 한꺼번에 추정하는 도구가 **lattice estimator**(Albrecht–Player–Scott 2015 에서 출발)이며, [18장](../ch18-parameter-estimation/)에서 직접 써 봅니다.
 
 <Quiz
   client:visible
@@ -255,7 +255,7 @@ $$
 1. **O. Regev**, *On Lattices, Learning with Errors, Random Linear Codes, and Cryptography*, STOC 2005 / J. ACM 2009. — 1~2절과 5절(암호)을 먼저. 양자 환원(3절)은 6장·8장 이후에. 이 논문으로 Regev 는 2018년 괴델상을 받았습니다.
 2. **C. Peikert**, *A Decade of Lattice Cryptography*, 2016 (서베이). — 이 교과서 3~5부 전체의 지도. 2~4장을 먼저 읽으세요.
 3. **R. Lindner, C. Peikert**, *Better Key Sizes (and Attacks) for LWE-Based Encryption*, CT-RSA 2011. — LPR 형태와 구체적 공격 비용 분석. ML-KEM 으로 가는 다리.
-4. **M. R. Albrecht, R. Player, S. Scott**, *On the Concrete Hardness of Learning with Errors*, J. Math. Cryptol. 2015. — 공격 비용 추정의 표준 정리. 18장의 기반.
+4. **M. R. Albrecht, R. Player, S. Scott**, *On the Concrete Hardness of Learning with Errors*, J. Math. Cryptol. 2015. — 공격 비용 추정의 표준 정리. [18장](../ch18-parameter-estimation/)의 기반.
 5. **S. Bai, S. D. Galbraith**, *Lattice Decoding Attacks on Binary LWE*, ACISP 2014. — 이 장의 임베딩 기저.
 
 **열린 질문들**
@@ -329,7 +329,7 @@ $r \ne r'$ 이면 $\Pr_M[M^\top r = M^\top r'] = \Pr_M[M^\top(r - r') = 0] = q^{
 - 최악→평균 환원은 강력한 질적 근거지만, **실제 파라미터는 공격 비용으로 정한다.**
 - Regev 암호: $w = e^\top r + \mu\lfloor q/2\rfloor$. 누적 노이즈 $< q/4$ 이면 정확. 안전성은 DLWE + 잔여 해시 보조정리.
 - LWE 는 BDD/uSVP 로 바뀌고, 숨은 벡터 $(e, -s, 1)$ 이 충분히 짧으면 격자 축소가 찾아낸다. 차원이 커지면 이 공격은 급격히 어려워진다.
-- 다음: [NTRU(15장)](../ch15-ntru/), ML-KEM([16장](../ch16-mlkem/)), 그리고 공격 비용의 정량화(18장).
+- 다음: [NTRU(15장)](../ch15-ntru/), ML-KEM([16장](../ch16-mlkem/)), 그리고 공격 비용의 정량화([18장](../ch18-parameter-estimation/)).
 
 ## 참고문헌
 

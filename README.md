@@ -32,10 +32,12 @@
 | 15장 | NTRU — 환과 문제, 정확성, NTRU 격자와 밀집 부분격자, overstretched, NTRU+ |
 | 16장 | ML-KEM 해부 — NTT, 압축, K-PKE, 복호 실패 확률 정확 계산, FO·입력 검사, 구현 공격, SMAUG-T |
 | 17장 | 격자 서명 — ML-DSA 해부, 바이모달과 HAETAE, GPV 와 평행사변형 공격, FN-DSA, HAWK 와 그 철회 |
+| 18장 | LWE 파라미터의 구체적 안전성 — primal 조건, dual, 하이브리드, 비용 모델, lattice estimator |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
 | 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
 | Lab 4 | BKZ 와 체를 직접 돌려 보기 — 열거 BKZ, Gauss sieve, fpylll 비교 |
+| Lab 5 | 나만의 LWE 추정기 만들기 — ML-KEM core-SVP 재현, 민감도 분석 |
 
 전체 26장 계획은 사이트의 [전체 커리큘럼](https://mumusecure.github.io/all-about-pqc/guide/curriculum/) 참고.
 

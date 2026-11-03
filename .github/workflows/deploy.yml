@@ -32,6 +32,7 @@ jobs:
           python3 labs/lab01_lll_lwe_attack.py --n 12
           python3 labs/lab03_mlkem.py
           python3 labs/lab04_bkz_sieve.py
+          python3 labs/lab05_estimator.py
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

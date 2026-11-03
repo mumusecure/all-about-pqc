@@ -1,0 +1,309 @@
+---
+title: 18장. LWE 파라미터의 구체적 안전성
+description: 이 파라미터는 몇 비트인가에 답하는 방법. primal(uSVP) 공격의 성공 조건을 GSA 로 유도하고 표본 수를 최적화하기, dual 공격의 구별 이점과 반복 횟수, 희소 비밀에 대한 하이브리드, 비용 모델의 차이(core-SVP 대 반복 포함)와 ML-KEM-512 논쟁, lattice estimator 사용법, 그리고 파라미터 설계 절차.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import PrimalCondition from '../../components/PrimalCondition.tsx';
+import AttackTable from '../../components/AttackTable.tsx';
+import HybridSparse from '../../components/HybridSparse.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 보안 추정을 "공격 격자 고르기 → 필요한 $\beta$ 구하기 → $\beta$ 를 비용으로 바꾸기"의 세 단계로 설명할 수 있다.
+2. primal(uSVP) 공격의 성공 조건 $\sigma\sqrt\beta \le \delta_\beta^{2\beta-d}\,\mathrm{vol}^{1/d}$ 를 유도하고, 표본 수 $m$ 과 비밀 크기 재조정이 왜 필요한지 말할 수 있다.
+3. dual 공격의 구별 이점 $\varepsilon = \exp(-2\pi^2(\ell\sigma/q)^2)$ 를 유도하고, 필요한 반복 횟수와 그 한계(독립성 휴리스틱 논쟁)를 설명할 수 있다.
+4. 희소 비밀에 대한 하이브리드 공격의 원리를 설명하고 간단한 변형의 비용을 계산할 수 있다.
+5. 같은 $\beta$ 가 비용 모델에 따라 수십 비트 달라지는 이유를 설명하고, lattice estimator 의 출력을 읽을 수 있다.
+
+**선수 지식**: [10장](../ch10-bkz-sieving/)(BKZ, $\delta_\beta$, core-SVP), [14장](../ch14-lwe/)(LWE, 임베딩 공격), [6장](../ch06-linalg-prob/)(가우시안, Gaussian heuristic), [16장](../ch16-mlkem/)(ML-KEM 파라미터). **실습**: [Lab 5](../labs/lab05-estimator/).
+
+</div>
+
+## 1. 직관: 보안 비트를 세는 법
+
+<span class="layer-tag">직관</span>
+
+"ML-KEM-768 은 192 비트 보안"이라는 말은 증명이 아니라 **추정** 입니다. 추정은 세 단계로 이루어집니다.
+
+1. **공격을 고른다.** LWE 를 격자 문제로 바꾸는 방법(primal, dual, 하이브리드, …)마다 다른 격자가 나옵니다.
+2. **필요한 $\beta$ 를 구한다.** 그 격자를 BKZ-$\beta$ 로 축소했을 때 공격이 성공하는 가장 작은 $\beta$ 를 GSA(9장)와 Gaussian heuristic(6장)으로 예측합니다.
+3. **$\beta$ 를 비용으로 바꾼다.** 10장의 비용 모델($2^{0.292\beta}$ 등)로 비트 수를 얻습니다.
+
+보안 비트는 모든 공격, 모든 공격자 선택(표본 수 등) 중 **가장 싼 것** 입니다. 14장과 Lab 1 에서 작은 LWE 를 실제로 깼던 임베딩 공격을 이제 수백~천 차원으로 외삽하는 셈입니다. 실제로 돌릴 수는 없으니 모델이 전부이고, 그래서 모델의 가정을 아는 것이 이 장의 핵심입니다.
+
+## 2. primal 공격: 숨은 짧은 벡터를 드러내기
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 격자
+
+LWE 표본 $(A, b = As + e) \in \mathbb{Z}_q^{m \times n} \times \mathbb{Z}_q^m$, 비밀과 오차의 계수 표준편차를 $\sigma_s, \sigma_e$ 라 합시다. 14장의 임베딩을 비밀까지 넣은 형태(Bai–Galbraith 2014)로 쓰면, 격자
+
+$$
+\Lambda = \{ (x, y, z) \in \mathbb{Z}^m \times \mathbb{Z}^n \times \mathbb{Z} : x \equiv A y - z\,b \pmod q \}
+$$
+
+는 차원 $d = m + n + 1$, 부피 $q^m$ 이고, 짧은 벡터 $v = (e, -s, -1)$ 의 배수를 품고 있습니다($As - b = -e$). $\sigma_s \ne \sigma_e$ 이면 비밀 좌표에 $\nu = \sigma_e/\sigma_s$ 를 곱해 모든 좌표의 크기를 맞춥니다. 그러면 부피가 $q^m \nu^n$ 이 되고, $v$ 의 모든 좌표가 표준편차 약 $\sigma := \sigma_e$ 입니다. 이 재조정 덕분에 **작은 비밀은 공격을 쉽게** 만듭니다(같은 부피 대비 $v$ 가 상대적으로 짧아짐).
+
+### 2.2 성공 조건 (ADPS16)
+
+BKZ-$\beta$ 로 축소한 뒤 GSA 를 가정하면
+
+$$
+\log \|b_i^*\| = \frac{\log \mathrm{vol}}{d} + (d + 1 - 2i)\log\delta_\beta .
+$$
+
+BKZ 의 마지막 블록(위치 $d - \beta + 1, \dots, d$)에서 SVP 오라클은 그 블록의 사영 격자에서 최단 벡터를 찾습니다. 숨은 벡터 $v$ 를 그 $\beta$ 차원 공간으로 사영한 길이는 (좌표가 대략 독립인 가우시안이라 보면) $\sigma\sqrt\beta$ 정도입니다. 이것이 그 블록의 첫 GSO 벡터 $\|b_{d-\beta+1}^*\|$ 보다 짧으면 SVP 가 $\pi(v)$ 를 찾고, 그 뒤 크기 축소로 $v$ 자체가 드러납니다.
+
+**휴리스틱 18.1 (Alkim–Ducas–Pöppelmann–Schwabe 2016).** primal 공격은 다음이 성립하는 가장 작은 $\beta$ 에서 성공한다.
+
+$$
+\boxed{\;\sigma\sqrt{\beta} \;\le\; \delta_\beta^{\,2\beta - d} \cdot \mathrm{vol}(\Lambda)^{1/d}\;}
+$$
+
+(오른쪽은 위 식에 $i = d - \beta + 1$ 을 넣은 것.) Albrecht–Göpfert–Virdia–Wunderer(Asiacrypt 2017)가 실험으로 이 예측이 맞음을 확인했고, 그 이전의 "$\lambda_2/\lambda_1 \ge \tau\delta^d$" 모델(Gama–Nguyen 2008)이 공격 비용을 과대평가했음을 보였습니다.
+
+**표본 수의 최적화.** $m$ 을 늘리면 부피 $q^m$ 이 커져 오른쪽이 오르지만 차원 $d$ 도 커져 $\delta^{2\beta - d}$ 가 줄어듭니다. 공격자는 **주어진 표본을 다 쓰지 않고** 최적의 $m$ 을 고릅니다.
+
+<PrimalCondition client:visible />
+
+ML-KEM 의 키 복구 문제(MLWE 를 $nk$ 차원 LWE 로 본 것, 표본 $nk$ 개)에 적용하면:
+
+| | $n$ | $\sigma$ | 최적 $m$ | $\beta$ | core-SVP (이 계산) | Kyber 명세 |
+|---|---|---|---|---|---|---|
+| ML-KEM-512 | 512 | $\sqrt{1.5}$ | 472 | 406 | 118.6 | 118 |
+| ML-KEM-768 | 768 | 1 | 688 | 623 | 181.9 | 182 |
+| ML-KEM-1024 | 1024 | 1 | 864 | 873 | 254.9 | 256 |
+
+열 줄 남짓한 모델이 명세의 값을 1 비트 안에서 재현합니다. 다시 말해 **이 숫자들은 거의 전부 휴리스틱 18.1 과 $\delta_\beta$ 공식에서 나옵니다.** 모듈 구조는 이 추정에 전혀 쓰이지 않았다는 점도 기억하세요(12장, 13장).
+
+## 3. dual 공격: 짧은 쌍대 벡터로 구별하기
+
+<span class="layer-tag">정식화</span>
+
+**아이디어.** $w^T A \equiv 0 \pmod q$ 인 짧은 $w \in \mathbb{Z}^m$ 을 찾으면
+
+$$
+\langle w, b \rangle = w^T A s + \langle w, e \rangle \equiv \langle w, e \rangle \pmod q,
+$$
+
+는 표준편차 $\|w\|\sigma_e$ 인 작은 값입니다. $b$ 가 균등이면 $\langle w, b\rangle$ 은 균등입니다. 이 차이로 **결정 LWE** 를 풉니다(탐색은 14장의 환원으로).
+
+**이점.** 표준편차 $s$ 인 가우시안을 $\bmod q$ 로 감으면 균등분포와의 구별 이점은 그 푸리에 계수
+
+$$
+\varepsilon = \mathbb{E}\big[e^{2\pi i X/q}\big] = \exp\!\big(-2\pi^2 s^2/q^2\big)
+$$
+
+정도이고, 구별에는 약 $1/\varepsilon^2$ 개의 독립 표본이 필요합니다(6장 통계적 거리). $s = \ell\sigma_e$, $\ell = \|w\|$.
+
+**$w$ 의 길이.** 작은 비밀을 이용하려면 $w^T A \equiv 0$ 을 고집하지 않고, $v \equiv A^T w \pmod q$ 도 짧은 쌍 $(w, v)$ 를 찾습니다. 그러면 $\langle w, b\rangle \equiv \langle v, s\rangle + \langle w, e\rangle$ 이고 두 항이 모두 작습니다. 이런 $(w, v)$ 의 격자는 차원 $m + n$, 부피 $q^n$ 이고(비밀 좌표를 $\sigma_s/\sigma_e$ 로 재조정), BKZ-$\beta$ 후 $\ell \approx \delta_\beta^{\,d}\,\mathrm{vol}^{1/d}$. 체는 마지막 블록에서 비슷한 길이의 벡터를 $2^{0.2075\beta}$ 개 주므로, 필요한 반복은
+
+$$
+R = \max\Big(1, \frac{1}{\varepsilon^2 \cdot 2^{0.2075\beta}}\Big), \qquad \text{비용} \approx 2^{0.292\beta} \cdot R .
+$$
+
+ML-KEM 에서 이 단순 dual 은 primal 과 거의 같은 비용(1 비트 안팎)을 줍니다(위젯).
+
+<Aside type="caution" title="dual 공격의 논쟁">
+dual 공격은 최근 가장 활발히 개선되고, 또 의심받은 공격입니다. 비밀 일부를 추측하고 FFT 로 한꺼번에 점수를 매기는 변형(Guo–Johansson, Asiacrypt 2021; MATZOV 보고서 2022)은 ML-KEM 의 추정치를 몇 비트 낮췄습니다. 그런데 Ducas–Pulles(CRYPTO 2023)는 이 분석들이 "여러 쌍대 벡터의 점수가 서로 독립"이라는 휴리스틱에 기대며, 그 휴리스틱이 실험에서 틀리는 영역이 있음을 보였습니다. 이후 이 공격의 정확한 비용을 다시 세우는 연구가 이어지고 있습니다. **보안 추정의 소수점 아래 자리는 아직 연구 대상입니다.**
+</Aside>
+
+## 4. 하이브리드: 희소 비밀을 노리기
+
+<span class="layer-tag">정식화</span>
+
+비밀이 **희소** 하면(0 이 아닌 계수가 $h \ll n$ 개) 다른 전략이 생깁니다. 동형암호의 일부 구현과 SMAUG-T(16장 9절) 같은 설계가 희소 비밀을 씁니다.
+
+**가장 단순한 변형: 좌표 버리기.** $g$ 개의 좌표를 골라 "이 좌표의 비밀은 모두 0" 이라고 겁니다. 맞을 확률은
+
+$$
+p = \binom{n - h}{g} \Big/ \binom{n}{g},
+$$
+
+이고, 맞으면 그 좌표를 지운 $(n - g)$ 차원 LWE 를 primal 로 풉니다. 기대 비용은 $2^{0.292\beta(n-g)}/p$ 입니다. $g$ 를 늘리면 격자 공격은 싸지고 추측은 비싸지므로 최적의 $g$ 가 있습니다.
+
+<HybridSparse client:visible />
+
+**Howgrave-Graham 의 하이브리드 (CRYPTO 2007).** 좌표를 0 이라고 거는 대신, 남긴 $g$ 개 좌표의 비밀을 **만남-중간(meet-in-the-middle)** 으로 찾고, 나머지 차원은 격자 축소 + BDD 로 처리합니다. 원래 NTRU 를 겨냥한 공격이었고, 작은·희소 비밀을 쓰는 파라미터는 이것과 May 의 삼진 MITM(CRYPTO 2021) 같은 조합 공격까지 넣어 정해야 합니다.
+
+**다른 공격들.** 표본이 아주 많고 오차가 아주 작으면 Arora–Ge(대수적, 선형화)나 BKW(가우스 소거의 조합판)가 이기지만, ML-KEM 처럼 표본이 $nk$ 개로 제한되고 오차가 적당하면 격자 공격보다 훨씬 비쌉니다. 추정기는 이것들도 계산해서 최솟값을 취합니다.
+
+## 5. β 에서 비트로: 비용 모델이 전부다
+
+<span class="layer-tag">정식화</span>
+
+같은 $\beta$ 도 어떻게 세느냐에 따라 숫자가 크게 달라집니다.
+
+| 모델 | 식 | ML-KEM-512 ($\beta = 406$) | 동형암호 예 ($\beta = 347$) |
+|---|---|---|---|
+| core-SVP (고전) | $0.292\beta$ | 118.6 | 101.3 |
+| core-SVP (양자) | $0.265\beta$ | 107.6 | 92.0 |
+| 반복 포함 | $0.292\beta + 16.4 + \log_2(8d)$ | 147.9 | 131.6 |
+
+core-SVP 는 BKZ 의 바퀴 수, 블록 수, 체의 상수와 메모리를 **모두 무시**한 하한 성격의 모델입니다. 반복을 넣은 모델은 BKZ 가 대략 $8d$ 번 SVP 를 부르고 체 한 번에 $2^{16.4}$ 배의 상수가 든다는 식의 실험 보정을 넣은 것입니다. 동형암호 표준 문서(2018)가 $n = 1024$, $\log q \approx 27$ (삼진 비밀)을 128 비트로 분류한 것은 이런 모델 기준입니다. core-SVP 로는 약 101 비트입니다.
+
+**ML-KEM-512 논쟁.** NIST 범주 1 은 "AES-128 키 탐색만큼 어렵다"(약 $2^{143}$ 게이트)입니다. core-SVP 118 은 128 보다 작습니다. Kyber 팀은 게이트 수까지 센 추정으로 범주 1 을 넘는다고 주장했고, 반대 측은 dual 공격의 개선과 모델의 불확실성을 지적했으며, 메모리 접근 비용을 어떻게 셀지(체의 $2^{0.2075\beta}$ 메모리)가 쟁점의 중심이었습니다. NIST 는 범주 1 판정을 유지했습니다. 교훈은 하나입니다. **"몇 비트"를 말할 때는 반드시 모델을 같이 말해야 합니다.**
+
+<AttackTable client:visible />
+
+<Quiz
+  client:visible
+  question="같은 LWE 파라미터에 대해 core-SVP 로는 101 비트, '반복 포함' 모델로는 132 비트가 나왔습니다. 가장 정확한 해석은?"
+  options={[
+    '두 계산 중 하나는 틀렸다',
+    '두 모델은 같은 β 를 다르게 센다. core-SVP 는 체 한 번만 세는 보수적 하한이고, 반복 포함 모델은 BKZ 의 반복과 상수를 더한 것이다',
+    '양자 컴퓨터를 가정했는지의 차이다',
+    'primal 과 dual 공격의 차이다',
+  ]}
+  answer={1}
+  explanation="두 숫자는 같은 최적 β (여기서는 347)를 다른 방식으로 비트로 바꾼 것입니다. core-SVP 는 다항 인자·반복·메모리를 버리므로 설계자가 여유를 두려고 쓰는 보수적 기준이고, 반복 포함 모델은 실제 비용에 더 가깝게 하려는 보정입니다. 그래서 '128 비트' 같은 주장은 어느 모델 기준인지 함께 밝혀야 합니다."
+/>
+
+## 6. lattice estimator
+
+연구와 표준화에서는 Albrecht 등이 관리하는 **lattice estimator** (Python/SageMath, `malb/lattice-estimator`)가 사실상의 기준입니다. 이 장의 모델들(그리고 훨씬 많은 변형)을 구현하고, 여러 비용 모델을 고를 수 있습니다.
+
+```python
+# SageMath 에서
+from estimator import *
+LWE.estimate(schemes.Kyber768)                       # 모든 공격의 요약
+LWE.primal_usvp(schemes.Kyber768, red_cost_model=RC.ADPS16)   # core-SVP 기준 primal
+params = LWE.Parameters(n=640, q=2**15, Xs=ND.DiscreteGaussian(2.8), Xe=ND.DiscreteGaussian(2.8), m=640)
+LWE.estimate(params)
+```
+
+출력의 `rop` 는 "환산된 연산 수", `beta` 는 블록 크기, `d` 는 격자 차원입니다. 같은 파라미터를 [Lab 5](../labs/lab05-estimator/) 의 자체 구현과 나란히 돌려 차이를 설명하는 것이 이 장의 실습입니다. (함수 이름과 인자는 버전에 따라 바뀌니 저장소의 문서를 확인하세요.)
+
+## 7. 파라미터 설계 절차
+
+<span class="layer-tag">연구 관점</span>
+
+새 LWE 스킴의 파라미터는 대략 다음 고리를 돌며 정합니다.
+
+1. **환·차원**: NTT 와 메시지 크기에 맞는 $n$ (예: 256 의 배수), 모듈 랭크 $k$.
+2. **정확성**: 오차 분포와 압축으로 실패 확률 $\delta$ 를 계산(16장 5절). $\delta$ 는 $\sigma^2 n / q^2$ 꼴로 나빠집니다.
+3. **안전성**: 이 장의 추정으로 primal·dual·하이브리드의 최솟값. $\sigma/q$ 가 클수록, $n$ 이 클수록 안전합니다.
+4. **크기**: 공개키·암호문은 $n\log q$ 에 비례.
+
+정확성은 $\sigma/q$ 를 **작게**, 안전성은 **크게** 하라고 요구하고, $n$ 을 키우면 둘 다 좋아지지만 크기가 늘어납니다. 이 삼각형 안에서 목표 범주를 만족하는 가장 작은 점을 찾는 것이 설계입니다. 위젯에서 $\log q$ 를 늘리며 보안이 떨어지는 것(같은 $\sigma$ 에서 오차율 $\sigma/q$ 가 작아짐)을 확인해 보세요.
+
+**연구 질문들.**
+
+- **모델의 검증.** 휴리스틱 18.1 은 β 가 수십인 실험에서 검증되었습니다. β 가 400 인 영역까지 외삽해도 되는가? LWE 챌린지(TU Darmstadt) 같은 공개 기록이 보정의 근거가 됩니다.
+- **dual 공격의 정확한 비용**과 독립성 휴리스틱(3절).
+- **구조의 영향.** 모듈·환 구조가 추정에 들어가지 않는 것이 정당한가(13장). 구조를 쓰는 공격이 나오면 표가 바뀝니다.
+- **양자 비용.** $0.265\beta$ 또는 $0.257\beta$ 가 QRAM 과 오류 정정까지 넣으면 얼마가 되는가.
+- **희소·작은 비밀**의 조합 공격(MITM)과 동형암호 파라미터 표준.
+
+## 연습문제
+
+**★ 1.** 휴리스틱 18.1 의 오른쪽이 GSA 식에 $i = d - \beta + 1$ 을 넣은 것임을 확인하세요.
+
+<details>
+<summary>풀이</summary>
+
+$d + 1 - 2(d - \beta + 1) = 2\beta - d - 1$. 큰 $d$ 에서 $\delta^{2\beta - d - 1} \approx \delta^{2\beta - d}$ (ADPS 는 이 근사를 씁니다).
+
+</details>
+
+**★ 2.** ML-KEM-768 의 최적 $\beta = 623$ 을 세 비용 모델로 비트로 바꾸세요($d = 1457$).
+
+<details>
+<summary>풀이</summary>
+
+$0.292 \cdot 623 = 181.9$, $0.265 \cdot 623 = 165.1$, $181.9 + 16.4 + \log_2(8 \cdot 1457) = 181.9 + 16.4 + 13.5 = 211.8$.
+
+</details>
+
+**★ 3.** $\sigma_s \ne \sigma_e$ 일 때 비밀 좌표에 $\nu = \sigma_e/\sigma_s$ 를 곱하면 부피가 $q^m\nu^n$ 이 되는 이유를 기저 행렬로 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+비밀 좌표에 해당하는 $n$ 개 열을 $\nu$ 배 하는 것은 대각 행렬 $\mathrm{diag}(1, \dots, 1, \nu, \dots, \nu, 1)$ 을 곱하는 선형 변환이고, 행렬식이 $\nu^n$ 이므로 부피가 $\nu^n$ 배가 됩니다.
+
+</details>
+
+**★★ 4.** dual 공격의 이점 식 $\varepsilon = \exp(-2\pi^2 s^2/q^2)$ 를, $X \sim N(0, s^2)$ 의 특성함수 $\mathbb{E}[e^{itX}] = e^{-t^2 s^2/2}$ 에 $t = 2\pi/q$ 를 넣어 유도하세요. 왜 이것이 "$X \bmod q$ 가 균등에서 얼마나 먼가"의 척도인가요?
+
+<details>
+<summary>풀이</summary>
+
+$t = 2\pi/q$ 이면 $e^{-(2\pi/q)^2 s^2/2} = e^{-2\pi^2 s^2/q^2}$. $\bmod q$ 위의 균등분포는 0 이 아닌 모든 푸리에 계수가 0 이므로, 첫 계수의 크기가 균등에서의 거리를 잽니다. 이 계수의 부호 $\cos(2\pi\langle w, b\rangle/q)$ 의 평균을 표본 $N$ 개로 추정하면 표준오차가 $1/\sqrt N$ 이므로 $N \approx 1/\varepsilon^2$.
+
+</details>
+
+**★★ 5.** 위젯에서 ML-KEM-768 을 고르고 $\log_2 q$ 를 11.7 에서 14 로 올리면 보안이 어떻게 변하나요? 정확성(16장)은 어떻게 변하나요? 설계자는 왜 $q$ 를 크게 잡지 않을까요?
+
+<details>
+<summary>풀이</summary>
+
+$\sigma$ 가 같으면 오차율 $\sigma/q$ 가 작아져 LWE 가 쉬워지고 보안 비트가 떨어집니다. 정확성은 좋아집니다(잡음이 $q/4$ 에 비해 작아짐). 그리고 키·암호문이 계수당 $\log q$ 비트라 커집니다. 즉 $q$ 를 키우는 것은 "쓸데없이 남는 정확성을 사려고 안전성과 크기를 파는" 선택이라, 설계자는 정확성이 겨우 만족되는 가장 작은 $q$ 를 고릅니다($q = 3329$).
+
+</details>
+
+**★★ 6.** HybridSparse 위젯에서 $h$ 를 32, 64, 128 로 바꾸며 최적 하이브리드의 이득(순수 primal 대비)을 기록하고, $h$ 가 커질수록 이득이 사라지는 이유를 $p$ 의 식으로 설명하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+$\log_2(1/p) \approx g \cdot \log_2\frac{n}{n-h}$ (작은 $g$ 에서) 이라 $h$ 가 크면 좌표 하나를 버리는 데 드는 추측 비용이 커집니다. 반면 좌표 하나를 버려 얻는 격자 쪽 이득은 $h$ 에 크게 의존하지 않습니다. 그래서 $h \approx 128$ 이상에서는 $g = 0$ 이 최적이 됩니다.
+
+</details>
+
+**★★ 7.** primal 공격에서 공격자가 표본을 다 쓰지 않는 이유를 휴리스틱 18.1 의 양변이 $m$ 에 어떻게 의존하는지로 설명하세요. ML-KEM-1024 에서 최적 $m = 864 < 1024$ 인 것을 PrimalCondition 위젯으로 확인하세요.
+
+<details>
+<summary>풀이</summary>
+
+$\log \mathrm{rhs} = (2\beta - d)\log\delta + (m\log q + n\log\nu)/d$, $d = m + n + 1$. $m$ 이 커지면 두 번째 항의 분자는 늘지만 분모 $d$ 도 늘고, 첫 항 $(2\beta - d)\log\delta$ 는 $d$ 에 비례해 줄어듭니다. 두 효과가 균형을 이루는 $m$ 이 최적이고, 그 값이 표본 수보다 작으면 나머지 표본은 버립니다.
+
+</details>
+
+**★★★ 8. (Lab 5)** Lab 5 의 자체 추정기와 lattice estimator(가능하면)를 FrodoKEM-640 형태의 파라미터($n = 640$, $q = 2^{15}$, $\sigma \approx 2.8$)에 돌려 primal·dual 의 $\beta$ 와 비트를 비교하고, 차이가 어디서 오는지(표본 수, 분포 모델, 비용 모델, dual 변형) 정리하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+자체 추정기는 primal $\beta \approx 486$ (core-SVP 약 142 비트)을 줍니다. 추정기와 다른 부분은 대개 (1) 오차 분포를 가우시안이 아닌 실제 분포로 다루는 방식, (2) 표본 수 한도($m = n + \bar n$ 등 스킴 고유의 값), (3) 비용 모델 선택, (4) dual 의 FFT·추측 변형입니다. 숫자 하나하나보다 "어느 가정이 몇 비트를 움직이는가"를 표로 만드는 것이 목표입니다.
+
+</details>
+
+**★★★ 9. (읽기)** Ducas–Pulles(CRYPTO 2023)를 읽고, dual 공격 분석의 어느 가정이 문제인지, 그리고 그 결론이 ML-KEM 의 보안 추정에 어떤 방향(더 안전/덜 안전)으로 영향을 주는지 정리하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+핵심은 많은 쌍대 벡터의 점수를 더할 때 그 점수들이 독립인 것처럼 다룬 휴리스틱입니다. 실험에서 그 가정이 깨지는 영역이 있어 일부 개선된 dual 공격의 주장된 이점이 실제로는 나타나지 않을 수 있습니다. 즉 그 공격들이 낮춘 추정치가 과도했을 가능성을 시사합니다. 다만 이후 연구들이 가정을 고친 분석을 내고 있으니 최신 결과까지 확인하세요.
+
+</details>
+
+## 요약
+
+- 보안 추정 = 공격 격자 고르기 → 필요한 $\beta$ (GSA + Gaussian heuristic) → 비용 모델. 최솟값이 보안 비트.
+- primal(uSVP): $\sigma\sqrt\beta \le \delta_\beta^{2\beta-d}\mathrm{vol}^{1/d}$, $d = m + n + 1$, 비밀 재조정으로 부피 $q^m(\sigma_e/\sigma_s)^n$, 표본 수 $m$ 최적화. ML-KEM 의 118/182/256 을 1 비트 안에서 재현한다.
+- dual: $\varepsilon = \exp(-2\pi^2(\ell\sigma/q)^2)$, 반복 $\approx 1/(\varepsilon^2 2^{0.2075\beta})$. 개선된 변형과 독립성 휴리스틱 논쟁이 진행 중.
+- 희소 비밀은 하이브리드(좌표 추측, MITM)를 열어 준다.
+- 같은 $\beta$ 도 core-SVP 와 반복 포함 모델에서 30 비트 가까이 다르다. "몇 비트"는 항상 모델과 함께.
+- 다음: [19장](../guide/curriculum/)에서 NTRU 특유의 공격(overstretched NTRU, 부분체 공격, 밀집 부분격자)을 다룬다. 이 장의 primal 모델이 NTRU 에서는 어떻게 깨지는지가 주제다.
+
+## 참고문헌
+
+1. M. R. Albrecht, R. Player, S. Scott, *On the Concrete Hardness of Learning with Errors*, J. Math. Cryptology 2015. 그리고 lattice estimator 저장소(`malb/lattice-estimator`).
+2. E. Alkim, L. Ducas, T. Pöppelmann, P. Schwabe, *Post-Quantum Key Exchange — A New Hope*, USENIX Security 2016. (휴리스틱 18.1)
+3. M. R. Albrecht, F. Göpfert, F. Virdia, T. Wunderer, *Revisiting the Expected Cost of Solving uSVP and Applications to LWE*, Asiacrypt 2017.
+4. S. Bai, S. D. Galbraith, *Lattice Decoding Attacks on Binary LWE*, ACISP 2014.
+5. R. Lindner, C. Peikert, *Better Key Sizes (and Attacks) for LWE-Based Encryption*, CT-RSA 2011.
+6. D. Micciancio, O. Regev, *Lattice-based Cryptography*, in Post-Quantum Cryptography (Springer, 2009). dual 구별 공격의 분석.
+7. M. R. Albrecht, *On Dual Lattice Attacks Against Small-Secret LWE and Parameter Choices in HElib and SEAL*, Eurocrypt 2017.
+8. Q. Guo, T. Johansson, *Faster Dual Lattice Attacks for Solving LWE with Applications to CRYSTALS*, Asiacrypt 2021; MATZOV, *Report on the Security of LWE: Improved Dual Lattice Attack* (2022).
+9. L. Ducas, L. N. Pulles, *Does the Dual-Sieve Attack on Learning with Errors Even Work?*, CRYPTO 2023.
+10. N. Howgrave-Graham, *A Hybrid Lattice-Reduction and Meet-in-the-Middle Attack Against NTRU*, CRYPTO 2007.
+11. M. R. Albrecht 외, *Estimate All the \{LWE, NTRU\} Schemes!*, SCN 2018.
+12. M. Albrecht 외, *Homomorphic Encryption Standard* (HomomorphicEncryption.org, 2018).
+13. R. Avanzi 외, *CRYSTALS-Kyber Algorithm Specifications and Supporting Documentation* (NIST 3라운드, 2021). core-SVP 표와 범주 1 논의.
