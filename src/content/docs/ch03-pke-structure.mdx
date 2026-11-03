@@ -128,7 +128,7 @@ ML-KEM 은 IND-CPA PKE 인 **K-PKE**(Module-LWE 기반, 16장) 위에 FO 를 얹
 | **해시 후 서명 (hash-and-sign)** | 메시지를 해시해 "트랩도어로만 역을 구할 수 있는" 함수의 역원을 구한다 | RSA-FDH, RSA-PSS | **FN-DSA**(GPV: NTRU 격자의 좋은 기저로 가우시안 샘플링), UOV |
 | **Fiat–Shamir** | 대화형 식별 프로토콜(약속–도전–응답)의 도전을 해시로 대체 | Schnorr, (EC)DSA | **ML-DSA**, HAETAE, SQIsign, MPCitH 서명 |
 
-교과서식 RSA 서명 $\sigma = m^d$ 는 곱셈 성질 때문에 바로 위조됩니다: $\sigma_1\sigma_2$ 는 $m_1m_2$ 의 유효한 서명입니다(예: $N = 3233$ 에서 5 와 7 의 서명을 곱하면 35 의 서명). 그래서 메시지를 먼저 해시하고, ROM 에서 EUF-CMA 를 증명합니다. Fiat–Shamir 는 4장의 주제이고, 두 패러다임의 격자 버전은 17장에서 다룹니다.
+교과서식 RSA 서명 $\sigma = m^d$ 는 곱셈 성질 때문에 바로 위조됩니다: $\sigma_1\sigma_2$ 는 $m_1m_2$ 의 유효한 서명입니다(예: $N = 3233$ 에서 5 와 7 의 서명을 곱하면 35 의 서명). 그래서 메시지를 먼저 해시하고, ROM 에서 EUF-CMA 를 증명합니다. Fiat–Shamir 는 [4장](../ch04-sigma-fiat-shamir/)의 주제이고, 두 패러다임의 격자 버전은 17장에서 다룹니다.
 
 ## 6. 하이브리드 키 교환: "둘 중 하나만 안전하면"
 

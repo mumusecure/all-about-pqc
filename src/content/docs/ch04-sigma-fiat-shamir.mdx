@@ -1,0 +1,247 @@
+---
+title: 4장. 식별 프로토콜, Fiat–Shamir, 영지식
+description: Σ-프로토콜(완전성, 특수 건전성, 정직한 검증자 영지식), Schnorr 식별, 논스 재사용 공격, Fiat–Shamir 변환과 forking lemma, 영지식의 정의, 격자 버전의 핵심인 거절 샘플링, MPC-in-the-Head 미리보기.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import SchnorrPlay from '../../components/SchnorrPlay.tsx';
+import RejectionSampling from '../../components/RejectionSampling.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. Σ-프로토콜의 세 성질(완전성, 특수 건전성, 정직한 검증자 영지식)을 정의하고, Schnorr 프로토콜이 이를 만족함을 증명할 수 있다.
+2. 특수 건전성의 추출기가 곧 **논스 재사용 공격** 임을 이해하고, 실제로 비밀키를 복구할 수 있다.
+3. Fiat–Shamir 변환으로 식별 프로토콜을 서명으로 바꾸고, forking lemma 증명의 구조와 손실을 설명할 수 있다.
+4. 영지식을 시뮬레이터로 정의하고, "정직한 검증자 영지식"과 일반 영지식의 차이를 말할 수 있다.
+5. 격자 위에서 같은 구조를 만들 때 응답이 비밀을 흘리는 문제와, 이를 막는 **거절 샘플링** 을 설명할 수 있다.
+
+**선수 지식**: [1장](../ch01-definitions/)(게임, EUF-CMA, ROM), [2장](../ch02-algebra/)(군, 위수, ℤ_p 의 역원), [3장](../ch03-pke-structure/) 5절(서명의 두 패러다임). 6장의 통계적 거리를 알면 5절이 더 잘 읽힙니다.
+
+</div>
+
+## 1. 직관: 비밀을 보여 주지 않고 안다는 것을 증명하기
+
+<span class="layer-tag">직관</span>
+
+동굴 안에 고리 모양 통로가 있고, 반대편 끝은 마법의 문으로 막혀 있다고 합시다. 앨리스는 문을 여는 주문을 안다고 주장합니다. 밥은 주문을 듣고 싶지는 않고(듣는 순간 알게 되니까), **앨리스가 주문을 안다는 사실만** 확인하고 싶습니다.
+
+1. 앨리스가 동굴에 들어가 왼쪽이나 오른쪽 통로 하나로 간다. 밥은 보지 않는다. (**약속**)
+2. 밥이 입구에서 "왼쪽으로 나와!" 또는 "오른쪽으로 나와!"를 무작위로 외친다. (**도전**)
+3. 앨리스가 그쪽으로 나온다. 주문을 알면 언제든 가능하고, 모르면 반반의 확률로만 성공한다. (**응답**)
+
+이를 20번 반복해 매번 성공하면, 앨리스가 주문을 모를 확률은 $2^{-20}$ 입니다. 그런데 밥이 이 과정을 녹화해서 다른 사람에게 보여 줘도 아무 증거가 되지 않습니다. 밥과 앨리스가 미리 짜고 "성공한 장면만" 편집한 영상과 구별할 수 없기 때문입니다. **확신은 주지만 지식은 주지 않는다**, 이것이 영지식(zero-knowledge)입니다. 이 동굴 비유는 Quisquater 외의 1989년 글 *How to Explain Zero-Knowledge Protocols to Your Children* 에서 유명해졌습니다.
+
+이 세 단계 구조(약속 → 도전 → 응답)가 **Σ-프로토콜** 이고, 도전을 해시로 바꾸면 **서명** 이 됩니다. ML-DSA, HAETAE, SQIsign, 그리고 MPC-in-the-Head 서명들이 모두 이 틀 위에 서 있습니다.
+
+## 2. Σ-프로토콜
+
+<span class="layer-tag">정식화</span>
+
+관계 $\mathcal{R} = \{(X, x)\}$ ($X$ 는 공개된 명제, $x$ 는 증인/비밀)에 대해, 증명자 $\mathsf{P}(X, x)$ 와 검증자 $\mathsf{V}(X)$ 의 세 단계 대화 $(a, c, z)$ 를 생각합니다. $\mathsf{P}$ 가 약속 $a$ 를 보내고, $\mathsf{V}$ 가 무작위 도전 $c \in \mathcal{C}$ 를 보내고, $\mathsf{P}$ 가 응답 $z$ 를 보내면, $\mathsf{V}$ 는 $(X, a, c, z)$ 만 보고 수락 여부를 정합니다.
+
+**정의 4.1 (Σ-프로토콜).**
+
+1. **완전성**: 정직한 $\mathsf{P}$ 는 항상 수락된다.
+2. **특수 건전성**: 같은 $a$ 에 대해 서로 다른 $c \ne c'$ 로 수락되는 두 대화록 $(a, c, z)$, $(a, c', z')$ 가 주어지면, 비밀 $x$ 를 효율적으로 **추출** 할 수 있다.
+3. **특수 정직한 검증자 영지식(SHVZK)**: $c$ 가 주어질 때, 비밀 없이 정직한 대화록과 같은 분포의 $(a, c, z)$ 를 만드는 **시뮬레이터** 가 있다.
+
+특수 건전성은 "비밀을 모르는 증명자는 두 개 이상의 도전에 답할 수 없다"는 뜻입니다. 따라서 비밀을 모르는 증명자가 속일 확률은 대략 $1/|\mathcal{C}|$ 이하입니다(**건전성 오차**).
+
+### 2.1 Schnorr 프로토콜
+
+소수 위수 $p$ 인 군 $\mathbb{G} = \langle g\rangle$ 에서 비밀 $x \in \mathbb{Z}_p$, 공개 $X = g^x$.
+
+- **약속**: $\mathsf{P}$ 가 $k \leftarrow \mathbb{Z}_p$ 를 골라 $R = g^k$.
+- **도전**: $\mathsf{V}$ 가 $c \leftarrow \mathbb{Z}_p$.
+- **응답**: $s = k + cx \bmod p$.
+- **검증**: $g^s \overset{?}{=} R\cdot X^c$.
+
+**정리 4.2.** Schnorr 프로토콜은 Σ-프로토콜이다.
+
+*증명.* (완전성) $g^s = g^{k + cx} = R\cdot X^c$. (특수 건전성) $g^s = RX^c$, $g^{s'} = RX^{c'}$ 이면 나누어 $g^{s - s'} = X^{c - c'}$, 즉 $x = (s - s')(c - c')^{-1} \bmod p$. $p$ 가 소수라 $c - c'$ 가 가역이다. (SHVZK) $c$ 가 주어지면 $s \leftarrow \mathbb{Z}_p$ 를 고르고 $R = g^sX^{-c}$ 로 둔다. 정직한 대화록에서도 $s = k + cx$ 는 ($k$ 가 균등하므로) 균등하고 $R$ 은 $(c, s)$ 로 결정되므로, 두 분포는 같다. $\blacksquare$
+
+**작은 예제.** $\mathbb{Z}_{23}^*$ 의 위수 11 부분군, $g = 4$. $x = 3$ 이면 $X = 4^3 \bmod 23 = 18$. $k = 5$ → $R = 4^5 \bmod 23 = 12$. $c = 7$ → $s = 5 + 7\cdot3 \bmod 11 = 4$. 검증: $g^s = 4^4 \bmod 23 = 3$, $R\cdot X^c = 12\cdot18^7 \bmod 23 = 12\cdot 6 = 3$. ✓
+
+<SchnorrPlay client:visible />
+
+### 2.2 논스를 다시 쓰면 비밀키가 나온다
+
+특수 건전성의 추출기는 공격이기도 합니다. 증명자가 **같은 $k$ 로 두 번** 답하면 같은 $R$ 에 다른 $c$ 의 대화록 두 개가 생기고, 누구나 $x = (s_1 - s_2)/(c_1 - c_2)$ 를 계산할 수 있습니다. 위 예제에서 $c_2 = 2$ 로 다시 답하면 $s_2 = 5 + 2\cdot3 \bmod 11 = 0$ 이고, $x = (4 - 0)(7 - 2)^{-1} = 4\cdot 9 = 36 \equiv 3 \pmod{11}$ 입니다.
+
+<Aside type="caution" title="실제로 일어난 일">
+Schnorr 와 같은 구조의 ECDSA 에서 서명마다 같은 논스를 쓴 탓에, 2010년 한 게임기의 펌웨어 서명 키가 공개적으로 복구되었습니다. 논스가 완전히 같지 않고 **몇 비트만 편향** 되어도 격자 축소(9장)로 키를 복구하는 공격(hidden number problem)이 있습니다. 그래서 현대 구현은 논스를 비밀키와 메시지의 해시로 **결정적으로** 만들거나(EdDSA), 여기에 새 난수를 섞는 **혼합(hedged)** 방식을 씁니다. ML-DSA(FIPS 204)는 혼합 방식이 기본이고 결정적 변형도 정의합니다.
+</Aside>
+
+## 3. Fiat–Shamir 변환
+
+<span class="layer-tag">정식화</span>
+
+식별 프로토콜을 서명으로 바꾸는 방법은 놀랍도록 단순합니다. **검증자의 무작위 도전을 해시로 대체** 합니다(Fiat–Shamir 1986).
+
+$$
+c = H(R \,\|\, m), \qquad \sigma = (R, s) \ \text{또는}\ (c, s).
+$$
+
+서명자는 혼자서 대화 전체를 만들 수 있고, $R$ 을 고른 뒤에야 $c$ 가 정해지므로 시뮬레이터처럼 "$c$ 를 먼저 보고 $R$ 을 맞추는" 속임수가 불가능합니다. Schnorr 서명, EdDSA, 그리고 ML-DSA 가 이 방식입니다.
+
+**정리 4.3 (Pointcheval–Stern, 비공식).** Σ-프로토콜의 관계가 어렵다면(예: 이산로그), Fiat–Shamir 서명은 ROM 에서 EUF-CMA 안전하다.
+
+*증명의 구조 (forking lemma).*
+
+1. **서명 질의 시뮬레이션**: SHVZK 시뮬레이터로 $(R, c, s)$ 를 만들고, 랜덤 오라클을 **프로그래밍** 해서 $H(R \| m) := c$ 로 둔다(1장 4.3절).
+2. **위조로 비밀 추출**: 위조자 $\mathcal{A}$ 가 $(m^*, R^*, s^*)$ 를 냈다면, $\mathcal{A}$ 를 **같은 무작위성으로 되감아(rewind)** $H(R^* \| m^*)$ 질의부터 다른 답을 주고 다시 실행한다. 확률적으로 같은 $R^*$ 에 다른 $c$ 의 두 번째 위조가 나오고, 특수 건전성으로 $x$ 를 추출한다.
+
+되감기에서 "같은 질의 지점에서 갈라지는(fork)" 확률을 따지면 손실이 대략 $Q_H$ (해시 질의 수)배 생깁니다. 1장 3.3절에서 말한 **타이트하지 않은 환원** 의 대표 사례입니다.
+
+<Aside type="note" title="양자 공격자와 되감기">
+QROM 에서는 공격자의 양자 상태를 복사할 수 없어서(복제 불가), "같은 무작위성으로 되감아 다시 실행"이 그대로 성립하지 않습니다. Don–Fehr–Majenz–Schaffner(CRYPTO 2019), Liu–Zhandry(CRYPTO 2019) 등이 양자 되감기 기법으로 Fiat–Shamir 의 QROM 안전성을 증명했습니다. ML-DSA 의 안전성 근거가 이 계열의 결과입니다.
+</Aside>
+
+<Quiz
+  client:visible
+  question="Schnorr 시뮬레이터가 비밀 x 없이 유효한 대화록을 만들 수 있는데도 프로토콜이 '건전'한 이유는?"
+  options={[
+    '시뮬레이터는 실제로는 x 를 알고 있기 때문',
+    '시뮬레이터는 도전 c 를 먼저 고른 뒤 R 을 정하는데, 실제 프로토콜에서는 R 을 보낸 뒤에야 c 가 정해지기 때문',
+    '시뮬레이터의 대화록은 검증을 통과하지 못하기 때문',
+    '군의 위수가 소수이기 때문',
+  ]}
+  answer={1}
+  explanation="영지식은 '대화록 자체'가 정보를 주지 않는다는 성질이고, 건전성은 '실시간 대화'에서 속일 수 없다는 성질입니다. 순서가 핵심입니다. 실제 검증자는 R 을 받은 뒤 c 를 무작위로 고르므로, 증명자가 미리 맞춰 둘 수 없습니다. Fiat–Shamir 에서는 c = H(R‖m) 이 이 순서를 강제합니다."
+/>
+
+## 4. 영지식의 정의
+
+<span class="layer-tag">정식화</span>
+
+**정의 4.4 (영지식).** 증명 시스템 $(\mathsf{P}, \mathsf{V})$ 가 **영지식** 이라는 것은, 임의의 (악의적일 수 있는) 효율적 검증자 $\mathsf{V}^*$ 에 대해 효율적 시뮬레이터 $\mathsf{S}$ 가 있어서, 비밀 없이 만든 $\mathsf{S}(X)$ 의 출력이 $\mathsf{V}^*$ 가 실제 대화에서 보는 것과 구별되지 않는다는 것이다. 구별 불가능성이 완전히 같으면 **완전**, 통계적 거리가 무시 가능하면 **통계적**, 효율적 판별자에 대해서만이면 **계산적** 영지식.
+
+- Σ-프로토콜의 SHVZK 는 **정직한** 검증자(도전을 균등하게 고르는)에 대해서만 보장합니다. Fiat–Shamir 에서는 도전이 해시로 정해지므로 이것으로 충분합니다.
+- "증명"과 "지식의 증명"은 다릅니다. 전자는 명제 $X$ 가 참임을, 후자는 증명자가 증인 $x$ 를 **알고 있음** 을 보입니다. 특수 건전성은 후자(지식 건전성)를 줍니다.
+- 영지식 증명의 개념은 Goldwasser–Micali–Rackoff(1985)가 도입했습니다. 오늘날에는 블록체인, 익명 자격증명, 그리고 격자 기반 프라이버시 프로토콜(21장)의 핵심 도구입니다.
+
+## 5. 격자로 옮기면: 거절 샘플링
+
+<span class="layer-tag">정식화</span>
+
+격자 버전의 Schnorr 를 생각해 봅시다. 비밀은 짧은 벡터 $s$, 공개키는 $t = As \bmod q$ 입니다. 같은 구조로
+
+- **약속**: 짧은 마스크 $y$ 를 골라 $w = Ay$.
+- **도전**: 작은 $c$ (예: 계수가 작은 다항식).
+- **응답**: $z = y + cs$. 검증은 $Az - ct = w$ 이고 $z$ 가 짧은지 확인.
+
+문제가 있습니다. 이산로그에서는 $s = k + cx \bmod p$ 가 "$\bmod p$ 로 감겨서" 완전히 균등했지만, 격자에서는 **$z$ 가 짧아야** 하므로 감을 수 없습니다. 그러면 $z = y + cs$ 의 분포는 $cs$ 만큼 **밀려나고**, 서명을 많이 모으면 $s$ 가 드러납니다. Lyubashevsky(Asiacrypt 2009, Eurocrypt 2012)의 해법이 **거절 샘플링** 입니다. $z$ 가 일정 범위를 벗어나면 서명을 버리고 처음부터 다시 합니다(**Fiat–Shamir with aborts**).
+
+<RejectionSampling client:visible />
+
+**명제 4.5 (1차원 모형).** $y \leftarrow [-B, B]$ 균등, $|cs| \le \beta < B$ 일 때, $|z| \le B - \beta$ 인 경우만 받아들이면 받아들인 $z$ 는 $[-(B - \beta), B - \beta]$ 에서 균등하고 $s$ 와 독립이다. 수락 확률은 $\frac{2(B - \beta) + 1}{2B + 1}$ 이다.
+
+*증명.* 고정된 $c$ 에 대해 $z = y + cs$ 는 $[cs - B, cs + B]$ 에서 균등하다. $|cs| \le \beta$ 이므로 이 구간은 항상 $[-(B - \beta), B - \beta]$ 를 포함하고, 그 안의 각 값은 확률 $\frac{1}{2B+1}$ 로 나온다. 조건부로 보면 그 구간 위의 균등분포이고 $c, s$ 와 무관하다. $\blacksquare$
+
+이것이 ML-DSA 와 KpqC 의 HAETAE 가 서명 생성에서 루프를 도는 이유입니다. 실제 스킴은 고차원이라 수락 확률이 $(1 - \beta/B)^{n}$ 꼴로 줄어들므로, $B$ 와 $\beta$ 의 비를 신중히 고릅니다. 수락률과 서명 크기의 절충, 가우시안이나 초구(hyperball) 위의 균등분포 같은 다른 분포의 선택(HAETAE)은 17장에서 다룹니다.
+
+## 6. 미리보기: 다른 Σ-프로토콜들
+
+<span class="layer-tag">연구 관점</span>
+
+- **조합 문제의 Σ-프로토콜.** Stern(CRYPTO 1993)은 부호 이론의 신드롬 복호 문제에 대한 영지식 식별 프로토콜을 만들었습니다. 건전성 오차가 $2/3$ 이라 여러 번 반복해야 하지만, 대수 구조가 없는 문제에도 Σ-프로토콜을 만들 수 있다는 것을 보였습니다.
+- **MPC-in-the-Head.** Ishai–Kushilevitz–Ostrovsky–Sahai(STOC 2007)는 "머릿속에서 다자간 계산을 시뮬레이션하고 일부 참가자의 관점만 공개한다"는 방식으로, 임의의 관계에 대한 영지식 증명을 만드는 일반적 방법을 제시했습니다. 대칭키 암호(AES, 자체 설계한 일방향 함수)의 비밀키를 안다는 증명에 Fiat–Shamir 를 적용하면 서명이 됩니다. KpqC 표준 **AIMer** 와 NIST 추가 서명 3라운드의 FAEST, SDitH, MQOM 이 이 계열입니다(24장).
+- **격자 영지식의 격차.** 격자 Σ-프로토콜의 추출기는 보통 비밀 $s$ 자체가 아니라 **조금 더 긴 해** (예: $\bar c\, s'$ 꼴, $\bar c = c - c'$)를 뽑아냅니다. 그래서 "증명하려는 관계"와 "추출되는 관계"가 다른 **완화된 건전성** 이 생기고, $c - c'$ 이 가역이 되도록 도전 집합을 설계하는 문제(Lyubashevsky–Seiler 2018)가 생깁니다. 이 격차를 줄이는 것이 격자 영지식 연구의 중심 주제입니다(21장).
+
+**읽을거리 (읽는 순서)**
+
+1. **I. Damgård**, *On Σ-Protocols* (강의 노트). Σ-프로토콜의 표준 입문.
+2. **C. P. Schnorr**, *Efficient Signature Generation by Smart Cards*, J. Cryptology 1991.
+3. **D. Pointcheval, J. Stern**, *Security Arguments for Digital Signatures and Blind Signatures*, J. Cryptology 2000. Forking lemma.
+4. **V. Lyubashevsky**, *Fiat–Shamir with Aborts: Applications to Lattice and Factoring-Based Signatures*, Asiacrypt 2009 / *Lattice Signatures without Trapdoors*, Eurocrypt 2012. 17장 ML-DSA 의 직접적 원형.
+5. **J. Don, S. Fehr, C. Majenz, C. Schaffner**, *Security of the Fiat–Shamir Transformation in the Quantum Random-Oracle Model*, CRYPTO 2019.
+
+## 연습문제
+
+**★ 1.** 2.1절의 작은 예제($\mathbb{Z}_{23}^*$, $g = 4$, $x = 3$, $k = 5$, $c = 7$)를 손으로 따라가 검증식을 확인하세요. $4$ 의 위수가 정말 11 인가요?
+
+<details>
+<summary>해설</summary>
+
+$4 = 2^2$ 이고 $2^{22} \equiv 1$ (페르마)이므로 $4^{11} \equiv 1$. 11 은 소수이고 $4 \ne 1$ 이므로 위수는 정확히 11 입니다(2장 라그랑주 정리). 계산: $4^2 = 16$, $4^3 = 64 \equiv 18$, $4^4 \equiv 18\cdot4 = 72 \equiv 3$, $4^5 \equiv 12$. $18^2 = 324 \equiv 2$, $18^4 \equiv 4$, $18^7 = 18^4\cdot18^2\cdot18 \equiv 4\cdot2\cdot18 = 144 \equiv 6$. $12\cdot6 = 72 \equiv 3 = g^s$.
+
+</details>
+
+**★ 2.** 같은 예제에서 시뮬레이터로 $c = 4$, $s = 9$ 를 먼저 고르면 $R$ 은 얼마인가요? 그 대화록이 검증을 통과함을 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$R = g^sX^{-c} = 4^9\cdot18^{-4}$. $4^9 = 4^5\cdot4^4 \equiv 12\cdot3 = 36 \equiv 13$, $18^4 \equiv 4$ 이고 $4^{-1} \equiv 6$ ($24 \equiv 1$). $R \equiv 13\cdot6 = 78 \equiv 9$. 검증: $R\cdot X^c = 9\cdot4 = 36 \equiv 13 = g^s$ ✓.
+
+</details>
+
+**★★ 3.** Schnorr 프로토콜에서 도전 집합을 $\{0, 1\}$ 로 줄이면 건전성 오차는? 128비트 수준의 건전성을 얻으려면 몇 번 반복해야 하나요? 원래 Schnorr 는 왜 반복이 필요 없나요?
+
+<details>
+<summary>해설</summary>
+
+오차 $\tfrac12$, 128번 반복이 필요합니다. 원래 Schnorr 는 도전이 $\mathbb{Z}_p$ 전체($|\mathcal{C}| = p \approx 2^{256}$)라 한 번에 오차 $1/p$ 입니다. 격자 Σ-프로토콜이나 Stern 프로토콜은 도전 집합을 키우기 어려워(추출을 위해 $c - c'$ 이 작고 가역이어야 함) 반복이나 특별한 도전 설계가 필요합니다.
+
+</details>
+
+**★★ 4.** 논스 $k$ 가 비밀이지만 서명마다 $k_2 = k_1 + 1$ 처럼 **알려진 관계** 로 만들어진다면 비밀키를 복구할 수 있음을 보이세요.
+
+<details>
+<summary>해설</summary>
+
+$s_1 = k_1 + c_1x$, $s_2 = k_1 + 1 + c_2x$ 에서 빼면 $s_1 - s_2 + 1 = (c_1 - c_2)x$, 즉 $x = (s_1 - s_2 + 1)(c_1 - c_2)^{-1}$. 논스는 "같지 않음"이 아니라 "예측 불가능하고 독립"이어야 합니다. 일부 비트만 편향되어도 여러 서명을 모아 격자 축소로 복구하는 공격이 있습니다.
+
+</details>
+
+**★★ 5.** Fiat–Shamir 에서 $c = H(R)$ 처럼 **메시지를 해시에 넣지 않으면** 무엇이 깨지나요? 또 $c = H(m)$ 처럼 **$R$ 을 넣지 않으면**?
+
+<details>
+<summary>해설</summary>
+
+$c = H(R)$: 서명이 메시지에 묶이지 않아, 한 서명이 모든 메시지의 서명이 됩니다. $c = H(m)$: 공격자가 $c$ 를 먼저 계산할 수 있으므로 시뮬레이터처럼 $s$ 를 고르고 $R = g^sX^{-c}$ 를 맞춰 비밀 없이 위조할 수 있습니다. $R$ 을 넣어야 "약속 후 도전" 순서가 강제됩니다.
+
+</details>
+
+**★★ 6.** 명제 4.5 를 확장해, $n$ 개의 좌표가 독립일 때 수락 확률이 $\left(\frac{2(B-\beta)+1}{2B+1}\right)^n$ 임을 보이고, $n = 1024$ 에서 수락 확률을 $1/4$ 이상으로 유지하려면 $\beta/B$ 가 대략 얼마 이하여야 하는지 계산하세요.
+
+<details>
+<summary>해설</summary>
+
+좌표마다 독립이므로 곱입니다. $(1 - \beta/B)^n \approx e^{-n\beta/B} \ge 1/4 \iff n\beta/B \le \ln 4 \approx 1.386$, 즉 $\beta/B \lesssim 1.35\times10^{-3}$. 마스크 범위가 비밀 기여분보다 약 740배 커야 합니다. 그래서 서명이 커지고, 이 절충을 줄이는 분포 선택이 연구 대상입니다(17장).
+
+</details>
+
+**★★★ 7.** 두 개의 Σ-프로토콜이 있을 때, "$x_1$ 또는 $x_2$ 중 하나를 안다"는 OR-증명을 만드세요(Cramer–Damgård–Schoenmakers 1994). 힌트: 모르는 쪽은 시뮬레이터로 만들고, 도전 $c$ 를 $c = c_1 \oplus c_2$ 로 나누세요.
+
+**★★★ 8.** forking lemma 의 손실을 직접 계산해 보세요. 위조 확률이 $\varepsilon$, 해시 질의 수가 $Q$ 일 때 되감기로 두 번째 위조를 얻을 확률이 대략 $\varepsilon^2/Q$ 임을 보이는 논증의 뼈대를 쓰세요(Bellare–Neven 의 일반 forking lemma 참고).
+
+**★★★ 9. (구현)** `src/lib/sigma.ts` 의 군을 쓰되, 논스 $k$ 의 **상위 몇 비트가 0** 으로 편향된 서명을 여러 개 만들고, 9장의 LLL 로 비밀키를 복구해 보세요(hidden number problem). 몇 비트 편향, 몇 개 서명에서 성공하나요? 작은 군이라 전수조사도 가능하므로, 격자 방법이 "왜" 통하는지 보이는 것이 목표입니다.
+
+## 요약
+
+- Σ-프로토콜: 약속 → 도전 → 응답. 완전성, 특수 건전성(두 대화록 → 비밀 추출), 정직한 검증자 영지식(시뮬레이터).
+- Schnorr: $R = g^k$, $s = k + cx$, $g^s = RX^c$. 특수 건전성의 추출기가 곧 **논스 재사용 공격** 이다.
+- Fiat–Shamir: $c = H(R \| m)$ 로 서명이 된다. ROM 증명은 오라클 프로그래밍과 되감기(forking lemma)를 쓰며 $Q$ 배 손실이 있다. QROM 에서는 양자 되감기 기법이 필요하다.
+- 영지식은 시뮬레이터로 정의한다. 영지식은 "대화록이 정보를 주지 않음", 건전성은 "실시간으로 속일 수 없음"이고, 둘을 가르는 것은 메시지의 순서다.
+- 격자에서는 응답을 $\bmod$ 로 감을 수 없어 $z = y + cs$ 가 비밀을 흘린다. **거절 샘플링** 으로 받아들인 응답의 분포를 비밀과 무관하게 만든다(Fiat–Shamir with aborts → ML-DSA, HAETAE).
+- 다음: 5장(양자 위협)으로 1부를 마치고, 16·17장에서 ML-KEM 과 격자 서명으로 이어진다.
+
+## 참고문헌
+
+- A. Fiat, A. Shamir, *How to prove yourself: Practical solutions to identification and signature problems*, CRYPTO 1986.
+- S. Goldwasser, S. Micali, C. Rackoff, *The knowledge complexity of interactive proof systems*, STOC 1985; SIAM J. Comput. 1989.
+- J.-J. Quisquater et al., *How to explain zero-knowledge protocols to your children*, CRYPTO 1989.
+- C. P. Schnorr, *Efficient signature generation by smart cards*, J. Cryptology 4, 1991.
+- J. Stern, *A new identification scheme based on syndrome decoding*, CRYPTO 1993.
+- R. Cramer, I. Damgård, B. Schoenmakers, *Proofs of partial knowledge and simplified design of witness hiding protocols*, CRYPTO 1994.
+- D. Pointcheval, J. Stern, *Security arguments for digital signatures and blind signatures*, J. Cryptology 13, 2000.
+- M. Bellare, G. Neven, *Multi-signatures in the plain public-key model and a general forking lemma*, CCS 2006.
+- Y. Ishai, E. Kushilevitz, R. Ostrovsky, A. Sahai, *Zero-knowledge from secure multiparty computation*, STOC 2007.
+- V. Lyubashevsky, *Fiat–Shamir with aborts*, Asiacrypt 2009; *Lattice signatures without trapdoors*, Eurocrypt 2012.
+- V. Lyubashevsky, G. Seiler, *Short, invertible elements in partially splitting cyclotomic rings and applications to lattice-based zero-knowledge proofs*, Eurocrypt 2018.
+- J. Don, S. Fehr, C. Majenz, C. Schaffner, *Security of the Fiat–Shamir transformation in the quantum random-oracle model*, CRYPTO 2019.
+- Q. Liu, M. Zhandry, *Revisiting post-quantum Fiat–Shamir*, CRYPTO 2019.
