@@ -44,6 +44,7 @@ export default defineConfig({
         ]},
         { label: '4부 · 격자 암호 설계', items: [
           { label: '14장. LWE', slug: 'ch14-lwe' },
+          { label: '15장. NTRU', slug: 'ch15-ntru' },
         ]},
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },

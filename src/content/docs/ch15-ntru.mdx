@@ -1,0 +1,274 @@
+---
+title: 15장. NTRU
+description: 가장 오래된 실용 격자 암호 NTRU 의 환과 문제 정의, 암호화·복호화와 정확성 조건, NTRU 격자와 회전들이 만드는 밀집 부분격자, LLL 키 복구, overstretched 영역, LWE 와의 비교, NIST·KpqC 에서의 NTRU.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import NTRUToy from '../../components/NTRUToy.tsx';
+import NTRUAttackLab from '../../components/NTRUAttackLab.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. NTRU 의 환 $R_q$ 와 NTRU 문제(탐색·결정)를 정의하고, 실제 스킴들이 고른 다항식 $\varphi$ 를 비교할 수 있다.
+2. NTRU 암호의 키 생성·암호화·복호화를 손으로 실행하고, 정확성 조건 $\|3gr + fm\|_\infty < q/2$ 을 유도할 수 있다.
+3. NTRU 격자 $\Lambda_h$ 를 구성하고, 비밀키와 그 회전들이 **랭크 $n$ 의 밀집 부분격자** 를 이룸을 보일 수 있다.
+4. LLL 키 복구 실험으로 "gap 은 $q$ 에 따라 커지고, $n$ 에는 거의 무관하다"를 확인하고, overstretched 영역이 왜 위험한지 설명할 수 있다.
+5. NTRU 와 (Ring-)LWE 의 공통점과 차이(구조, 이론적 근거, 크기, 복호 실패)를 비교하고, NIST·KpqC 에서 NTRU 계열의 위치를 말할 수 있다.
+
+**선수 지식**: [2장](../ch02-algebra/)의 $\mathbb{Z}_q[x]/(x^n+1)$, [7장](../ch07-lattices/)의 q-ary 격자, [8장](../ch08-lattice-problems/)의 uSVP, [9장](../ch09-lll/)의 LLL, [14장](../ch14-lwe/)의 LWE·임베딩 공격.
+
+</div>
+
+## 1. 직관: 작은 것 둘의 비(比)
+
+<span class="layer-tag">직관</span>
+
+작은 계수를 가진 다항식 두 개 $f, g$ 를 몰래 고르고, 그 **비** $h = g/f \bmod q$ 를 공개한다고 합시다. 나눗셈을 $\bmod q$ 에서 하면 $h$ 의 계수는 $\mathbb{Z}_q$ 전체에 퍼져서 무작위처럼 보입니다. 그런데 $f$ 를 아는 사람은 $h$ 에 $f$ 를 곱하기만 하면 다시 작은 $g$ 를 얻습니다. **"곱하면 작아지는 비밀"** 이 NTRU 의 전부입니다.
+
+NTRU 는 Hoffstein, Pipher, Silverman 이 1996년에 발표하고 1998년 ANTS 에서 정식 출판한 암호로, LWE 기반 암호(2005)보다 거의 10년 앞선 **최초의 실용적 격자 기반 공개키 암호** 입니다. 25년 넘는 암호해석을 버텼고, 오늘날 FN-DSA(Falcon) 서명과 KpqC 표준 NTRU+ 의 기반입니다.
+
+## 2. 정식화
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 환
+
+$R = \mathbb{Z}[x]/(\varphi)$, $R_q = \mathbb{Z}_q[x]/(\varphi)$ 에서 계산합니다. 계수가 작은 원소를 "작다"고 하고, $R_q$ 의 원소는 계수를 중심 대표값 $(-q/2, q/2]$ 로 봅니다. 실제 스킴이 고른 $\varphi$:
+
+| 스킴 | $\varphi$ | 특징 |
+|---|---|---|
+| 원래 NTRU, NIST 의 NTRU(HPS·HRSS) | $x^n - 1$ ($n$ 소수) | 순환 합성곱. $q$ 는 2의 거듭제곱 |
+| FN-DSA(Falcon) | $x^n + 1$ ($n$ 은 2의 거듭제곱) | 2장의 negacyclic 환. 이 장의 토이 구현도 이것 |
+| NTRU Prime | $x^p - x - 1$ ($p$ 소수) | 원분 다항식이 아닌 구조를 일부러 선택 |
+| **NTRU+** (KpqC) | $x^n - x^{n/2} + 1$ (원분 삼항식) | $q = 3457$, 2·3 혼합 기수 NTT |
+
+### 2.2 NTRU 문제
+
+**정의 15.1.** 작은 $f, g \in R$ ($f$ 는 $R_q$ 에서 가역)에 대해 $h = g\cdot f^{-1} \bmod q$ 가 주어질 때,
+
+- **탐색 NTRU**: $(f, g)$ (또는 그와 동등하게 짧은 쌍)를 찾아라.
+- **결정 NTRU**: $h$ 가 이렇게 만들어졌는지, $R_q$ 에서 균등하게 뽑혔는지 구별하라.
+
+($h = f/g$ 로 쓰는 논문도 있습니다. 표기 관례일 뿐 문제는 같습니다. 논문 읽기 1 의 MiNTRU 는 이것의 행렬판입니다.)
+
+### 2.3 NTRU 암호 (토이 버전)
+
+작은 모듈러스 $p = 3$ 과 큰 모듈러스 $q$ 를 씁니다.
+
+- **키 생성**: $F, g \leftarrow \{-1, 0, 1\}^n$, $f = 1 + 3F$. 공개키 $h = 3g\cdot f^{-1} \bmod q$, 비밀키 $f$.
+- **암호화**: 메시지 $m \in \{-1, 0, 1\}^n$, 무작위 $r \leftarrow \{-1, 0, 1\}^n$ 으로 $c = r h + m \bmod q$.
+- **복호화**: $a = f\cdot c \bmod q$ (중심 대표값), $m = a \bmod 3$ (중심 대표값).
+
+**정리 15.2 (정확성).** $\|3gr + fm\|_\infty < q/2$ 이면 복호는 항상 정확하다.
+
+*증명.* $f\cdot c = f r h + f m = r\cdot 3g + f m \pmod q$ ($fh \equiv 3g$). 우변의 계수가 모두 $(-q/2, q/2)$ 안에 있으면 중심 대표값 $a$ 는 $\bmod q$ 없이 정수로 $a = 3gr + fm$ 이다. $\bmod 3$ 을 취하면 $3gr \equiv 0$, $f \equiv 1$ 이므로 $a \equiv m$. $m$ 의 계수가 $\{-1,0,1\}$ 이니 중심 대표값으로 정확히 복구된다. $\blacksquare$
+
+$f \equiv 1 \pmod 3$ 으로 잡으면 마지막에 $f^{-1} \bmod 3$ 을 곱할 필요가 없습니다. 원래 NTRU 는 일반적인 $f$ 를 쓰고 $f_p = f^{-1} \bmod p$ 를 곱했는데, 이 간소화는 현대 변형에서 흔한 선택입니다.
+
+**작은 예제.** $n = 4$, $q = 97$, $\varphi = x^4 + 1$. $F = (0, 1, 0, -1)$ 이면 $f = (1, 3, 0, -3)$, $g = (1, -1, 0, 1)$ 로 두면 $h = 3g f^{-1} = (33, 92, 0, 5)$. 검산: $f\cdot h \equiv (3, -3, 0, 3) = 3g$. 메시지 $m = (1, 0, -1, 1)$, $r = (0, 1, -1, 0)$ 이면 $c = (93, 38, 58, 6)$ 이고,
+
+$$
+a = f\cdot c \bmod q = (-5, 6, -4, -2) = 3\underbrace{(-1, 2, -2, 1)}_{gr} + \underbrace{(-2, 0, 2, -5)}_{fm}, \qquad a \bmod 3 = (1, 0, -1, 1) = m. 
+$$
+
+<NTRUToy client:visible />
+
+**최악 경우와 전형적 경우.** 3진 계수에서 $|(gr)_k| \le n$, $|(fm)_k| \le 1 + 3n$ 이므로 $q > 12n + 2$ 이면 복호 실패가 **절대** 없습니다. 하지만 전형적인 크기는 훨씬 작습니다. 6장의 분산 계산을 쓰면 $a$ 의 각 계수의 표준편차는 대략 $\sqrt{8n}$ 입니다($\operatorname{Var}(3(gr)_k) \approx 4n$, $\operatorname{Var}(3(Fm)_k) \approx 4n$). NIST 에 제출된 NTRU(HPS·HRSS)는 최악 경우 조건을 만족하도록 $q$ 를 골라 **복호 실패가 전혀 없게** 설계되었습니다. 복호 실패를 허용하는 대신 파라미터를 줄이는 ML-KEM 과 대비되는 설계 철학입니다.
+
+### 2.4 안전성의 직관: 암호문은 Ring-LWE 표본이다
+
+$c = h\cdot r + m$ 을 보세요. $h$ 가 공개된 "무작위처럼 보이는" 원소이고 $r, m$ 이 작으니, 이것은 정확히 **비밀 $r$, 오차 $m$ 인 Ring-LWE 표본 하나** 입니다(12장). 여기서 $m$ 이 오차 역할을 한다는 점이 중요합니다. **$m$ 이 무작위일 때** 공격자가 $c$ 에서 $m$ 을 복구하지 못한다는 **일방향성(OW-CPA)** 은 두 가정에서 나옵니다.
+
+1. **결정 NTRU**: 공개키 $h$ 는 균등 무작위와 구별되지 않는다.
+2. **(작은 비밀) Ring-LWE**: $h$ 가 균등하다면 $(h, hr + m)$ 은 균등 쌍과 구별되지 않는다.
+
+하지만 공격자가 고른 두 메시지를 구별하지 못한다는 **IND-CPA** 는 이 교과서식 암호에서 바로 나오지 않습니다($m$ 이 오차 자리에 들어가 있기 때문). 그래서 실제 NTRU 기반 KEM 은 $(r, m)$ 을 **모두 무작위로 뽑아** 암호화하고 거기서 공유키를 유도하며, Fujisaki–Okamoto 변환(3장, 16장)으로 IND-CCA 안전성을 얻습니다. OW-CPA 만으로 충분한 구조입니다.
+
+## 3. NTRU 격자와 키 복구 공격
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 NTRU 격자
+
+$h' = h\cdot 3^{-1} = g f^{-1} \bmod q$ 로 두면 $f h' \equiv g$ 입니다. 다항식을 계수 벡터로 보고
+
+$$
+\Lambda_h = \{(u, v) \in \mathbb{Z}^{2n} : v\cdot h' \equiv u \pmod q\}, \qquad
+B = \begin{pmatrix} qI_n & 0\\ \operatorname{rot}(h') & I_n\end{pmatrix}
+$$
+
+로 정의합니다. $\operatorname{rot}(h')$ 의 $i$ 번째 행은 $x^i h'$ 의 계수입니다. 7장의 q-ary 격자와 같은 구조이고 $\operatorname{vol}(\Lambda_h) = q^n$ 입니다.
+
+**보조정리 15.3.** $(g, f) \in \Lambda_h$ 이고, 모든 $i$ 에 대해 회전 $x^i\cdot(g, f) = (x^ig, x^if)$ 도 $\Lambda_h$ 에 속한다. 이 $n$ 개의 회전은 일차독립이며, **랭크 $n$ 부분격자** $L_{\mathrm{key}}$ 를 이룬다.
+
+*증명.* $(x^if)h' = x^i(fh') \equiv x^ig$. 일차독립: $\varphi = x^n + 1$ 에서 $x^if$ 들은 $\operatorname{rot}(f)$ 의 행이고, $f$ 가 $\mathbb{Q}[x]/(x^n+1)$ 에서 가역이면 이 행렬은 정칙이다(연습문제 7). $\blacksquare$
+
+각 회전의 길이는 $\|(g, f)\|$ 로 모두 같습니다(2장 연습문제 8: 단항식 곱은 계수 크기를 보존). 반면 이 격자의 "보통" 최단 벡터는 Gaussian heuristic 으로
+
+$$
+\mathrm{GH}(\Lambda_h) \approx \sqrt{\frac{2n}{2\pi e}}\;q^{1/2}.
+$$
+
+토이 파라미터에서 $\|(g, f)\| \approx \sqrt{(2/3)n + 6n} \approx 2.6\sqrt n$ 이므로
+
+$$
+\text{gap} = \frac{\mathrm{GH}}{\|(g, f)\|} \approx \frac{\sqrt{2n/(2\pi e)}\,\sqrt q}{2.6\sqrt n} \approx 0.13\sqrt q .
+$$
+
+**gap 은 $q$ 에만 의존하고 $n$ 에는 거의 무관합니다.** 그런데 9장에서 본 것처럼 LLL·BKZ 가 찾아낼 수 있는 gap 의 문턱은 차원 $2n$ 에 따라 지수적으로 커집니다. 그래서 $q$ 를 고정하고 $n$ 을 키우면 어느 순간 공격이 실패하고, $q$ 를 키우면 같은 $n$ 에서도 공격이 쉬워집니다. 이것이 Coppersmith–Shamir(1997) 이후 NTRU 암호해석의 기본 그림입니다.
+
+<NTRUAttackLab client:visible />
+
+해볼 실험:
+
+1. $q = 257$ 로 $n = 16, 24, 32, 40$ 을 실행해 보세요. 이 교과서의 실험에서는 $n = 32$ 까지 키를 찾고 $n = 40$ 부터 실패합니다.
+2. 같은 $n = 40, 48, 64$ 를 $q = 3329$ 이상으로 실행하면 모두 성공합니다. 성공할 때 로그 노름 그래프에서 $i = n$ 의 **절벽** 을 확인하세요. 앞 $n$ 개가 $L_{\mathrm{key}}$ 에 "떨어진" 것입니다.
+3. 표의 'gap' 열이 $n$ 을 바꿔도 거의 그대로인지 확인하세요.
+
+### 3.2 overstretched: 벡터 하나가 아니라 부분격자 전체
+
+보조정리 15.3 이 말하는 것은 짧은 벡터가 **하나가 아니라 $n$ 개, 그것도 부피가 아주 작은 랭크 $n$ 부분격자** 라는 사실입니다. $\operatorname{vol}(L_{\mathrm{key}}) \lesssim \|(g,f)\|^n$ 인데 전체 부피는 $q^n$ 입니다. $q$ 가 $n$ 에 비해 엄청나게 크면, 최단 벡터 하나를 찾는 것(uSVP)보다 훨씬 약한 격자 축소로도 이 **밀집 부분격자** 가 드러납니다(Kirchner–Fouque 2017). 이 영역을 **overstretched** 라고 부릅니다.
+
+- 동형암호와 다중선형 사상의 초기 NTRU 변형들이 이 영역의 파라미터를 썼다가 부분체 공격(Cheon–Jeong–Lee 2016, Albrecht–Bai–Ducas 2016)과 밀집 부분격자 공격으로 깨졌습니다.
+- Ducas–van Woerden(*NTRU Fatigue*, Asiacrypt 2021)은 이 경계를 다시 계산해, 대략 $q$ 가 $n^{2.5}$ 근처를 넘으면 밀집 부분격자 쪽이 먼저 드러난다고 추정했습니다(정확한 상수는 논문 참조).
+- 구체적 사례 연구: [논문 읽기 1: MiNTRU 격자 분석](../papers/p01-mintru/)은 이 공격을 "구조 없는 행렬 NTRU"에 적용해 100비트를 주장한 파라미터를 15시간에 깬 논문을 절별로 따라갑니다.
+
+표준 NTRU 파라미터(예: $q = 3457$, $n = 768$)는 이 경계보다 한참 아래라서 해당하지 않습니다. 하지만 **"q 를 키우면 기능은 늘지만 안전성이 무너질 수 있다"** 는 교훈은 NTRU 계열을 설계할 때 늘 확인해야 하는 항목입니다.
+
+<Quiz
+  client:visible
+  question="토이 NTRU 격자에서 q 를 고정하고 n 을 키우면 LLL 공격이 결국 실패하는 이유는?"
+  options={[
+    'n 이 커지면 비밀키 (g, f) 가 격자에서 빠지기 때문',
+    'gap 은 거의 그대로인데, LLL 이 찾을 수 있는 gap 의 문턱이 차원에 따라 지수적으로 커지기 때문',
+    'n 이 커지면 GH 가 작아져 gap 이 1 보다 작아지기 때문',
+    'n 이 커지면 f 가 가역이 아니게 되기 때문',
+  ]}
+  answer={1}
+  explanation="gap ≈ 0.13·√q 는 n 에 거의 무관합니다. 하지만 LLL 의 근사 성능은 차원 2n 에 대해 지수적으로 나빠지므로(9장), 같은 gap 으로는 큰 차원에서 숨은 벡터를 찾지 못합니다. 그래서 실제 공격자는 BKZ 를 쓰고, 파라미터는 BKZ 비용으로 정합니다(18장)."
+/>
+
+## 4. NTRU 와 LWE
+
+<span class="layer-tag">정식화</span>
+
+| | NTRU | (Module-)LWE / ML-KEM |
+|---|---|---|
+| 공개키 | $h = g/f$ 하나 ($n\log q$ 비트) | $(A, b = As + e)$, $A$ 는 시드로 압축 |
+| 키 생성 | $R_q$ 에서 **역원 계산** 필요(느림) | 곱셈·덧셈만 |
+| 이론적 근거 | 표준 파라미터에는 최악 경우 환원이 **없음** | Module-LWE 의 최악→평균 환원 |
+| 복호 실패 | 설계에 따라 **0** 으로 만들 수 있음 | 작은 확률(예: $2^{-164}$)을 허용 |
+| 서명 | GPV 트랩도어로 효율적(FN-DSA) | Fiat-Shamir with aborts(ML-DSA) |
+
+**이론적 근거에 대해.** Stehlé–Steinfeld(Eurocrypt 2011)는 $f, g$ 를 **충분히 넓은** 이산 가우시안에서 뽑으면 $h = g/f$ 가 통계적으로 균등에 가깝다는 것을 보였습니다. 그러면 결정 NTRU 가정 없이 Ring-LWE 만으로 NTRU 암호의 안전성이 증명됩니다. 하지만 이 분포는 실제 스킴보다 훨씬 넓어서 효율이 떨어집니다. 실용 NTRU 는 좁은 분포를 쓰고, 1996년 이후의 암호해석에 기댑니다.
+
+**NIST 와 KpqC.**
+
+- NTRU(HPS·HRSS 통합)는 NIST 3라운드 **최종 후보** 였지만, NIST 는 2022년 KEM 으로 Kyber(현 ML-KEM)만 선택했습니다. 성능, 특히 키 생성 속도가 주요 요인으로 언급되었습니다. NTRU Prime 은 대체 후보였습니다.
+- 서명 쪽에서는 NTRU 격자가 살아남았습니다. **FN-DSA(Falcon)** 의 비밀키는 $fG - gF = q$ 를 만족하는 짧은 $(f, g, F, G)$ 로, NTRU 격자의 **좋은 기저** 입니다(17장, 8장의 "좋은 기저 = 비밀키").
+- 한국 KpqC 는 2025년 **NTRU+** 를 KEM 표준으로 선정했습니다. 원분 삼항식 $x^n - x^{n/2} + 1$ 과 $q = 3457$ 을 씁니다. $q - 1 = 3456 = 2^7\cdot3^3$ 이라 $\mathbb{Z}_q$ 에 6제곱근이 있어 2·3 혼합 기수 NTT 로 빠르게 곱하고, 최종 파라미터 세트는 $n \in \{768, 864, 1152\}$ 입니다. 원분 삼항식은 $n$ 을 2의 거듭제곱에만 묶지 않아 안전성 수준을 더 세밀하게 고를 수 있게 해 줍니다.
+
+## 5. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **overstretched 경계의 정밀화.** 밀집 부분격자 공격이 언제 uSVP 공격보다 먼저 성공하는지, 그 경계를 정확히 예측하는 모델은 여전히 연구 주제입니다(Kirchner–Fouque 2017 → *NTRU Fatigue* 2021). 논문 읽기 1 의 열린 질문(예측보다 공격이 잘 되는 이유)도 같은 선 위에 있습니다.
+- **하이브리드 공격.** Howgrave-Graham(CRYPTO 2007)은 격자 축소와 중간 만남(meet-in-the-middle) 탐색을 섞어 3진 비밀의 NTRU 를 더 싸게 공격했습니다. 비밀 분포가 작고 희소할수록 이런 조합 공격의 비용 분석이 중요합니다(18장).
+- **복호 실패와 안전성.** 복호 실패가 있는 NTRU 변형은 실패를 일부러 유도하는 공격의 대상이 되었습니다(Howgrave-Graham 외, *The Impact of Decryption Failures on the Security of NTRU Encryption*, CRYPTO 2003). NIST 제출본이 실패율 0 을 택한 배경입니다.
+- **구조의 선택.** $x^n - 1$, $x^n + 1$, $x^p - x - 1$, 원분 삼항식. 어떤 환을 고르느냐는 효율(NTT 가능 여부)과 "구조를 이용한 공격" 위험 사이의 절충입니다. 이것이 3부(대수적 격자)의 질문으로 이어집니다.
+
+**읽을거리 (읽는 순서)**
+
+1. **J. Hoffstein, J. Pipher, J. H. Silverman**, *NTRU: A Ring-Based Public Key Cryptosystem*, ANTS 1998. 원 논문. 2~3절의 스킴과 격자 공격 논의를 이 장과 대조하세요.
+2. **J. Hoffstein, J. Pipher, J. H. Silverman**, *An Introduction to Mathematical Cryptography* (2판), NTRU 와 격자를 다루는 장. 교과서식 해설.
+3. **D. Stehlé, R. Steinfeld**, *Making NTRU as Secure as Worst-Case Problems over Ideal Lattices*, Eurocrypt 2011.
+4. **P. Kirchner, P.-A. Fouque**, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017. 그리고 [논문 읽기 1](../papers/p01-mintru/).
+5. **J. Kim, J. H. Park**, *NTRU+: Compact Construction of NTRU Using Simple Encoding Method*, Cryptology ePrint Archive 2022/1664. KpqC 표준의 설계 문서.
+
+## 연습문제
+
+**★ 1.** 2.3절의 작은 예제($n = 4$, $q = 97$, $\varphi = x^4 + 1$)에서 $f\cdot h \equiv 3g$ 를 직접 계산해 확인하고, $a = f\cdot c$ 가 $3gr + fm$ 과 같음을 확인하세요.
+
+<details>
+<summary>해설</summary>
+
+$f = 1 + 3x - 3x^3$, $h = 33 + 92x + 5x^3$. $1\cdot h = (33, 92, 0, 5)$, $3x\cdot h = 3(-5, 33, 92, 0) = (-15, 99, 276, 0)$ ($x^4 = -1$ 이라 $5x^3 \cdot x = -5$), $-3x^3\cdot h = -3(-92, 0, -5, 33) = (276, 0, 15, -99)$. 합 $(294, 191, 291, -94) \equiv (3, -3, 0, 3) \pmod{97}$ $= 3g$. $a$ 쪽은 본문에 계산되어 있습니다: $3(-1,2,-2,1) + (-2,0,2,-5) = (-5,6,-4,-2)$.
+
+</details>
+
+**★ 2.** $\varphi = x^n + 1$ 에서 $x\cdot(g, f) \in \Lambda_h$ 임을 보이고, $x^n\cdot(g, f) = -(g, f)$ 임을 확인하세요. 회전은 서로 다른 것이 몇 개인가요?
+
+<details>
+<summary>해설</summary>
+
+$(xf)h' = x(fh') \equiv xg$. $x^n = -1$ 이므로 $x^n(g, f) = -(g,f)$. 부호까지 구분하면 $\pm x^i(g,f)$ ($0 \le i < n$)로 $2n$ 개, 부호를 무시하면 $n$ 개입니다.
+
+</details>
+
+**★★ 3.** 3진 계수의 $F, g, r, m$ 에 대해 $\|3gr + fm\|_\infty \le 6n + 1$ 을 보이고, 복호 실패가 없으려면 $q > 12n + 2$ 면 충분함을 보이세요. $n = 64$ 에서 이 조건과 위젯의 실험(q = 97, 193, 257)을 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+$(gr)_k$ 는 $\pm g_ir_j$ 꼴 $n$ 개의 합이라 $|\cdot| \le n$, 따라서 $|3gr| \le 3n$. $fm = m + 3Fm$ 이고 $|(Fm)_k| \le n$ 이므로 $|fm| \le 1 + 3n$. 합은 $6n + 1 < q/2 \iff q > 12n + 2$. $n = 64$ 이면 $q > 770$ 이 최악 보장이지만, 위젯에서는 $q = 257$ 에서도 실패가 거의 없습니다. 전형적 크기가 $\sqrt{8n} \approx 23$ 이라 $q/2 = 128$ 이 표준편차의 5배 이상이기 때문입니다.
+
+</details>
+
+**★★ 4.** $\operatorname{vol}(\Lambda_h) = q^n$ 을 보이고, 3.1절의 gap 근사식 $\approx 0.13\sqrt q$ 를 유도하세요. 실험실 표의 gap 과 비교해 보세요.
+
+<details>
+<summary>해설</summary>
+
+$B$ 는 블록 하삼각이고 대각 블록이 $qI_n$, $I_n$ 이라 $\det B = q^n$. $\|(g, f)\|^2 \approx (2/3)n + (1 + 9\cdot(2/3)(n-1)) \approx 6.67n$. $\mathrm{GH}/\|(g,f)\| \approx \sqrt{2n/(2\pi e)}\sqrt q/\sqrt{6.67n} = \sqrt{2/(2\pi e\cdot 6.67)}\sqrt q \approx 0.13\sqrt q$. $q = 257$ 이면 약 2.1, $q = 3329$ 이면 약 7.6.
+
+</details>
+
+**★★ 5.** 2.4절의 논증을 하이브리드 논법(6장 5절)으로 정식화해, 무작위 $m \leftarrow \{-1,0,1\}^n$ 에 대한 NTRU 암호의 일방향성(OW-CPA)을 증명하세요. 그리고 왜 이 논증이 IND-CPA 로는 바로 확장되지 않는지 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+$m$ 을 복구하는 공격자 $\mathcal{A}$ 가 확률 $\varepsilon$ 으로 성공한다고 하자. $H_0$: 실제 $(h, c = hr + m)$. $H_1$: $h$ 를 균등 $u$ 로 바꿈. 결정 NTRU 에 의해 $\mathcal{A}$ 의 성공률은 거의 변하지 않는다. $H_1$ 의 $(u, ur + m)$ 은 Ring-LWE 표본이다. 이제 Ring-LWE 판별자를 만든다: $(u, t)$ 를 받아 $\mathcal{A}$ 에게 주고, 돌려받은 $m'$ 에 대해 $(t - m')u^{-1}$ 이 작은지(3진인지) 검사한다. 진짜 표본이면 확률 $\approx\varepsilon$ 으로 통과하고, $t$ 가 균등하면 거의 통과하지 못한다(작은 원소가 드물기 때문). IND-CPA 로 확장되지 않는 이유: 공격자가 고른 $m_0, m_1$ 이 오차 자리에 들어가면 "오차가 무작위"라는 Ring-LWE 의 전제가 깨집니다. 그래서 실제 KEM 은 $m$ 을 무작위로 뽑고 FO 변환을 씁니다.
+
+</details>
+
+**★★ 6.** 원래 NTRU 처럼 일반적인 작은 $f$ 를 쓰면 복호 마지막에 무엇을 해야 하나요? $f = 1 + 3F$ 로 잡을 때의 장점과, $\|f\|$ 가 커지는 단점을 비교하세요.
+
+<details>
+<summary>해설</summary>
+
+$a \equiv fm \pmod 3$ 이므로 $f_p = f^{-1} \bmod 3$ 을 곱해 $m = f_p a \bmod 3$. $f = 1 + 3F$ 면 $f \equiv 1$ 이라 이 단계와 $f_p$ 계산이 사라집니다. 대신 $f$ 의 계수가 최대 4 까지 커져 $\|fm\|$ 과 $\|(g,f)\|$ 가 커지고, 같은 $q$ 에서 복호 여유와 공격 gap 이 조금 나빠집니다.
+
+</details>
+
+**★★★ 7.** $\varphi = x^n + 1$ 일 때 $\operatorname{rot}(f)$ 가 정칙 $\iff$ $f$ 가 $\mathbb{Q}[x]/(x^n+1)$ 에서 가역임을 보이고, $|\det\operatorname{rot}(f)| = \prod_{\zeta} |f(\zeta)|$ ($\zeta$ 는 $x^n + 1$ 의 복소근)임을 보이세요. 이로부터 $\operatorname{vol}(L_{\mathrm{key}})$ 를 $(g, f)$ 의 "켤레 크기"로 표현해 보세요. (2장의 CRT 관점과 11장의 canonical embedding 을 미리 보는 연습입니다.)
+
+**★★★ 8. (구현 · 포트폴리오)** `src/lib/ntru.ts` 를 Python 으로 옮기거나 fpylll 을 써서, $q \in \{257, 3329, 12289\}$ 각각에 대해 LLL 과 BKZ-10, 20 으로 키 복구가 50% 성공하는 최대 $n$ 을 찾으세요. "gap 은 $n$ 에 무관하지만 필요한 블록 크기는 $n$ 에 따라 커진다"를 그래프로 보이는 1쪽 보고서를 만드세요.
+
+**★★★ 9. (읽기)** Stehlé–Steinfeld(2011)를 읽고, $f, g$ 의 분포 폭이 어느 정도여야 $h$ 가 통계적으로 균등에 가까워지는지, 그 증명에 6장의 평활 파라미터가 어떻게 쓰이는지 요약하세요.
+
+## 요약
+
+- NTRU: 작은 $f, g$ 의 비 $h = g/f \bmod q$ 를 공개한다. $f$ 를 곱하면 다시 작아진다는 것이 복호의 원리다.
+- 암호화 $c = rh + m$, 복호 $a = fc = 3gr + fm$. $\|3gr + fm\|_\infty < q/2$ 이면 정확하고, 최악 조건을 만족하게 설계하면 복호 실패가 0 이다.
+- 암호문은 Ring-LWE 표본이다. 안전성은 결정 NTRU + Ring-LWE 에 기댄다.
+- NTRU 격자 $\Lambda_h$ (차원 $2n$, 부피 $q^n$)에는 비밀키의 회전 $n$ 개가 이루는 **밀집 부분격자** 가 있다. gap $\approx \sqrt q$ 는 $n$ 에 무관하고, 공격 난이도는 차원에서 온다.
+- $q$ 가 지나치게 크면(overstretched) 밀집 부분격자가 약한 축소로도 드러난다. 기능을 위해 $q$ 를 키우는 설계는 위험하다.
+- NIST 는 KEM 으로 ML-KEM 을 택했지만, NTRU 격자는 FN-DSA 의 기반이고 KpqC 는 NTRU+ 를 표준으로 선정했다.
+- 다음: 16장에서 ML-KEM 을 해부한다. 1, 3, 4장(정의, KEM/FO, Fiat-Shamir)을 먼저 채운 뒤 이어집니다.
+
+## 참고문헌
+
+- J. Hoffstein, J. Pipher, J. H. Silverman, *NTRU: A ring-based public key cryptosystem*, ANTS 1998.
+- D. Coppersmith, A. Shamir, *Lattice attacks on NTRU*, Eurocrypt 1997.
+- N. Howgrave-Graham et al., *The impact of decryption failures on the security of NTRU encryption*, CRYPTO 2003.
+- N. Howgrave-Graham, *A hybrid lattice-reduction and meet-in-the-middle attack against NTRU*, CRYPTO 2007.
+- D. Stehlé, R. Steinfeld, *Making NTRU as secure as worst-case problems over ideal lattices*, Eurocrypt 2011.
+- J. H. Cheon, J. Jeong, C. Lee, *An algorithm for NTRU problems and cryptanalysis of the GGH multilinear map without a low-level encoding of zero*, LMS J. Comput. Math. 2016.
+- M. Albrecht, S. Bai, L. Ducas, *A subfield lattice attack on overstretched NTRU assumptions*, CRYPTO 2016.
+- P. Kirchner, P.-A. Fouque, *Revisiting lattice attacks on overstretched NTRU parameters*, Eurocrypt 2017.
+- L. Ducas, W. van Woerden, *NTRU Fatigue: How stretched is overstretched?*, Asiacrypt 2021.
+- J. Kim, J. H. Park, *NTRU+: Compact construction of NTRU using simple encoding method*, [ePrint 2022/1664](https://eprint.iacr.org/2022/1664).
