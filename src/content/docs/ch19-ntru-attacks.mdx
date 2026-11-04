@@ -78,7 +78,7 @@ BKZ-$\beta$ 후의 GSA 프로파일에서 앞쪽 GSO 벡터들은 $\sqrt q$ 보�
 
 ### 3.2 경계는 어디인가
 
-- **Kirchner–Fouque (Eurocrypt 2017)** 는 이 효과를 분석해, 삼진 비밀에서 $q \ge n^{2.783 + o(1)}$ 이면 DSD 가 uSVP 보다 먼저 일어남을 보였습니다. 또 이 영역에서는 아래 4절의 부분체 공격보다 **원래 격자에 BKZ 를 그냥 돌리는 것** 이 더 낫다는 것도 보였습니다.
+- **Kirchner–Fouque (Eurocrypt 2017)** 는 이 효과를 분석해, 삼진 비밀에서 $q \ge n^{2.783 + o(1)}$ 이면 DSD 가 uSVP 보다 먼저 일어남을 보였습니다(불가능성 논증이라 경계의 **상한** 입니다). 또 이 영역에서는 아래 4절의 부분체 공격보다 **원래 격자에 BKZ 를 그냥 돌리는 것** 이 더 낫다는 것도 보였습니다.
 - **Ducas–van Woerden (Asiacrypt 2021, *NTRU Fatigue*)** 는 DSD 가 일어나는 시점을 더 정밀하게 예측하는 모델을 세우고 대규모 실험으로 확인해, 경계(fatigue point)를 점근적으로 $n^{2.484}$, 구체적으로
 
 $$
@@ -271,7 +271,7 @@ $N(fg) = (fg)(x)\,(fg)(-x) = f(x)f(-x)\,g(x)g(-x) = N(f)N(g)$. $fh = g$ 에 노�
 
 ## 참고문헌
 
-1. P. Kirchner, P.-A. Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017. → [논문 읽기 4](../papers/p04-kirchner-fouque/)
+1. P. Kirchner, P.-A. Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017 (ePrint 2016/717, *Comparison between Subfield and Straightforward Attacks on NTRU*). → [논문 읽기 4](../papers/p04-kirchner-fouque/)
 2. L. Ducas, W. van Woerden, *NTRU Fatigue: How Stretched is Overstretched?*, Asiacrypt 2021 (ePrint 2021/999). → [논문 읽기 5](../papers/p05-ntru-fatigue/)
 3. M. Albrecht, S. Bai, L. Ducas, *A Subfield Lattice Attack on Overstretched NTRU Assumptions*, CRYPTO 2016.
 4. J. H. Cheon, J. Jeong, C. Lee, *An Algorithm for NTRU Problems and Cryptanalysis of the GGH Multilinear Map without a Low-Level Encoding of Zero*, ANTS 2016 (LMS J. Comput. Math.).
