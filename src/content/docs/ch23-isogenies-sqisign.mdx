@@ -1,0 +1,282 @@
+---
+title: 23장. 동종사상과 SQIsign
+description: 격자가 아닌 또 하나의 양자 내성 가문. 타원곡선과 동종사상의 기초, 초특이 동종 그래프와 CGL 해시, 경로 찾기와 자기준동형환 문제, Deuring 대응과 KLPT, SIDH 가 2022년에 깨진 이유, CSIDH 의 가환 군 작용과 양자 안전성 논쟁, 그리고 가장 작은 양자 내성 서명 SQIsign.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import IsogenyGraph from '../../components/IsogenyGraph.tsx';
+import CSIDHExchange from '../../components/CSIDHExchange.tsx';
+import SignatureSizes from '../../components/SignatureSizes.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 타원곡선의 군 구조, $j$-불변량, 동종사상(핵, 차수, Vélu 공식, 쌍대)을 정의하고 작은 예로 계산할 수 있다.
+2. 초특이 $\ell$-동종 그래프가 $(\ell+1)$-정칙 확장 그래프임을 설명하고, 그 위의 경로 찾기·자기준동형환 문제가 왜 어려운지 말할 수 있다.
+3. SIDH 가 2022년에 다항 시간에 깨진 이유(비틀림 점 정보와 고차원 동종사상)를 설명할 수 있다.
+4. CSIDH 의 가환 군 작용으로 비대화형 키 교환을 구성하고, 양자 공격(숨은 이동 문제)이 파라미터에 주는 영향을 말할 수 있다.
+5. SQIsign 의 구조(Deuring 대응, KLPT)와 크기·속도의 절충을 다른 서명들과 비교할 수 있다.
+
+**선수 지식**: [2장](../ch02-algebra/)(군, 유한체), [5장](../ch05-quantum/)(쇼어, 숨은 부분군 문제), [4장](../ch04-sigma-fiat-shamir/)(Σ-프로토콜), [11장](../ch11-algebraic-nt/)(이데알, 류군).
+
+</div>
+
+## 1. 직관: 거대한 그래프에서 길 찾기
+
+<span class="layer-tag">직관</span>
+
+격자 암호의 어려움은 "고차원 격자의 짧은 벡터"였습니다. 동종사상 암호의 어려움은 전혀 다른 모양입니다. **꼭짓점이 약 $p/12$ 개($p \approx 2^{256}$)인 그래프에서, 두 꼭짓점을 잇는 길을 찾아라.** 꼭짓점은 타원곡선이고, 변은 곡선 사이의 특별한 사상(동종사상)입니다.
+
+그래프는 모든 꼭짓점의 차수가 같고(정칙), 아주 잘 섞이는(확장) 그래프입니다. 그래서 무작위 걷기는 금방 그래프 전체에 퍼지지만, 거꾸로 "이 곡선에서 저 곡선으로 가는 길"을 찾는 효율적인 방법은 고전·양자 모두 알려져 있지 않습니다(양자로도 지수 시간). 쇼어 알고리즘이 타원곡선 이산로그를 깨는 것과 대조적입니다. 같은 타원곡선이지만 묻는 문제가 다릅니다.
+
+## 2. 타원곡선과 동종사상
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 곡선
+
+유한체 $\mathbb{F}_q$ ($q$ 는 $p$ 또는 $p^2$) 위의 타원곡선은 $E : y^2 = x^3 + ax + b$ (판별식 $\ne 0$)의 해와 무한원점 $\infty$ 로, 현-접선 규칙으로 아벨 군이 됩니다. 동종사상 암호에서는 **몽고메리 꼴** $y^2 = x^3 + Ax^2 + x$ 를 많이 씁니다. $x$-좌표만으로 스칼라 곱(몽고메리 사다리)을 할 수 있기 때문입니다.
+
+**$j$-불변량.** 대수적 폐포 위에서 두 곡선이 동형일 필요충분조건은 $j$ 가 같은 것입니다. 몽고메리 꼴이면
+
+$$
+j(E_A) = \frac{256\,(A^2 - 3)^3}{A^2 - 4}.
+$$
+
+**비틀림.** $n$ 이 $p$ 와 서로소이면 $E[n] = \{P : nP = \infty\} \cong (\mathbb{Z}/n)^2$ 입니다.
+
+### 2.2 동종사상
+
+**정의.** 동종사상 $\varphi : E \to E'$ 은 $\infty$ 를 $\infty$ 로 보내는 유리 사상이고, 자동으로 군 준동형입니다. (분리 가능한 경우) **차수** = 핵의 크기 $|\ker\varphi|$.
+
+- **핵이 정한다 (Vélu, 1971).** 유한 부분군 $G \subset E$ 마다 핵이 $G$ 인 동종사상 $E \to E/G$ 가 (동형을 빼고) 하나 있고, 그 식은 $G$ 의 점들로 명시적으로 계산됩니다. 비용은 $|G|$ 에 비례하므로 실제로는 작은 소수 $\ell$ 차수의 사상을 이어 붙입니다.
+- **쌍대.** 차수 $d$ 의 $\varphi$ 에는 $\hat\varphi \circ \varphi = [d]$ 인 쌍대 $\hat\varphi : E' \to E$ 가 있습니다. 그래서 동종 관계는 대칭입니다.
+- **$\ell$-동종 사상의 개수.** $E[\ell] \cong (\mathbb{Z}/\ell)^2$ 의 위수 $\ell$ 부분군은 $\ell + 1$ 개이므로, 한 곡선에서 나가는 $\ell$-동종사상은 $\ell + 1$ 개입니다. 이웃의 $j$-불변량은 **모듈러 다항식** $\Phi_\ell(j, Y) = 0$ 의 근입니다. $\ell = 2$ 이면
+
+$$
+\Phi_2(X, Y) = X^3 + Y^3 - X^2Y^2 + 1488(X^2Y + XY^2) - 162000(X^2 + Y^2) + 40773375\,XY + 8748000000(X + Y) - 157464000000000.
+$$
+
+## 3. 초특이 곡선과 동종 그래프
+
+<span class="layer-tag">정식화</span>
+
+$E[p]$ 가 자명한($p$-비틀림 점이 $\infty$ 뿐인) 곡선을 **초특이** 라 합니다. 초특이 곡선의 $j$-불변량은 모두 $\mathbb{F}_{p^2}$ 에 있고, 그 개수는
+
+$$
+\left\lfloor \frac{p}{12} \right\rfloor + \varepsilon, \qquad \varepsilon \in \{0, 1, 1, 2\} \;(p \equiv 1, 5, 7, 11 \bmod 12).
+$$
+
+**초특이 $\ell$-동종 그래프** (꼭짓점 = 초특이 $j$, 변 = $\ell$-동종사상)는
+
+- $(\ell + 1)$-정칙이고(중복 변·고리를 세면), 연결되어 있으며,
+- **라마누잔 그래프** (Pizer 1990)라서 두 번째 고윳값이 $2\sqrt\ell$ 이하입니다. 무작위 걷기가 $O(\log p)$ 걸음 만에 거의 균등분포에 가까워집니다.
+
+<IsogenyGraph client:visible />
+
+**CGL 해시 (Charles–Goren–Lauter, J. Cryptology 2009).** 메시지의 비트로 "되돌아가지 않는 걷기"를 하고 도착 꼭짓점을 출력합니다. 충돌을 찾으면 그래프의 순환을 얻는데, 순환은 곡선의 **자기준동형**(자기 자신으로 가는 동종사상)을 줍니다. 그래서 충돌 저항성이 다음 문제의 어려움으로 환원됩니다.
+
+## 4. 어려운 문제와 Deuring 대응
+
+<span class="layer-tag">정식화</span>
+
+- **경로 찾기.** 초특이 곡선 $E, E'$ 이 주어질 때 그 사이의 동종사상(작은 소수 차수의 사슬)을 찾아라.
+- **자기준동형환 (EndRing).** 초특이 곡선 $E$ 의 자기준동형환 $\mathrm{End}(E)$ 를 계산하라.
+
+Wesolowski(FOCS 2021)는 두 문제가 (적절한 의미에서) **동치** 임을 보였습니다. 가장 좋은 일반 고전 알고리즘은 대략 $\tilde O(\sqrt p)$ (만남-중간·충돌 찾기), $\mathbb{F}_p$ 위의 곡선에 대해서는 $\tilde O(p^{1/4})$ (Delfs–Galbraith) 이고, 양자로도 지수 시간입니다.
+
+**Deuring 대응.** 초특이 곡선의 $\mathrm{End}(E)$ 는 사원수 대수 $B_{p,\infty}$ 의 **극대 순서환** 과 같고, 이 대응 아래에서
+
+$$
+\text{초특이 곡선} \leftrightarrow \text{극대 순서환}, \qquad \text{동종사상} \leftrightarrow \text{(왼쪽) 이데알}, \qquad \text{차수} \leftrightarrow \text{이데알의 노름}
+$$
+
+입니다. **KLPT 알고리즘** (Kohel–Lauter–Petit–Tignol 2014)은 극대 순서환이 주어지면 **노름이 매끄러운(작은 소수들의 곱인) 이데알** 을 빠르게 찾습니다. 즉 $\mathrm{End}(E)$ 를 **알면** 경로 찾기가 쉬워집니다. 이것이 동종사상 서명의 함정문(trapdoor)입니다. $j = 1728$ 처럼 자기준동형환이 알려진 곡선에서 비밀 동종사상으로 출발하면, 도착한 곡선의 $\mathrm{End}$ 를 나만 압니다.
+
+## 5. SIDH 와 2022년의 붕괴
+
+<span class="layer-tag">연구 관점</span>
+
+**SIDH (Jao–De Feo, PQCrypto 2011)** 는 $p = 2^a 3^b - 1$ 에서 Alice 가 $2^a$-동종사상, Bob 이 $3^b$-동종사상을 비밀로 하고, 서로 상대의 비틀림 기저가 자기 사상으로 어디에 가는지(**비틀림 점의 상**)를 함께 공개해 공유 곡선을 계산하는 키 교환이었습니다. 그 KEM 판 **SIKE** 는 키가 아주 작아 NIST 4라운드 후보였습니다.
+
+2022년 7월 **Castryck–Decru** 는 공개된 비틀림 점의 상과 Kani 의 정리(타원곡선 두 개의 곱 위의 동종사상, 즉 **고차원 동종사상**)를 이용해 SIDH 의 비밀키를 효율적으로 복구했습니다. SIKEp434 가 노트북 한 코어로 약 한 시간 만에 깨졌고, 곧 Maino–Martindale(–Panny–Pope–Wesolowski)와 Robert 가 임의의 시작 곡선에 대한 **다항 시간** 공격으로 완성했습니다.
+
+<Aside type="note" title="무엇이 깨졌고 무엇이 남았나">
+깨진 것은 "비틀림 점의 상까지 공개한" SIDH 의 문제이지, 초특이 경로 찾기나 EndRing 자체가 아닙니다. 비틀림 정보가 없는 CSIDH, SQIsign 은 이 공격의 영향을 받지 않았습니다. 오히려 공격에 쓰인 **고차원 동종사상** 이 새로운 건설 도구가 되어, SQIsign 의 속도를 크게 끌어올린 변형들(SQIsign2D 계열)이 나왔습니다. 17장의 HAWK 처럼, 오래된 가정이 새로운 수학 하나로 무너질 수 있다는 교훈이기도 합니다.
+</Aside>
+
+## 6. CSIDH: 가환 군 작용
+
+<span class="layer-tag">정식화</span>
+
+**CSIDH (Castryck–Lange–Martindale–Panny–Renes, Asiacrypt 2018)** 는 $\mathbb{F}_p$ 위의 초특이 곡선 중 $\mathbb{F}_p$-자기준동형환이 $\mathcal{O} = \mathbb{Z}[\sqrt{-p}]$ 인 것들에 **류군 $\mathrm{cl}(\mathcal{O})$ 이 작용** 한다는 사실을 씁니다(11장의 류군).
+
+- $p = 4\ell_1\ell_2\cdots\ell_r - 1$ 로 잡으면 각 작은 소수 $\ell_i$ 가 $\mathcal{O}$ 에서 $\mathfrak{l}_i \bar{\mathfrak{l}}_i$ 로 쪼개지고, $\mathfrak{l}_i$ 의 작용은 핵이 "$\mathbb{F}_p$-유리 $\ell_i$-비틀림 점"인 $\ell_i$-동종사상 하나입니다. $\bar{\mathfrak{l}}_i = \mathfrak{l}_i^{-1}$ 의 작용은 꼬임 곡선의 점을 씁니다.
+- 비밀 = 지수 벡터 $(e_1, \dots, e_r)$ (작은 범위), 공개키 = $\big(\prod_i \mathfrak{l}_i^{e_i}\big) * E_0$. 군이 **가환** 이라
+
+$$
+\mathfrak{a} * (\mathfrak{b} * E_0) = \mathfrak{b} * (\mathfrak{a} * E_0)
+$$
+
+이고, Diffie–Hellman 처럼 **비대화형** 키 교환이 됩니다(양자 내성 가문 중 드문 성질).
+
+<CSIDHExchange client:visible />
+
+위젯은 CSIDH 논문의 토이 예 $p = 4 \cdot 3 \cdot 5 \cdot 7 - 1 = 419$ 를 그대로 계산합니다. 몽고메리 곡선 사이의 홀수 차수 동종사상은, 핵 생성원 $R$ 의 배수들의 $x$-좌표 $x_i = x([i]R)$ ($i = 1, \dots, (\ell-1)/2$)로
+
+$$
+\tau = \prod_i x_i, \qquad \sigma = \sum_i \Big(x_i - \frac{1}{x_i}\Big), \qquad A' = \tau^2 (A - 6\sigma)
+$$
+
+입니다(Renes 2018, Meyer–Reith 2018). 결과 곡선이 모두 $\#E = p + 1$ 인 초특이 곡선이고, Alice 와 Bob 의 공유 곡선이 같다는 것을 위젯이 확인합니다.
+
+**양자 안전성 논쟁.** 공개키 둘 사이의 군 원소를 찾는 문제는 **숨은 이동(hidden shift) 문제** 의 한 예이고, 가환군에 대한 숨은 이동은 Kuperberg 의 **준지수 시간** 양자 알고리즘이 있습니다(5장의 숨은 부분군 문제와 대조). 그래서 CSIDH-512 의 양자 보안이 처음 주장보다 낮다는 분석들(Peikert, Bonnetain–Schrottenloher, 둘 다 Eurocrypt 2020)이 나왔고, 더 큰 $p$ 가 제안되었습니다. 실용 크기에서 양자 비용을 정확히 매기는 것은 아직 논쟁 중입니다.
+
+<Quiz
+  client:visible
+  question="CSIDH 가 Diffie–Hellman 처럼 비대화형 키 교환을 할 수 있는 이유와, 그 대가로 옳은 것은?"
+  options={[
+    '격자 문제에 기대기 때문이고, 대가는 큰 키 크기',
+    '류군의 작용이 가환이라 a·(b·E₀) = b·(a·E₀) 이기 때문이고, 대가는 가환 숨은 이동 문제에 대한 준지수 시간 양자 알고리즘(Kuperberg) 때문에 파라미터가 커진다는 것',
+    '비틀림 점의 상을 공개하기 때문이고, 대가는 2022년의 공격',
+    '쇼어 알고리즘이 통하지 않기 때문이고, 대가는 없다',
+  ]}
+  answer={1}
+  explanation="가환 군 작용은 Diffie–Hellman 의 지수 법칙과 같은 구조를 줍니다. 하지만 가환성은 양자 공격의 실마리이기도 해서, 숨은 이동 문제에 대한 Kuperberg 알고리즘이 준지수 시간에 통합니다. 비틀림 점의 상을 공개하는 것은 SIDH 의 특징이었고 CSIDH 에는 없습니다."
+/>
+
+## 7. SQIsign: 가장 작은 서명
+
+<span class="layer-tag">정식화</span>
+
+**SQIsign (De Feo–Kohel–Leroux–Petit–Wesolowski, Asiacrypt 2020)** 은 4절의 함정문으로 만든 Σ-프로토콜에 Fiat–Shamir 를 적용한 서명입니다.
+
+1. **키.** 자기준동형환이 알려진 $E_0$ 에서 비밀 동종사상 $\tau : E_0 \to E_A$. 공개키는 $E_A$, 비밀키는 $\tau$ (따라서 $\mathrm{End}(E_A)$ 를 앎).
+2. **약속.** 무작위 동종사상 $\psi : E_0 \to E_1$. $E_1$ 을 보냄.
+3. **도전.** (해시로 정한) 동종사상 $\varphi : E_1 \to E_2$.
+4. **응답.** $E_A \to E_2$ 의 동종사상 $\sigma$. 증명자는 $\tau, \psi, \varphi$ 를 이데알로 바꿔 사원수 산술로 **새로운** 경로를 찾습니다(KLPT 류). 단순히 $\varphi\circ\psi\circ\hat\tau$ 를 내면 비밀 $\tau$ 가 드러나므로, 비밀과 무관해 보이는 응답을 고르는 것이 설계의 핵심입니다.
+5. **검증.** $\sigma$ 가 정말 $E_A$ 에서 $E_2$ 로 가는 동종사상인지 확인.
+
+결과는 **가장 작은 양자 내성 서명** 입니다. 2026년 9월 명세 기준으로 NIST 범주 I 에서 공개키 83 바이트, 서명 200 바이트이고, 64비트 Intel 에서 서명 약 27.6 ms, 검증 약 3.6 ms 입니다. NIST 추가 서명 공모의 2라운드(2024)에 올랐고 3라운드에 진출한 것으로 알려져 있습니다. 대가는 서명 속도와 구현의 복잡도(사원수 산술, 큰 정수, 고차원 동종사상)입니다.
+
+<SignatureSizes client:visible />
+
+| | 공개키 | 서명 | 가정 | 비고 |
+|---|---|---|---|---|
+| SQIsign (I) | 83 | 200 | 초특이 동종 (EndRing) | 서명 수십 ms |
+| FN-DSA-512 | 897 | 666 | NTRU | 부동소수점 (17장) |
+| ML-DSA-44 | 1312 | 2420 | Module-LWE/SIS | 표준 기본값 |
+| SLH-DSA-128s | 32 | 7856 | 해시 함수 | 가장 보수적 (24장) |
+
+(바이트. SQIsign 은 2026-09 명세, 나머지는 FIPS 204·205 와 Falcon 명세.)
+
+## 8. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **고차원 동종사상.** SIDH 를 깬 도구가 건설 도구가 되었습니다. 차원 2·4 의 동종사상으로 SQIsign 의 서명·검증을 빠르게 하고, 새로운 KEM·서명이 제안되고 있습니다.
+- **안전성의 기반.** 경로 찾기·EndRing 의 어려움, Deuring 대응의 알고리즘적 측면, 그리고 SQIsign 응답이 비밀을 흘리지 않는다는 증명의 가정들.
+- **CSIDH 의 양자 비용.** Kuperberg 류 알고리즘의 실제 회로 비용과 메모리, 그에 맞는 파라미터.
+- **구현.** 상수 시간 동종사상 계산(CSIDH 의 비밀 지수는 시간으로 새기 쉬움), 사원수 산술의 효율.
+- **수학과의 접점.** 이 가문은 대수기하·정수론(모듈러 형식, 사원수 대수)과 가장 가까워, 수학 배경이 강점이 되는 분야입니다.
+
+## 연습문제
+
+**★ 1.** $p = 419$ 에서 곡선 $E_0 : y^2 = x^3 + x$ 의 $j$-불변량을 몽고메리 공식으로 구하고, $j = 1728$ 과 같은지 확인하세요($\bmod 419$).
+
+<details>
+<summary>풀이</summary>
+
+$A = 0$ 이면 $j = 256 \cdot (-3)^3 / (-4) = 256 \cdot 27/4 = 1728$. $1728 \bmod 419 = 1728 - 4 \cdot 419 = 52$. 즉 $E_0$ 은 $j = 1728$ 인 곡선이고, 자기준동형환이 알려진 출발점으로 쓰입니다(4절).
+
+</details>
+
+**★ 2.** $p = 103, 179, 431$ 에 대해 초특이 $j$-불변량의 개수를 공식으로 구하고, IsogenyGraph 위젯(103, 179)의 결과와 비교하세요.
+
+<details>
+<summary>풀이</summary>
+
+$103 \equiv 7 \pmod{12}$: $8 + 1 = 9$. $179 \equiv 11$: $14 + 2 = 16$. $431 \equiv 11$: $35 + 2 = 37$. 위젯은 9, 16 을 줍니다.
+
+</details>
+
+**★ 3.** 곡선에서 나가는 $\ell$-동종사상이 $\ell + 1$ 개인 이유를 $E[\ell] \cong (\mathbb{Z}/\ell)^2$ 의 부분군을 세어 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+위수 $\ell$ 부분군은 0 아닌 벡터 하나로 생성되고, 같은 부분군을 생성하는 벡터는 $\ell - 1$ 개(스칼라배)입니다. 0 아닌 벡터는 $\ell^2 - 1$ 개이므로 부분군은 $(\ell^2 - 1)/(\ell - 1) = \ell + 1$ 개. 각각이 핵인 동종사상이 하나씩 있습니다(Vélu).
+
+</details>
+
+**★★ 4.** CSIDH 의 공식 $A' = \tau^2(A - 6\sigma)$ 와, 핵의 0 아닌 점 **전체** ($i = 1, \dots, \ell - 1$)에 대한 $\tau' = \prod x_i$, $\sigma' = \sum(x_i - 1/x_i)$ 로 쓴 $A' = \tau'(A - 3\sigma')$ 가 같음을 보이세요.
+
+<details>
+<summary>풀이</summary>
+
+$x([i]R) = x([\ell - i]R)$ 이므로 전체 곱은 절반 곱의 제곱 $\tau' = \tau^2$, 전체 합은 절반 합의 두 배 $\sigma' = 2\sigma$. 따라서 $\tau'(A - 3\sigma') = \tau^2(A - 6\sigma)$.
+
+</details>
+
+**★★ 5.** CGL 해시에서 충돌 $H(m) = H(m')$ ($m \ne m'$)을 찾으면 그래프에 순환이 생기는 이유를 쓰고, 그 순환이 곡선의 자기준동형을 주는 이유를 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+같은 시작점에서 서로 다른 되돌아가지 않는 두 걷기가 같은 꼭짓점에 도착하면, 하나를 따라가고 다른 하나를 거꾸로(쌍대 사상으로) 따라오는 닫힌 길이 생깁니다. 닫힌 길은 시작 곡선에서 자기 자신으로 가는 동종사상들의 합성, 즉 자기준동형이고, 되돌아가지 않으므로 (곱셈 사상 $[n]$ 이 아닌) 자명하지 않은 자기준동형이 됩니다. 이것을 충분히 모으면 $\mathrm{End}(E)$ 를 계산할 수 있습니다.
+
+</details>
+
+**★★ 6.** CSIDHExchange 위젯에서 $l_5$ 의 순환 길이가 9 이고 $l_3$, $l_7$ 은 27 입니다. 류군의 위수가 27 이라면 $[\mathfrak{l}_5]$ 의 위수는 얼마이고, 그것이 위수 27 인 순환군에서 가능한 값인지 확인하세요.
+
+<details>
+<summary>풀이</summary>
+
+$[\mathfrak{l}_5]$ 의 위수는 9 (궤도의 순환 길이). 위수 27 인 순환군 $\mathbb{Z}/27$ 의 원소 위수는 1, 3, 9, 27 이라 가능합니다. $[\mathfrak{l}_3]$, $[\mathfrak{l}_7]$ 은 생성원(위수 27)입니다. (작용이 자유롭고 추이적이면 궤도 크기 = 군의 위수.)
+
+</details>
+
+**★★ 7.** SIDH 에서 공개되는 "비틀림 점의 상" $\varphi_A(P_B), \varphi_A(Q_B)$ 이 왜 필요했는지(Bob 이 Alice 의 곡선 위에서 자기 핵을 다시 만들려면), 그리고 그것이 왜 위험했는지 한 단락으로 설명하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+Bob 의 비밀 핵 $\langle P_B + [k]Q_B \rangle$ 을 Alice 의 곡선 $E_A$ 위로 옮기려면 $\varphi_A(P_B), \varphi_A(Q_B)$ 가 필요합니다. 그런데 이 정보는 "$\varphi_A$ 가 큰 비틀림 부분군 위에서 어떻게 작용하는지"를 알려 주고, Kani 의 정리로 $E_0 \times E_A$ 위의 고차원 동종사상을 만들면 $\varphi_A$ 를 복원하는 데 쓰입니다. 경로 찾기 문제보다 훨씬 많은 정보를 준 셈입니다.
+
+</details>
+
+**★★★ 8. (읽기)** SQIsign 명세(2026-09) 또는 원 논문(Asiacrypt 2020)을 읽고, (a) 응답이 비밀을 흘리지 않도록 하는 방법, (b) 서명이 동종사상을 몇 바이트로 압축하는지, (c) 고차원 동종사상이 어디에 쓰이는지 정리하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+응답 이데알을 무작위화하고 그 노름 분포를 비밀과 무관하게 만드는 것이 (a) 의 핵심입니다. (b) 는 동종사상을 핵 생성원의 압축 표현이나 짧은 사슬로 쓰는 방식, (c) 는 최근 명세에서 응답 계산과 검증을 빠르게 하는 2차원 동종사상입니다. 원문으로 확인하세요.
+
+</details>
+
+## 요약
+
+- 동종사상 = 핵이 정하는 곡선 사이의 군 준동형(Vélu). 한 곡선에서 $\ell$-동종사상은 $\ell + 1$ 개, 이웃은 $\Phi_\ell(j, Y)$ 의 근.
+- 초특이 곡선은 약 $p/12$ 개이고, $\ell$-동종 그래프는 $(\ell+1)$-정칙 라마누잔 그래프다. 경로 찾기 ⇔ EndRing, 고전·양자 모두 지수 시간.
+- Deuring 대응: 곡선 ↔ 극대 순서환, 동종사상 ↔ 이데알. $\mathrm{End}$ 를 알면 KLPT 로 경로를 쉽게 찾는다(함정문).
+- SIDH 는 비틀림 점의 상을 공개해서 2022년 고차원 동종사상 공격으로 다항 시간에 깨졌다. 경로 찾기 자체는 살아 있다.
+- CSIDH: 가환 류군 작용으로 비대화형 키 교환. 대가는 Kuperberg 류 준지수 양자 공격과 그에 따른 큰 파라미터.
+- SQIsign: 공개키 83 B + 서명 200 B 로 가장 작지만 서명이 수십 ms.
+- 다음: [24장](../guide/curriculum/)에서 해시·부호·다변수·MPCitH 가문과 표준화 현황을 정리한다.
+
+## 참고문헌
+
+1. J. H. Silverman, *The Arithmetic of Elliptic Curves* (2nd ed., Springer 2009); L. C. Washington, *Elliptic Curves: Number Theory and Cryptography*.
+2. L. De Feo, *Mathematics of Isogeny Based Cryptography* (강의 노트, arXiv 1711.04062).
+3. J. Vélu, *Isogénies entre courbes elliptiques*, C. R. Acad. Sci. Paris 1971.
+4. D. Charles, E. Goren, K. Lauter, *Cryptographic Hash Functions from Expander Graphs*, J. Cryptology 2009.
+5. D. Kohel, K. Lauter, C. Petit, J.-P. Tignol, *On the Quaternion ℓ-Isogeny Path Problem*, LMS J. Comput. Math. 2014.
+6. B. Wesolowski, *The Supersingular Isogeny Path and Endomorphism Ring Problems are Equivalent*, FOCS 2021.
+7. D. Jao, L. De Feo, *Towards Quantum-Resistant Cryptosystems from Supersingular Elliptic Curve Isogenies*, PQCrypto 2011.
+8. W. Castryck, T. Decru, *An Efficient Key Recovery Attack on SIDH*, Eurocrypt 2023; L. Maino, C. Martindale, L. Panny, G. Pope, B. Wesolowski, *A Direct Key Recovery Attack on SIDH*, Eurocrypt 2023; D. Robert, *Breaking SIDH in Polynomial Time*, Eurocrypt 2023.
+9. W. Castryck, T. Lange, C. Martindale, L. Panny, J. Renes, *CSIDH: An Efficient Post-Quantum Commutative Group Action*, Asiacrypt 2018.
+10. J. Renes, *Computing Isogenies Between Montgomery Curves Using the Action of (0, 0)*, PQCrypto 2018; M. Meyer, S. Reith, *A Faster Way to the CSIDH*, Indocrypt 2018.
+11. C. Peikert, *He Gives C-Sieves on the CSIDH*, Eurocrypt 2020; X. Bonnetain, A. Schrottenloher, *Quantum Security Analysis of CSIDH*, Eurocrypt 2020.
+12. L. De Feo, D. Kohel, A. Leroux, C. Petit, B. Wesolowski, *SQISign: Compact Post-Quantum Signatures from Quaternions and Isogenies*, Asiacrypt 2020; SQIsign 명세서 (sqisign.org, 2026-09-01).

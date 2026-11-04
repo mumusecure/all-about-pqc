@@ -38,6 +38,7 @@
 | 20장 | 복호 실패 공격과 구현 공격 — failure boosting, PC 오라클, 부채널과 TVLA, 마스킹 |
 | 21장 | 격자 기반 영지식 증명 — Stern 식, 완화된 건전성, 커밋먼트, JL 사영, 응용 |
 | 22장 | 동형암호와 문턱 동형암호 — BFV 잡음 예산, CKKS 와 IND-CPA^D, TFHE, 부트스트래핑, smudging |
+| 23장 | 동종사상과 SQIsign — 초특이 그래프, Deuring 대응, SIDH 의 붕괴, CSIDH, SQIsign |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
 | 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
