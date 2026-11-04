@@ -302,7 +302,7 @@ def noise_experiment(name, trials):
     P = PARAMS[name]
     rnd = random.Random(1)
     ek, dk = keygen_internal(rnd.randbytes(32), rnd.randbytes(32), P)
-    worst, total, hist = 0, 0, {}
+    worst, total, hist, sq = 0, 0, {}, 0
     for _ in range(trials):
         m = rnd.randbytes(32)
         c = kpke_encrypt(ek, m, rnd.randbytes(32), P, trace=(tr := {}))
@@ -310,15 +310,15 @@ def noise_experiment(name, trials):
         for w, mu in zip(tr['w'], tr['mu']):
             e = (w - mu) % Q
             e = e - Q if e > Q // 2 else e
-            worst = max(worst, abs(e)); total += 1
+            worst = max(worst, abs(e)); total += 1; sq += e * e
             hist[e // 50 * 50] = hist.get(e // 50 * 50, 0) + 1
-    print(f'ML-KEM-{name}: {trials} 번 암호화, 계수 {total} 개의 잡음. 최대 |잡음| = {worst}  (경계 q/4 ≈ {Q / 4:.0f})')
+    print(f'ML-KEM-{name}: {trials} 번 암호화, 계수 {total} 개의 잡음. 표준편차 ≈ {(sq / total) ** 0.5:.1f}, 최대 |잡음| = {worst}  (경계 q/4 ≈ {Q / 4:.0f})')
     for b in sorted(hist):
         print(f'  [{b:5d},{b + 49:5d}] {"#" * max(1, round(60 * hist[b] / max(hist.values())))} {hist[b]}')
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--failure', action='store_true', help='δ 정확 계산 (수십 초)')
+    ap.add_argument('--failure', action='store_true', help='δ 정확 계산 (몇 초)')
     ap.add_argument('--noise', type=int, choices=[512, 768, 1024], help='복호 잡음 측정')
     ap.add_argument('--trials', type=int, default=20)
     a = ap.parse_args()

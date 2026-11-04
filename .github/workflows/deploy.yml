@@ -35,6 +35,7 @@ jobs:
       - name: Python lab smoke test
         run: |
           python3 labs/lab01_lll_lwe_attack.py --n 12
+          python3 labs/lab02_mintru_lattice_phase.py
           python3 labs/lab03_mlkem.py
           python3 labs/lab04_bkz_sieve.py
           python3 labs/lab05_estimator.py
