@@ -246,9 +246,30 @@ $n = 4$ 의 근은 $e^{i\pi/4}, e^{3i\pi/4}, e^{5i\pi/4}, e^{7i\pi/4}$ 이고, �
 
 **★★★ 7.** 주이데알 $(a)$ 에 대해 $N((a)) = |\mathcal{O}_K/(a)| = |N(a)|$ 임을 보이세요. (힌트: $a$ 곱셈은 $\mathcal{O}_K \cong \mathbb{Z}^n$ 위의 선형사상이고, 그 상의 지표는 행렬식의 절댓값)
 
+<details>
+<summary>해설</summary>
+
+$\mathcal{O}_K \cong \mathbb{Z}^n$ 위에서 $a$ 곱셈은 정수 행렬 $M_a$ 인 선형사상이고, 상 $a\mathcal{O}_K = M_a\mathbb{Z}^n$ 은 지표 $[\mathbb{Z}^n : M_a\mathbb{Z}^n] = |\det M_a|$ 인 부분격자입니다(7장 3절 "부분격자와 지표", 또는 스미스 정규형). $\mathbb{C}$ 위에서 $M_a$ 는 정규 임베딩 좌표로 대각화되어 고윳값이 $\sigma_j(a)$ 이므로 $\det M_a = \prod_j\sigma_j(a) = N(a)$. 따라서 $|\mathcal{O}_K/(a)| = |N(a)|$.
+
+</details>
+
 **★★★ 8.** 2의 거듭제곱 $n$ 에 대해 $\mathbb{Z}[\zeta_{2n}]$ 에서 $(2) = (1 + \zeta)^n$ 임을 보이세요. (힌트: $N(1 + \zeta) = 2$ 이고, $2/(1+\zeta)^n$ 이 단원임을 보이면 됩니다.)
 
+<details>
+<summary>해설</summary>
+
+$x^n + 1 = \prod_{k \text{ 홀수}}(x - \zeta^k)$ 에 $x = -1$ 을 넣으면 ($n$ 짝수) $2 = \prod_{k \text{ 홀수}}(1 + \zeta^k)$. 홀수 $k$ 에 대해 $u_k = \frac{1 + \zeta^k}{1 + \zeta} = 1 - \zeta + \zeta^2 - \cdots + \zeta^{k-1} \in \mathbb{Z}[\zeta]$ 이고, $kk' \equiv 1 \pmod{2n}$ 인 홀수 $k'$ 로 $\zeta = (\zeta^k)^{k'}$ 이므로 같은 식으로 $u_k^{-1} = \frac{1 + (\zeta^k)^{k'}}{1 + \zeta^k} \in \mathbb{Z}[\zeta]$. 즉 $u_k$ 는 단원이고 $2 = (1 + \zeta)^n\prod_k u_k$, 이데알로 $(2) = (1 + \zeta)^n$ 입니다. $N(1+\zeta) = 2$ 이므로 $(1 + \zeta)$ 는 노름 2 인 소이데알이고, 2 는 완전 분기합니다.
+
+</details>
+
 **★★★ 9. (읽기)** Lyubashevsky–Peikert–Regev, *A Toolkit for Ring-LWE Cryptography* 의 2~3절을 읽고, (a) 쌍대 이데알 $R^\vee$ 가 무엇인지, (b) 2의 거듭제곱 원분체에서 $R^\vee = \frac1n R$ 인 이유를 정리 11.3 과 연결해 설명하세요.
+
+<details>
+<summary>해설</summary>
+
+(a) $R^\vee = \{a \in K : \mathrm{Tr}(aR) \subseteq \mathbb{Z}\}$ 로, 대각합 쌍선형형식에 대한 $R$ 의 쌍대입니다. 정규 임베딩으로 보내면 $\sigma(R^\vee)$ 는 격자 $\sigma(R)$ 의 쌍대 격자(의 복소켤레)가 됩니다. (b) $x^n + 1$ 에서 $\mathrm{Tr}(x^i) = n$ ($i \equiv 0 \bmod 2n$), $-n$ ($i \equiv n$), 그 밖에는 0 이므로 기저 $\{x^j\}$ 의 대각합 쌍대 기저는 $\{x^{-j}/n\}$ 이고 $R^\vee = \frac1n R$. 정리 11.3 으로 보면 $\sigma(R) = \sqrt n\cdot(\text{직교 변환된 } \mathbb{Z}^n)$ 이라 쌍대는 $\frac{1}{\sqrt n}\mathbb{Z}^n = \frac1n\cdot\sqrt n\,\mathbb{Z}^n$, 즉 $\frac1n\sigma(R)$ 입니다. 일반 원분체에서는 $R^\vee$ 가 $R$ 의 단순한 배수가 아니라서, Ring-LWE 오차를 $R^\vee$ 위에 정의하는 LPR 의 선택이 의미를 가집니다.
+
+</details>
 
 ## 요약
 
