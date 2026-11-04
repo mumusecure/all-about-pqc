@@ -79,6 +79,7 @@ export default defineConfig({
         ]},
         { label: '실습', items: [
           { label: 'Lab 1. LLL로 토이 LWE 공격하기', slug: 'labs/lab01-lll-lwe-attack' },
+          { label: 'Lab 2. MiNTRU 격자 단계 재현하기', slug: 'labs/lab02-mintru' },
           { label: 'Lab 3. ML-KEM 을 바닥부터 구현하기', slug: 'labs/lab03-mlkem' },
           { label: 'Lab 4. BKZ 와 체를 직접 돌려 보기', slug: 'labs/lab04-bkz-sieve' },
           { label: 'Lab 5. 나만의 LWE 추정기 만들기', slug: 'labs/lab05-estimator' },

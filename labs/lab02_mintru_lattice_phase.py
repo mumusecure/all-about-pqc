@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Lab 2. MiNTRU 격자 단계 재현 (Lee–Wallet, ePrint 2020/230 의 §3.2·표 1, 작은 파라미터)
-All About PQC 교과서 "논문 읽기 1" 의 실습 스크립트.
+All About PQC 교과서 Lab 2 (labs/lab02-mintru) 의 실습 스크립트. 해설은 "논문 읽기 1".
 
   python3 lab02_mintru_lattice_phase.py            # n=2^6 (2k=24), n=2^7 (2k=50) 재현
-  python3 lab02_mintru_lattice_phase.py 8 32 50    # n=2^8, q=2^32, k=50 (2k=100) — 순수 Python LLL 로 약 12초
+  python3 lab02_mintru_lattice_phase.py 8 32 50    # n=2^8, q=2^32, k=50 (2k=100) — LLL 은 시드당 약 12초, 인스턴스 생성 포함 수 분
 
 논문의 부분행렬 B' = [[q I_k, 0], [C01, I_k]] 를 LLL(δ=0.99)로 축소하고,
 축소 기저의 앞 k 개 벡터의 '마지막 k 좌표'(S 블록)를 0 으로 채워 S 의 행 격자 L(S) 에 속하는지 검사한다.

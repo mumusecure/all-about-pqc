@@ -11,7 +11,7 @@
 - 위젯의 수학 코드는 **단위 테스트로 검증** (`src/lib/`, `tests/`)
 - Python 표준 라이브러리만 쓰는 **재현 실습** (`labs/`)
 
-## 목차 (전 26장 · 실습 6개 · 논문 읽기 3편)
+## 목차 (전 26장 · 실습 7개 · 논문 읽기 3편)
 
 | 장 | 내용 |
 |---|---|
@@ -42,7 +42,8 @@
 | 24장 | 다른 가문 개관과 표준화 현황 — 해시 서명, 부호 기반(ISD, McEliece, HQC), 다변수(UOV, MAYO), MPCitH, NIST·KpqC 현황 |
 | 25장 | 학부연구생·대학원 로드맵 — 준비도 점검, 일정, 연구실 찾기와 연락, 논문 읽기와 재현 프로젝트, 연구계획서, 면접 |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
-| 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
+| Lab 2 | MiNTRU 격자 단계 재현하기 — 밀집 부분격자 공격, 충분조건 (3.2) 의 보수성 측정 |
+| 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산 |
 | 논문 읽기 2 | Alkim–Ducas–Pöppelmann–Schwabe, *NewHope* (USENIX Security 2016) — core-SVP 방법론, primal·dual 추정, 보안 표 재계산 |
 | 논문 읽기 3 | Dachman-Soled–Ducas–Gong–Rossi, *LWE with Side Information* (Crypto 2020) — 힌트와 DBDD, 부분 정보가 β 를 줄이는 양 계산 |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
