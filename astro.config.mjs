@@ -59,6 +59,7 @@ export default defineConfig({
         ]},
         { label: '5부 · 격자 암호해석', items: [
           { label: '18장. LWE 파라미터의 구체적 안전성', slug: 'ch18-parameter-estimation' },
+          { label: '19장. NTRU 공격', slug: 'ch19-ntru-attacks' },
         ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
@@ -68,6 +69,7 @@ export default defineConfig({
           { label: 'Lab 3. ML-KEM 을 바닥부터 구현하기', slug: 'labs/lab03-mlkem' },
           { label: 'Lab 4. BKZ 와 체를 직접 돌려 보기', slug: 'labs/lab04-bkz-sieve' },
           { label: 'Lab 5. 나만의 LWE 추정기 만들기', slug: 'labs/lab05-estimator' },
+          { label: 'Lab 6. NTRU 키 복구에 필요한 블록 크기', slug: 'labs/lab06-ntru-ladder' },
         ]},
       ],
     }),

@@ -1,0 +1,281 @@
+---
+title: 19장. NTRU 공격
+description: NTRU 에만 있는 공격 구조. NTRU 격자를 18장의 uSVP 모델로 추정하는 법, 비밀키의 회전들이 만드는 밀집 부분격자와 overstretched 영역, Kirchner–Fouque 와 Ducas–van Woerden 의 fatigue point (q ≈ 0.004·n^2.484), 노름 사상을 이용한 부분체 공격과 그 한계, 큰 q 를 쓴 NTRU 동형암호·다중선형 사상이 깨진 이유, 그리고 직접 재 본 BKZ 사다리.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FatigueMap from '../../components/FatigueMap.tsx';
+import NTRULadder from '../../components/NTRULadder.tsx';
+import SubfieldNorm from '../../components/SubfieldNorm.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. NTRU 격자의 숨은 구조(비밀키의 회전 $n$ 개가 펼치는 밀집 부분격자)가 LWE 격자와 어떻게 다른지 설명할 수 있다.
+2. NTRU 파라미터를 18장의 uSVP 모델로 추정하고, 그 추정이 **언제 틀리는지**(overstretched) 말할 수 있다.
+3. Kirchner–Fouque(2017)와 Ducas–van Woerden(2021)의 결과, 즉 fatigue point $q^* \approx 0.004 \cdot n^{2.484}$ (삼진 비밀)의 의미를 설명하고 실제 스킴의 여유를 계산할 수 있다.
+4. 노름 사상 $N_{K/L}$ 을 계산하고, 부분체 공격이 무엇을 얻고 무엇을 잃는지, 왜 결국 필요 없었는지 설명할 수 있다.
+5. 큰 $q$ 를 쓴 NTRU 기반 동형암호·다중선형 사상이 깨진 이유를 설명하고, 설계에서 무엇을 확인해야 하는지 말할 수 있다.
+
+**선수 지식**: [15장](../ch15-ntru/)(NTRU, NTRU 격자, 보조정리 15.3), [18장](../ch18-parameter-estimation/)(uSVP 조건), [10장](../ch10-bkz-sieving/)(BKZ), [11장](../ch11-algebraic-nt/)(원분체, 노름, 갈루아 자기동형), [논문 읽기 1](../papers/p01-mintru/)(MiNTRU). **실습**: [Lab 6](../labs/lab06-ntru-ladder/).
+
+</div>
+
+## 1. 직관: 바늘 하나 대 바늘 다발
+
+<span class="layer-tag">직관</span>
+
+18장의 primal 공격은 격자 속 **짧은 벡터 하나** 를 찾는 문제였습니다. LWE 의 임베딩 격자에는 $\pm(e, s, 1)$ 외에 특별히 짧은 벡터가 없습니다.
+
+NTRU 는 다릅니다. 공개키 $h = g/f$ 의 격자
+
+$$
+\Lambda_h = \{ (u, v) \in R^2 : u \equiv v h \pmod q \}
+$$
+
+에는 $(g, f)$ 뿐 아니라 그 **회전** $x^i(g, f)$ ($i = 0, \dots, n-1$)이 모두 들어 있습니다($x^i f \cdot h = x^i g$). 짧은 벡터가 $n$ 개, 그것도 서로 거의 직교하는 $n$ 개입니다. 이들이 펼치는 랭크 $n$ 부분격자 $L_{\mathrm{key}}$ 의 부피는 약 $\|(g, f)\|^n$ (15장 보조정리 15.3)이고, 전체 격자의 부피는 $q^n$ 입니다.
+
+$q$ 가 커질수록 $L_{\mathrm{key}}$ 는 전체에 비해 상대적으로 엄청나게 **밀집** 합니다(부피 비 $\approx (q / \|(g,f)\|^2)^{n/2}$). 그러면 격자 축소는 바늘 하나를 찾기도 전에 **바늘 다발 전체** 를 먼저 건져 올립니다. 이것이 **overstretched NTRU** 이고, 이 영역에서는 18장의 uSVP 추정이 공격 비용을 과대평가합니다.
+
+LWE(그리고 Ring-LWE)에는 이 현상이 없다는 점이 중요합니다. Ring-LWE 표본 $b = as + e$ 는 비동차식이라, 회전 $x^i(e, s)$ 는 $x^i b$ 를 목표로 하는 별개의 문제이지 같은 격자의 벡터가 아닙니다. NTRU 는 **동차식**($fh - g = 0$)이라 회전이 전부 같은 격자에 들어갑니다.
+
+## 2. 기준선: NTRU 를 uSVP 로 추정하기
+
+<span class="layer-tag">정식화</span>
+
+NTRU 격자는 차원 $d = 2n$, 부피 $q^n$ 이고, 숨은 벡터 $(g, f)$ 의 계수 표준편차를 $\sigma$ 라 하면 18장의 휴리스틱 18.1 은
+
+$$
+\sigma\sqrt\beta \le \delta_\beta^{\,2\beta - 2n}\, q^{1/2}
+$$
+
+입니다. LWE 와 달리 표본 수를 고를 여지가 없습니다(격자가 하나뿐). 회전이 $n$ 개라 "그중 하나만 찾으면 된다"는 이점이 있지만, 성공 확률이 몇 배 오를 뿐이라 $\beta$ 는 거의 바뀌지 않습니다.
+
+삼진 비밀($\sigma^2 = 2/3$)로 근사해 실제 스킴에 넣으면:
+
+| 스킴 | $n$ | $q$ | uSVP $\beta$ | core-SVP | fatigue $\log_2 q^*$ | 여유 (비트) |
+|---|---|---|---|---|---|---|
+| NTRU-HPS-2048-509 | 509 | 2048 | 382 | 111.5 | 14.4 | 3.4 |
+| NTRU-HPS-2048-677 | 677 | 2048 | 542 | 158.3 | 15.4 | 4.4 |
+| NTRU-HRSS-701 | 701 | 8192 | 472 | 137.8 | 15.5 | 2.5 |
+| NTRU-HPS-4096-821 | 821 | 4096 | 624 | 182.2 | 16.1 | 4.1 |
+| NTRU+768 | 768 | 3457 | 589 | 172.0 | 15.8 | 4.1 |
+| NTRU+1152 | 1152 | 3457 | 952 | 278.0 | 17.3 | 5.5 |
+
+(이 교과서의 모델로 계산한 근사값입니다. 실제 스킴의 비밀 분포는 고정 무게 삼진, 중심 이항 등으로 조금씩 달라 명세서의 값과 몇 비트 다를 수 있습니다.) 마지막 두 열이 이 장의 주제입니다. **$\log_2 q$ 가 fatigue point 보다 작아야** 이 uSVP 추정을 믿을 수 있고, 표준 스킴은 모두 2.5~5.5 비트의 여유를 두고 있습니다.
+
+## 3. 밀집 부분격자와 fatigue point
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 왜 부분격자가 먼저 보이는가
+
+BKZ-$\beta$ 후의 GSA 프로파일에서 앞쪽 GSO 벡터들은 $\sqrt q$ 보다 조금 긴 정도입니다(부피 $q^n$, 차원 $2n$ 이므로 평균 $\log\|b_i^*\| = \tfrac12\log q$). 반면 $L_{\mathrm{key}}$ 의 벡터는 길이가 $\sigma\sqrt{2n}$ 으로 $q$ 와 **무관** 합니다. $q$ 가 크면 "GSA 를 따르는 기저"보다 "앞 $n$ 개가 $L_{\mathrm{key}}$ 를 펼치는 기저"가 훨씬 더 축소된 기저가 됩니다. BKZ 의 어떤 블록이 이 차이를 감지하는 순간, 블록 안의 SVP 가 $L_{\mathrm{key}}$ 의 벡터를 찾고, 그다음부터는 회전들이 연쇄적으로 쏟아져 나옵니다. 이것을 **밀집 부분격자 발견(dense sublattice discovery, DSD)** 이라 합니다.
+
+15장의 LLL 위젯에서 보았던 "프로파일의 절벽"(앞 $n$ 개가 낮게 평평하고, 뒤 $n$ 개가 $q/\|(g,f)\|$ 근처로 뛰는 모양)이 DSD 가 일어난 기저의 모습입니다.
+
+### 3.2 경계는 어디인가
+
+- **Kirchner–Fouque (Eurocrypt 2017)** 는 이 효과를 분석해, 삼진 비밀에서 $q \ge n^{2.783 + o(1)}$ 이면 DSD 가 uSVP 보다 먼저 일어남을 보였습니다. 또 이 영역에서는 아래 4절의 부분체 공격보다 **원래 격자에 BKZ 를 그냥 돌리는 것** 이 더 낫다는 것도 보였습니다.
+- **Ducas–van Woerden (Asiacrypt 2021, *NTRU Fatigue*)** 는 DSD 가 일어나는 시점을 더 정밀하게 예측하는 모델을 세우고 대규모 실험으로 확인해, 경계(fatigue point)를 점근적으로 $n^{2.484}$, 구체적으로
+
+$$
+q^* \approx 0.004 \cdot n^{2.484} \qquad (\text{삼진 비밀})
+$$
+
+로 낮췄습니다. 이 선 아래에서는 uSVP 가 먼저, 위에서는 DSD 가 먼저 일어납니다.
+
+<FatigueMap client:visible />
+
+**논문 읽기 1 과의 관계.** Lee–Wallet(MiNTRU 분석)이 쓴 성공 조건(그 논문의 식 (3.2), 이 교과서의 `overstretched.ts`)은 DSD 의 **충분조건** 입니다. 이 교과서의 모델(18장 uSVP 대 그 조건)로 두 공격이 같아지는 $q$ 를 계산하면 $n = 512$ 에서 $\log_2 q \approx 19.4$, $n = 1024$ 에서 $22.6$ 으로, DvW 의 $14.4$, $16.9$ 보다 5~6 비트 높습니다. 충분조건은 보수적이라 실제 경계보다 위에 있고, 그래서 MiNTRU 의 실험이 예측보다 잘 되었습니다(논문 읽기 1 의 열린 질문). 정밀한 경계에는 DvW 의 모델이 필요합니다.
+
+<Aside type="caution" title="이 선의 적용 범위">
+$0.004 \cdot n^{2.484}$ 는 **삼진 비밀** 에 대한 값입니다. Falcon 처럼 비밀이 더 큰 분포(표준편차 약 4)에서는 $L_{\mathrm{key}}$ 가 덜 밀집해서 경계가 위로 올라갑니다. 비밀 분포가 다르면 그 분포로 모델을 다시 계산해야 합니다.
+</Aside>
+
+### 3.3 직접 재 보기
+
+<NTRULadder client:visible />
+
+이 교과서의 BKZ 구현으로 잰 값입니다(키 하나씩, 블록 크기를 2씩 올리며 두 바퀴씩).
+
+| $n$ \ $q$ | 37 | 67 | 131 | 257 | 521 | 1031 | 2053 |
+|---|---|---|---|---|---|---|---|
+| 40 | > 30 | 20 | 14 | | | | |
+| 48 | > 30 | > 30 | 26 | 12 | 4 (회전 48 개) | | |
+| 64 | | | | 28 | 16 | 6 (회전 64 개) | 2 (LLL) |
+
+$q$ 가 두 배가 될 때마다 필요한 $\beta$ 가 크게 줄고, $\beta$ 가 작은 쪽에서는 회전이 **전부 한꺼번에** 나옵니다. 차원이 작아 fatigue point 의 상수를 재기에는 부족하지만(이 크기에서는 모든 $q$ 가 $0.004 \cdot n^{2.484}$ 보다 크기 때문에, 엄밀히는 전부 overstretched 영역의 실험입니다), $q$ 에 대한 민감도는 분명히 보입니다.
+
+<Quiz
+  client:visible
+  question="overstretched NTRU 에서 18장의 uSVP 추정이 공격 비용을 과대평가하는 이유는?"
+  options={[
+    'NTRU 격자의 차원이 LWE 보다 작아서',
+    'NTRU 격자에는 비밀키의 회전 n 개가 펼치는 밀집 부분격자가 있어, q 가 크면 BKZ 가 숨은 벡터 하나를 찾기 전에 부분격자 전체를 먼저 드러내기 때문',
+    'NTRU 는 양자 공격에 약해서',
+    'uSVP 모델이 표본 수를 최적화하지 않아서',
+  ]}
+  answer={1}
+  explanation="uSVP 모델은 '짧은 벡터 하나'의 사영만 봅니다. NTRU 는 동차식이라 x^i(g, f) 가 모두 격자 벡터이고, 이들이 부피 ≈ ‖(g,f)‖^n 의 랭크 n 부분격자를 이룹니다. q 가 크면 이 부분격자가 전체(부피 qⁿ)에 비해 너무 밀집해, 더 작은 β 의 BKZ 가 먼저 그것을 찾아냅니다(DSD)."
+/>
+
+## 4. 부분체 공격
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 노름 사상
+
+$K = \mathbb{Q}[x]/(x^n + 1)$ ($n$ 은 2의 거듭제곱)는 11장의 원분체이고, 지수 $r$ 인 부분체 $L$ 들을 가집니다. 예를 들어 $x \mapsto -x$ 로 고정되는 부분체는 $\mathbb{Q}[y]/(y^{n/2} + 1)$, $y = x^2$ 입니다. **상대 노름**
+
+$$
+N_{K/L}(f) = \prod_{\sigma \in \mathrm{Gal}(K/L)} \sigma(f)
+$$
+
+은 $L$ 의 원소이고 곱셈적입니다($N(fg) = N(f)N(g)$). 지수 2 이면 $N(f) = f(x)\,f(-x)$ 이고, 이것은 $x$ 의 짝수 거듭제곱만 가지므로 $y$ 의 다항식입니다. 지수 $r$ 이면 이것을 $\log_2 r$ 번 반복합니다.
+
+### 4.2 공격 (Albrecht–Bai–Ducas 2016, Cheon–Jeong–Lee 2016)
+
+$h = g/f$ 이므로 $N(h) = N(g)/N(f)$, 즉 $(N(g), N(f))$ 는 **부분체 $L$ 의 NTRU 문제** 의 비밀키입니다. 그 격자는
+
+- 차원이 $2n/r$ 로 **줄고**,
+- 부피 비례가 같아 Gaussian heuristic 은 여전히 약 $\sqrt q$ 배 수준이지만,
+- 숨은 벡터 $(N g, N f)$ 는 $r$ 개 켤레의 곱이라 길이가 대략 $\|f\|^r$ 로 **늘어납니다**.
+
+차원이 줄면 같은 gap 이라도 훨씬 약한 축소로 숨은 벡터를 찾을 수 있습니다(gap 이 $\delta^d$ 를 넘으면 된다는 14·15장의 경험칙). 그래서 $q$ 가 아주 크면 적당한 $r$ 에서 이득이 납니다. 찾은 뒤에는 $(N f) h = (N f / f) g$ 가 원래 격자의 짧은 벡터 $(N f/f)\cdot(g, f)$ 를 주고, 여기서 원래 키(또는 동치인 짧은 키)를 복원합니다.
+
+<SubfieldNorm client:visible />
+
+### 4.3 그런데 필요 없었다
+
+부분체 공격은 "구조를 이용해 차원을 줄인다"는 점에서 우아하지만, Kirchner–Fouque(2017)는 overstretched 영역에서 **원래 격자의 BKZ 가 이미 DSD 덕분에 부분체 공격보다 빠름** 을 보였습니다. 위젯의 $r = 1$ 막대는 원래 격자를 uSVP(바늘 하나)로만 센 것이라 부분체가 이겨 보이지만, DSD 까지 넣으면 원래 격자가 더 유리합니다. 교훈은 두 가지입니다. (1) 대수 구조를 쓰는 공격이 늘 일반 공격보다 강한 것은 아니다. (2) 일반 공격의 분석을 정밀하게 하는 것만으로도 경계가 크게 움직인다.
+
+## 5. 무엇이 깨졌나
+
+<span class="layer-tag">연구 관점</span>
+
+- **NTRU 기반 동형암호.** LTV(2012), YASHE(2013) 같은 스킴은 곱셈 깊이를 위해 $q$ 를 수백 비트로 키우면서 오차를 작게 두었습니다. 지도의 한참 위입니다. 부분체 공격과 DSD 로 제안된 파라미터들 중 상당수가 깨지거나 안전성이 크게 낮아졌고, 이후 동형암호의 주류는 이런 구조가 없는 Ring-LWE 계열(BGV, BFV, CKKS)로 넘어갔습니다.
+- **GGH13 다중선형 사상.** 인코딩이 큰 모듈러스의 NTRU 꼴 원소였고, Cheon–Jeong–Lee(ANTS 2016)와 Albrecht–Bai–Ducas(CRYPTO 2016)의 공격이 영(0)의 저수준 인코딩 없이도 이를 깨는 길을 열었습니다.
+- **표준 NTRU 와 Falcon 은 안전.** $q$ 가 작아(2^11 ~ 2^14) 위 공격들의 영역 밖이고, 18장의 uSVP 추정이 그대로 적용됩니다.
+
+**설계 점검표.** NTRU 꼴 가정을 쓰는 새 스킴(동형암호, 문턱 암호, 고급 서명 등)을 만든다면 (1) 비밀 분포로 fatigue point 를 계산하고, (2) $\log_2 q$ 가 그보다 충분히 아래인지, (3) 부분체 구조(원분체의 지수)와 하이브리드(작은·희소 비밀)를 함께 확인합니다.
+
+## 6. 그 밖의 NTRU 특유 고려
+
+- **하이브리드 공격.** Howgrave-Graham(CRYPTO 2007)의 격자 + 만남-중간 공격은 원래 NTRU 의 삼진 비밀을 겨냥한 것입니다(18장 4절). 비밀이 작고 희소할수록 중요합니다.
+- **환의 선택.** NTRU-HPS·HRSS 의 $x^n - 1$ 은 인수 $x - 1$ 을 가져서, 12장의 "근에서의 값" 같은 누출을 피하려고 일부 연산을 $\Phi_n = (x^n - 1)/(x - 1)$ 위에서 다룹니다. NTRU+ 의 $x^n - x^{n/2} + 1$ 은 $m = 3n$ ($= 2^a 3^b$) 차 원분 다항식 $\Phi_{3n}$ 이라 기약이고, 원분체이므로 부분체도 가집니다(작은 $q$ 에서는 부분체 공격이 무의미).
+- **복호 실패.** NTRU-HPS·HRSS 는 실패가 없도록 설계되었고, 실패를 허용하는 NTRU 변형이라면 16장의 실패 확률 분석과 20장의 복호 실패 공격을 같이 고려해야 합니다.
+
+## 7. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **DSD 의 정밀 모델.** DvW 의 예측을 다른 비밀 분포, 모듈 NTRU, 다른 축소 알고리즘(체 기반 BKZ)으로 확장하는 일. 논문 읽기 1 의 "충분조건과 실제의 차이"를 메우는 일이기도 합니다.
+- **모듈 NTRU 와 새 설계.** 모듈 랭크를 올린 NTRU 변형은 회전 구조가 달라 DSD 의 양상이 바뀝니다. 크기와 안전성의 새 절충점이 연구되고 있습니다.
+- **큰 $q$ 를 쓰는 NTRU 응용의 재평가.** 일부 동형암호 부트스트래핑이 작은 $q$ 의 NTRU 를 다시 쓰는 등, NTRU 는 응용 쪽에서 부활하고 있고, 그때마다 fatigue point 점검이 필요합니다.
+- **국내 연구.** 부분체·NTRU 문제 알고리즘(Cheon–Jeong–Lee), MiNTRU 격자 분석(Lee–Wallet) 등 이 장의 핵심 결과 일부가 국내 연구자들의 것입니다. 격자 암호해석 연구실에서 바로 이어지는 주제입니다.
+
+## 연습문제
+
+**★ 1.** $x^i f \cdot h \equiv x^i g \pmod q$ 를 보이고, 왜 Ring-LWE 의 $b = as + e$ 에서는 $x^i(e, s)$ 가 같은 임베딩 격자의 벡터가 아닌지 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+$h = g f^{-1}$ 이므로 $x^i f h = x^i g$. NTRU 격자는 $u - vh \equiv 0$ 이라는 **동차** 조건이라 해의 배수·회전도 해입니다. Ring-LWE 임베딩은 $(x, y, z)$ 에서 $x \equiv ay - zb$ 꼴이고, $(e, s, 1)$ 의 회전 $(x^ie, x^is, \cdot)$ 가 성립하려면 $x^i b$ 가 필요한데 격자에는 $b$ 하나만 들어 있습니다.
+
+</details>
+
+**★ 2.** fatigue point 공식으로 $n = 701$ 의 $\log_2 q^*$ 를 구하고 NTRU-HRSS-701 ($q = 8192$)의 여유를 계산하세요.
+
+<details>
+<summary>풀이</summary>
+
+$\log_2 0.004 + 2.484\log_2 701 = -7.97 + 2.484 \cdot 9.453 = 15.51$. 여유 $15.51 - 13 = 2.5$ 비트, 즉 $q$ 를 약 5.7 배 키우면 경계에 닿습니다.
+
+</details>
+
+**★ 3.** $n = 8$, $f = 1 + x - x^3$ 에 대해 $N(f) = f(x)f(-x)$ 를 $x^8 = -1$ 에서 계산하고, 결과가 $y = x^2$ 의 다항식임을 확인하세요.
+
+<details>
+<summary>풀이</summary>
+
+$f(-x) = 1 - x + x^3$. 곱은 $(1 + x - x^3)(1 - x + x^3) = 1 - (x - x^3)^2 = 1 - x^2 + 2x^4 - x^6$. 홀수 차 항이 없으므로 $N(f) = 1 - y + 2y^2 - y^3$ ($y^4 = -1$).
+
+</details>
+
+**★★ 4.** 밀집 부분격자 $L_{\mathrm{key}}$ 와 전체 격자의 "정규화 부피"(부피의 차원 제곱근)를 비교해, $q > 2n\sigma^2$ 정도면 $L_{\mathrm{key}}$ 가 전체보다 밀집함을 보이세요. 이것만으로 DSD 가 일어나지 않는 이유는?
+
+<details>
+<summary>풀이</summary>
+
+$\mathrm{vol}(L_{\mathrm{key}})^{1/n} \approx \|(g,f)\| \approx \sigma\sqrt{2n}$, $\mathrm{vol}(\Lambda)^{1/(2n)} = \sqrt q$. 따라서 $q > 2n\sigma^2$ 이면 밀집합니다. 하지만 표준 파라미터도 이 조건은 만족합니다($q = 2048$, $2n\sigma^2 \approx 680$). 밀집하다는 사실과 **BKZ-$\beta$ 가 그것을 감지할 만큼 강하다** 는 것은 다른 문제입니다. 감지하려면 어떤 $\beta$ 블록의 사영에서 부분격자가 GSA 의 예측보다 확연히 짧아야 하고, 그 정량화가 KF17·DvW21 의 내용입니다.
+
+</details>
+
+**★★ 5.** 노름이 곱셈적임($N(fg) = N(f)N(g)$)을 지수 2 경우에 직접 보이고, 이것으로 $N(h) = N(g)/N(f)$ 가 부분체의 NTRU 공개키임을 설명하세요.
+
+<details>
+<summary>풀이</summary>
+
+$N(fg) = (fg)(x)\,(fg)(-x) = f(x)f(-x)\,g(x)g(-x) = N(f)N(g)$. $fh = g$ 에 노름을 취하면 $N(f)N(h) = N(g)$, 즉 $N(h) = N(g)N(f)^{-1}$ 이고, $N(f), N(g)$ 가 (원래보다는 길지만) 짧으므로 $L$ 위의 NTRU 문제입니다.
+
+</details>
+
+**★★ 6.** SubfieldNorm 위젯에서 $n = 1024$, LLL 로 놓고 $\log_2 q$ 를 올리며 (a) 원래 격자($r = 1$)가 양수가 되는 $q$, (b) 어떤 $r > 1$ 이 먼저 양수가 되는 $q$ 를 찾으세요. 그 차이가 4.3 절의 주장(부분체가 필요 없었다)과 모순되지 않는 이유는?
+
+<details>
+<summary>풀이 방향</summary>
+
+대략 (a) $\log_2 q \approx 130$, (b) $r = 4$ 에서 $\approx 65$. 모순이 아닌 이유: 위젯의 $r = 1$ 은 uSVP 경험칙으로만 센 것이고, 실제 원래 격자에서는 DSD 가 훨씬 일찍(이 $q$ 영역은 fatigue point 보다 한참 위) 일어납니다. 부분체 공격은 "uSVP 기준선"을 이긴 것이지 "DSD 를 포함한 원래 격자 공격"을 이긴 것이 아닙니다.
+
+</details>
+
+**★★ 7.** NTRULadder 표에서 $n = 64$ 일 때 $q$ 를 257 → 521 → 1031 로 두 배씩 키우면 필요한 $\beta$ 가 28 → 16 → 6 으로 줄었습니다. 18장의 uSVP 조건에서 $\log q$ 가 1 늘면 오른쪽이 얼마나 오르는지 계산하고, 관측된 감소가 uSVP 만으로 설명되는지 논하세요(작은 $\beta$ 에서는 $\delta_\beta$ 공식 대신 실험값을 쓰세요).
+
+<details>
+<summary>풀이 방향</summary>
+
+오른쪽의 $\tfrac12\log q$ 가 0.5 비트 오르면, $(2\beta - 2n)\log\delta_\beta$ 쪽이 그만큼 덜 필요합니다. 작은 $\beta$ 에서 $\log_2\delta$ 의 변화는 β 당 대략 $10^{-4}$~$10^{-3}$ 수준이라 0.5 비트를 메우려면 β 가 크게 줄어야 하므로 감소의 방향은 맞습니다. 다만 $\beta = 6$ 에서 회전 64 개가 한꺼번에 나온 것은 "벡터 하나"의 모델이 아니라 DSD 의 서명입니다.
+
+</details>
+
+**★★★ 8. (Lab 6)** Lab 6 으로 $n = 32, 36, 40$ 에서 필요한 $\beta$ 가 처음으로 2 (LLL)가 되는 $q$ 를 각각 찾으세요(키 여러 개). 그 $q$ 를 $n$ 에 대해 로그–로그로 그려 기울기를 추정하고, 2.484 와 비교하세요. 무엇이 다를 수밖에 없나요?
+
+<details>
+<summary>풀이 방향</summary>
+
+작은 $n$ 에서는 다항 인자, 작은 β 의 $\delta$ 가 공식과 다른 점, 키마다의 변동, 그리고 "LLL 로 풀린다"는 기준 자체가 fatigue point(uSVP 와 DSD 가 같아지는 점)와 다르다는 점 때문에 기울기가 그대로 나오지 않습니다. 목표는 "같은 실험 설계를 큰 $n$ 과 많은 키로 확장하면 DvW 의 그림이 된다"는 것을 이해하는 것입니다.
+
+</details>
+
+**★★★ 9. (읽기)** Ducas–van Woerden, *NTRU Fatigue* (Asiacrypt 2021)을 읽고 (a) DSD 시점을 예측하는 조건, (b) KF17 의 $n^{2.783}$ 이 $n^{2.484}$ 로 내려간 이유, (c) 실험 설계를 정리하세요. 이 장 3.2절의 Lee–Wallet 충분조건과 무엇이 다른지도 비교하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+핵심은 DSD 를 일으키는 블록의 위치와 그 블록에서 부분격자의 사영 부피를 더 정확히 세는 것입니다. 충분조건은 특정 위치·특정 형태만 보기 때문에 보수적이고, 정밀 모델은 가장 먼저 감지되는 위치를 찾습니다. 원문으로 확인하세요.
+
+</details>
+
+## 요약
+
+- NTRU 격자는 동차식이라 비밀키의 회전 $n$ 개가 모두 격자 벡터이고, 부피 $\approx \|(g,f)\|^n$ 의 **밀집 부분격자** 를 이룬다. LWE 에는 이것이 없다.
+- 표준 영역에서는 18장의 uSVP 추정($\sigma\sqrt\beta \le \delta^{2\beta-2n}\sqrt q$)이 맞고, overstretched 영역에서는 BKZ 가 부분격자를 먼저 찾아(DSD) 공격이 훨씬 싸진다.
+- 경계(fatigue point): KF17 $n^{2.783}$ → DvW21 $q^* \approx 0.004 \cdot n^{2.484}$ (삼진 비밀). 표준 NTRU 스킴은 2.5~5.5 비트 아래에 있다.
+- 부분체 공격은 노름 사상으로 차원을 $1/r$ 로 줄이지만 키가 $\|f\|^r$ 로 길어진다. 큰 $q$ 에서는 효과가 있었으나, 원래 격자의 DSD 가 더 강했다.
+- 큰 $q$ 를 쓴 NTRU 동형암호·다중선형 사상은 이 공격들로 깨졌다. NTRU 꼴 설계는 fatigue point 를 반드시 점검한다.
+- 다음: [20장](../guide/curriculum/)에서 복호 실패 공격과 구현 공격을 다룬다.
+
+## 참고문헌
+
+1. P. Kirchner, P.-A. Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017.
+2. L. Ducas, W. van Woerden, *NTRU Fatigue: How Stretched is Overstretched?*, Asiacrypt 2021 (ePrint 2021/999).
+3. M. Albrecht, S. Bai, L. Ducas, *A Subfield Lattice Attack on Overstretched NTRU Assumptions*, CRYPTO 2016.
+4. J. H. Cheon, J. Jeong, C. Lee, *An Algorithm for NTRU Problems and Cryptanalysis of the GGH Multilinear Map without a Low-Level Encoding of Zero*, ANTS 2016 (LMS J. Comput. Math.).
+5. C. Lee, A. Wallet, *Lattice Analysis on MiNTRU Problem*, ePrint 2020/230. 그리고 [논문 읽기 1](../papers/p01-mintru/).
+6. A. López-Alt, E. Tromer, V. Vaikuntanathan, *On-the-Fly Multiparty Computation on the Cloud via Multikey Fully Homomorphic Encryption*, STOC 2012 (LTV); J. W. Bos, K. Lauter, J. Loftus, M. Naehrig, *Improved Security for a Ring-Based Fully Homomorphic Encryption Scheme*, IMA CC 2013 (YASHE).
+7. N. Howgrave-Graham, *A Hybrid Lattice-Reduction and Meet-in-the-Middle Attack Against NTRU*, CRYPTO 2007.
+8. C. Chen 외, *NTRU: Algorithm Specifications and Supporting Documentation* (NIST 3라운드, 2020); J. Kim, J. H. Park, *NTRU+* (ePrint 2022/1664).

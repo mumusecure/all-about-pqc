@@ -44,7 +44,7 @@ import OverstretchedCalc from '../../../components/OverstretchedCalc.tsx';
 | 사영, 직교 여공간 | §3.2 의 $L^\perp$ | [6장](../../ch06-linalg-prob/) 2절, [7장](../../ch07-lattices/) 5절 | $\operatorname{Vol}(L^\perp) = \operatorname{Vol}(L(B'))/\operatorname{Vol}(L(X'))$ 인 이유는? |
 | Hermite 정규형(HNF) | §3.2 의 $X'$ 구성 | [7장](../../ch07-lattices/) 연습문제 10 | HNF 의 마지막 블록이 단위행렬이면 무엇을 할 수 있나? |
 | BKZ (블록 크기 $\beta$) | 실험의 BKZ-20 | [10장](../../ch10-bkz-sieving/) | "$\beta$ 가 크면 $\delta$ 가 작다" 정도면 충분 |
-| NTRU 문제, overstretched | §1 전체 | [15장](../../ch15-ntru/) 2·3절 (19장 예정) → 아래 2절에 요약 | 2.1–2.2 |
+| NTRU 문제, overstretched | §1 전체 | [15장](../../ch15-ntru/) 2·3절 ([19장](../../ch19-ntru-attacks/)) → 아래 2절에 요약 | 2.1–2.2 |
 
 ## 2. 미니 입문
 
@@ -65,7 +65,7 @@ $$
 $(f, g)$ 와 그 "회전들"(환 구조에서는 Galois 켤레, 행렬 버전에서는 비밀 행렬의 모든 행)이 함께 **랭크 $n$ 부분격자** $L$ 을 이룹니다. 비밀이 작으니 $\operatorname{Vol}(L)$ 은 작고, 전체 격자의 부피는 $q^n$ 입니다. $q$ 가 엄청나게 크면(overstretched) 이 부피 차이를 메우기 위해 격자 축소가 내놓는 짧은 벡터들이 이 부분격자 안으로 **"떨어질" 수밖에 없습니다**. 최단 벡터 하나를 찾는 uSVP 보다 "랭크가 크고 부피가 아주 작은 부분격자"를 찾는 것이 훨씬 쉬워지는 구간이 있다는 것, 이것이 Kirchner–Fouque 의 관찰입니다.
 
 <Aside type="note" title="교과서와 연결">
-14장 임베딩 공격의 "gap = GH ÷ ‖숨은 벡터‖"는 *벡터 하나* 의 이례성이었습니다. 이 논문은 *부분격자 전체* 의 이례성(부피 gap)을 씁니다. 19장의 dense sublattice 공격의 원형입니다.
+14장 임베딩 공격의 "gap = GH ÷ ‖숨은 벡터‖"는 *벡터 하나* 의 이례성이었습니다. 이 논문은 *부분격자 전체* 의 이례성(부피 gap)을 씁니다. [19장](../../ch19-ntru-attacks/)의 dense sublattice 공격의 원형입니다.
 </Aside>
 
 ### 2.3 gadget 행렬과 MiNTRU
