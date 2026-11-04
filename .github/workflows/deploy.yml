@@ -34,6 +34,7 @@ jobs:
           python3 labs/lab04_bkz_sieve.py
           python3 labs/lab05_estimator.py
           python3 labs/lab06_ntru_ladder.py --n 20 --qs 67,257
+          python3 labs/lab07_pc_oracle.py
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
