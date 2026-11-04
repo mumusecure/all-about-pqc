@@ -28,6 +28,7 @@
 | 10장 | BKZ, 열거, 체 — δ_β 유도, 열거 노드 수, 체의 60° 규칙과 2^0.292n, core-SVP |
 | 11장 | 대수적 정수론 입문 — 원분체, 정규 임베딩, 노름, 이데알과 류수, 이데알 격자, 소수 분해와 NTT |
 | 12장 | Ring-LWE 와 Module-LWE — 구조화 행렬, 탐색→결정, Module-LWE 와 ML-KEM 파라미터, Ring/Module-SIS, 약한 인스턴스 |
+| 13장 | 모듈 격자 축소 — R 위의 Gram–Schmidt, 단원과 로그-단원 격자, module-LLL, 부분체 탑, 대칭을 쓰는 체 |
 | 14장 | LWE — 탐색⇔결정, 최악→평균 환원, Regev 암호, 임베딩 공격 |
 | 15장 | NTRU — 환과 문제, 정확성, NTRU 격자와 밀집 부분격자, overstretched, NTRU+ |
 | 16장 | ML-KEM 해부 — NTT, 압축, K-PKE, 복호 실패 확률 정확 계산, FO·입력 검사, 구현 공격, SMAUG-T |

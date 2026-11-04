@@ -144,7 +144,7 @@ $$
 <span class="layer-tag">연구 관점</span>
 
 - **Ring-LWE 와 Module-LWE 의 간격.** 모듈 랭크를 늘리면 구조가 줄어 "더 안전"하다고 여겨지지만, 그 차이를 정량적으로 보이는 것은 어렵습니다. 반대 방향(Module-LWE ≤ Ring-LWE)의 환원(Albrecht–Deo)은 모듈러스를 키우는 손실이 있습니다.
-- **모듈 격자의 축소.** Module-SIS·Module-LWE 의 구조적 안전성을 이해하려면 "모듈 격자를 그 구조를 이용해 축소할 수 있는가"가 핵심 질문입니다. 13장의 module-LLL(Lee–Pellet-Mary–Stehlé–Wallet 2019)이 이 방향의 출발점입니다.
+- **모듈 격자의 축소.** Module-SIS·Module-LWE 의 구조적 안전성을 이해하려면 "모듈 격자를 그 구조를 이용해 축소할 수 있는가"가 핵심 질문입니다. [13장](../ch13-module-reduction/)의 module-LLL(Lee–Pellet-Mary–Stehlé–Wallet 2019)이 이 방향의 출발점입니다.
 - **변형들.** 다항식 환 대신 수체의 정수환에서 정의하는 문제와 다항식 LWE 의 관계(Rosca–Stehlé–Wallet, Eurocrypt 2018), 여러 환을 한꺼번에 피하는 Middle-Product LWE(Roşca–Sakzad–Stehlé–Steinfeld, CRYPTO 2017), 오차 대신 반올림을 쓰는 Module-LWR(Saber, SMAUG-T) 같은 변형이 연구되고 있습니다.
 
 **읽을거리 (읽는 순서)**
@@ -225,7 +225,7 @@ LWE: 구조 없음, 가장 보수적이지만 $A$ 계산 $O(n^2)$, 키·계산�
 - Module-LWE: $A \in R_q^{k\times k}$, 차원 $nk$. 모듈 격자 SVP 에 기대며 구조가 덜하다. ML-KEM: $n = 256$, $q = 3329$, $k = 2, 3, 4$, 키 800/1184/1568 바이트.
 - Ring/Module-SIS 는 구조화된 SIS 이고 ML-DSA 의 기반이다. 변환 다항식이 기약이 아니면($x^n - 1$) 충돌과 근에서의 값 공격이 생긴다.
 - 실제 안전성은 차원 $nk$ 의 일반 격자 공격 비용으로 평가한다([18장](../ch18-parameter-estimation/)).
-- 다음: [16장](../ch16-mlkem/)에서 ML-KEM 의 K-PKE 를 해부한다(13장 module-LLL 은 5부 전에 다룬다).
+- 다음: [16장](../ch16-mlkem/)에서 ML-KEM 의 K-PKE 를 해부한다(모듈 격자의 축소는 [13장](../ch13-module-reduction/)).
 
 ## 참고문헌
 
