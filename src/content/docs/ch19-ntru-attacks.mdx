@@ -89,7 +89,7 @@ $$
 
 <FatigueMap client:visible />
 
-**논문 읽기 1 과의 관계.** Lee–Wallet(MiNTRU 분석)이 쓴 성공 조건(그 논문의 식 (3.2), 이 교과서의 `overstretched.ts`)은 DSD 의 **충분조건** 입니다. 같은 꼴의 조건에 NTRU 삼진 키의 부피 $(2n\sigma^2)^{n/2}$ 를 넣어(이 교과서의 `kf17.ts`) 18장 uSVP 와 같은 β 를 주는 $q$ 를 계산하면 $n = 512$ 에서 $\log_2 q \approx 23.1$, $n = 1024$ 에서 $26.5$ 로, DvW 의 $14.4$, $16.9$ 보다 8~10 비트 높습니다(MiNTRU 의 이진 비밀 부피 $(n/2)^{n/2}$ 를 넣으면 19.3, 22.5). 충분조건은 보수적이라 실제 경계보다 위에 있고, 그래서 MiNTRU 의 실험이 예측보다 잘 되었습니다(논문 읽기 1 의 열린 질문). 정밀한 경계에는 DvW 의 모델이 필요합니다. 이 계산과 원 논문의 논증은 [논문 읽기 4](../papers/p04-kirchner-fouque/)에서 따라갑니다.
+**논문 읽기 1 과의 관계.** Lee–Wallet(MiNTRU 분석)이 쓴 성공 조건(그 논문의 식 (3.2), 이 교과서의 `overstretched.ts`)은 DSD 의 **충분조건** 입니다. 같은 꼴의 조건에 NTRU 삼진 키의 부피 $(2n\sigma^2)^{n/2}$ 를 넣어(이 교과서의 `kf17.ts`) 18장 uSVP 와 같은 β 를 주는 $q$ 를 계산하면 $n = 512$ 에서 $\log_2 q \approx 23.1$, $n = 1024$ 에서 $26.5$ 로, DvW 의 $14.4$, $16.9$ 보다 8~10 비트 높습니다(MiNTRU 의 이진 비밀 부피 $(n/2)^{n/2}$ 를 넣으면 19.3, 22.5). 충분조건은 보수적이라 실제 경계보다 위에 있고, 그래서 MiNTRU 의 실험이 예측보다 잘 되었습니다(논문 읽기 1 의 열린 질문). 정밀한 경계에는 DvW 의 모델이 필요합니다. 이 계산과 원 논문의 논증은 [논문 읽기 4](../papers/p04-kirchner-fouque/)에서, DvW 의 예측기(이 교과서의 이식본으로 맞춤식을 0.2 비트 안에서 재현)는 [논문 읽기 5](../papers/p05-ntru-fatigue/)에서 따라갑니다.
 
 <Aside type="caution" title="이 선의 적용 범위">
 $0.004 \cdot n^{2.484}$ 는 **삼진 비밀** 에 대한 값입니다. Falcon 처럼 비밀이 더 큰 분포(표준편차 약 4)에서는 $L_{\mathrm{key}}$ 가 덜 밀집해서 경계가 위로 올라갑니다. 비밀 분포가 다르면 그 분포로 모델을 다시 계산해야 합니다.
@@ -107,7 +107,7 @@ $0.004 \cdot n^{2.484}$ 는 **삼진 비밀** 에 대한 값입니다. Falcon �
 | 48 | > 30 | > 30 | 26 | 12 | 4 (회전 48 개) | | |
 | 64 | | | | 28 | 16 | 6 (회전 64 개) | 2 (LLL) |
 
-$q$ 가 두 배가 될 때마다 필요한 $\beta$ 가 크게 줄고, $\beta$ 가 작은 쪽에서는 회전이 **전부 한꺼번에** 나옵니다. 차원이 작아 fatigue point 의 상수를 재기에는 부족하지만(이 크기에서는 모든 $q$ 가 $0.004 \cdot n^{2.484}$ 보다 크기 때문에, 엄밀히는 전부 overstretched 영역의 실험입니다), $q$ 에 대한 민감도는 분명히 보입니다.
+$q$ 가 두 배가 될 때마다 필요한 $\beta$ 가 크게 줄고, $\beta$ 가 작은 쪽에서는 회전이 **전부 한꺼번에** 나옵니다. 차원이 작아 fatigue point 의 상수를 재기에는 부족하지만, $q$ 에 대한 민감도는 분명히 보입니다. (이 위젯의 키는 $f = 1 + 3F$ 라 균등 삼진이 아니고, 맞춤식 $0.004 \cdot n^{2.484}$ 는 $n \approx 90$ 이상에서 맞춘 것이라 이 크기로 외삽할 수 없습니다. 삼진 키로 작은 $n$ 의 경계를 재고 DvW 예측기와 비교하는 실험은 [논문 읽기 5](../papers/p05-ntru-fatigue/) 5.3절에 있습니다.)
 
 <Quiz
   client:visible
@@ -251,7 +251,7 @@ $N(fg) = (fg)(x)\,(fg)(-x) = f(x)f(-x)\,g(x)g(-x) = N(f)N(g)$. $fh = g$ 에 노�
 
 </details>
 
-**★★★ 9. (읽기)** Ducas–van Woerden, *NTRU Fatigue* (Asiacrypt 2021)을 읽고 (a) DSD 시점을 예측하는 조건, (b) KF17 의 $n^{2.783}$ 이 $n^{2.484}$ 로 내려간 이유, (c) 실험 설계를 정리하세요. 이 장 3.2절의 Lee–Wallet 충분조건과 무엇이 다른지도 비교하세요.
+**★★★ 9. (읽기)** Ducas–van Woerden, *NTRU Fatigue* (Asiacrypt 2021)을 읽고 (a) DSD 시점을 예측하는 조건, (b) KF17 의 $n^{2.783}$ 이 $n^{2.484}$ 로 내려간 이유, (c) 실험 설계를 정리하세요. 이 장 3.2절의 Lee–Wallet 충분조건과 무엇이 다른지도 비교하세요. 길잡이: [논문 읽기 5](../papers/p05-ntru-fatigue/).
 
 <details>
 <summary>풀이 방향</summary>
@@ -272,7 +272,7 @@ $N(fg) = (fg)(x)\,(fg)(-x) = f(x)f(-x)\,g(x)g(-x) = N(f)N(g)$. $fh = g$ 에 노�
 ## 참고문헌
 
 1. P. Kirchner, P.-A. Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters*, Eurocrypt 2017. → [논문 읽기 4](../papers/p04-kirchner-fouque/)
-2. L. Ducas, W. van Woerden, *NTRU Fatigue: How Stretched is Overstretched?*, Asiacrypt 2021 (ePrint 2021/999).
+2. L. Ducas, W. van Woerden, *NTRU Fatigue: How Stretched is Overstretched?*, Asiacrypt 2021 (ePrint 2021/999). → [논문 읽기 5](../papers/p05-ntru-fatigue/)
 3. M. Albrecht, S. Bai, L. Ducas, *A Subfield Lattice Attack on Overstretched NTRU Assumptions*, CRYPTO 2016.
 4. J. H. Cheon, J. Jeong, C. Lee, *An Algorithm for NTRU Problems and Cryptanalysis of the GGH Multilinear Map without a Low-Level Encoding of Zero*, ANTS 2016 (LMS J. Comput. Math.).
 5. C. Lee, A. Wallet, *Lattice Analysis on MiNTRU Problem*, ePrint 2020/230. 그리고 [논문 읽기 1](../papers/p01-mintru/).

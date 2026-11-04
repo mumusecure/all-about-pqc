@@ -11,7 +11,7 @@
 - 위젯의 수학 코드는 **단위 테스트로 검증** (`src/lib/`, `tests/`)
 - Python 표준 라이브러리만 쓰는 **재현 실습** (`labs/`)
 
-## 목차 (전 26장 · 실습 7개 · 논문 읽기 4편)
+## 목차 (전 26장 · 실습 7개 · 논문 읽기 5편)
 
 | 장 | 내용 |
 |---|---|
@@ -47,6 +47,7 @@
 | 논문 읽기 2 | Alkim–Ducas–Pöppelmann–Schwabe, *NewHope* (USENIX Security 2016) — core-SVP 방법론, primal·dual 추정, 보안 표 재계산 |
 | 논문 읽기 3 | Dachman-Soled–Ducas–Gong–Rossi, *LWE with Side Information* (Crypto 2020) — 힌트와 DBDD, 부분 정보가 β 를 줄이는 양 계산 |
 | 논문 읽기 4 | Kirchner–Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters* (Eurocrypt 2017) — 밀집 부분격자 충분조건, uSVP 와의 교차점, 부분체가 필요 없는 이유 |
+| 논문 읽기 5 | Ducas–van Woerden, *NTRU Fatigue* (Asiacrypt 2021) — SKR·DSD 확률 예측기 이식, fatigue point 재현, 작은 n 실험 |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
 | Lab 4 | BKZ 와 체를 직접 돌려 보기 — 열거 BKZ, Gauss sieve, fpylll 비교 |
 | Lab 5 | 나만의 LWE 추정기 만들기 — ML-KEM core-SVP 재현, 민감도 분석 |
