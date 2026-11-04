@@ -94,7 +94,7 @@ export function orthogonalityDefect(B: Basis): number {
   return prod / volume(B);
 }
 
-/** 제곱근 Hermite 인자 δ = (||b_1|| / vol^{1/d})^{1/d}. 축소 품질의 표준 척도. */
+/** 근 Hermite 인자 δ = (||b_1|| / vol^{1/d})^{1/d}. 축소 품질의 표준 척도. */
 export function rootHermiteFactor(B: Basis): number {
   const d = B.length;
   const lv = logVolume(B);

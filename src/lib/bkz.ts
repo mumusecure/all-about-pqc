@@ -25,7 +25,7 @@ export function qaryLattice(d: number, q: number, seed: number): Basis {
 
 export const norm2 = (v: number[]) => v.reduce((s, x) => s + x * x, 0);
 export const logVolume2 = (B: Basis) => gramSchmidt(B).Bn.reduce((s, x) => s + 0.5 * Math.log2(x), 0);
-/** 제곱근 Hermite 인자 δ = (‖b₁‖ / vol^{1/d})^{1/d} */
+/** 근 Hermite 인자 δ = (‖b₁‖ / vol^{1/d})^{1/d} */
 export const rootHermite = (B: Basis) => Math.pow(Math.sqrt(norm2(B[0])) / Math.pow(2, logVolume2(B) / B.length), 1 / B.length);
 
 /** Gaussian heuristic: λ₁ ≈ vol^{1/d} / V_d(1)^{1/d}  (log₂) */
@@ -200,7 +200,7 @@ export const deltaBeta = (beta: number) => Math.pow((beta / (2 * Math.PI * Math.
 export const DELTA_EXPERIMENT: Record<string, number> = { LLL: 1.0219, 'BKZ-20': 1.0128, 'BKZ-28': 1.0109 };
 
 /**
- * GSA 기저(차원 n, 제곱근 Hermite 인자 δ, 부피 1)에서 반지름 R = rf·GH 인 완전 열거의 레벨별 노드 수 (log₂).
+ * GSA 기저(차원 n, 근 Hermite 인자 δ, 부피 1)에서 반지름 R = rf·GH 인 완전 열거의 레벨별 노드 수 (log₂).
  * 레벨 k (아래에서 k 개 좌표를 정한 단계) 의 노드 수 ≈ V_k(R) / ∏_{i=n−k}^{n−1} ‖b_i*‖ / 2.
  */
 export function enumLevelsGSA(n: number, delta: number, rf = 1): number[] {

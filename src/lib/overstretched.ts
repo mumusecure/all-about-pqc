@@ -11,7 +11,7 @@ export function margin32(n: number, log2q: number, k: number, delta: number): nu
   return lhs - rhs;
 }
 
-/** GSA 에서 쓰는 BKZ-β 의 제곱근 Hermite 인자 근사식 δ_β = ((β/2πe)(πβ)^{1/β})^{1/(2(β−1))} */
+/** GSA 에서 쓰는 BKZ-β 의 근 Hermite 인자 근사식 δ_β = ((β/2πe)(πβ)^{1/β})^{1/(2(β−1))} */
 export const deltaBKZ = (beta: number): number =>
   Math.pow((beta / (2 * Math.PI * Math.E)) * Math.pow(Math.PI * beta, 1 / beta), 1 / (2 * (beta - 1)));
 
