@@ -95,6 +95,13 @@ description: 8부 26장 전체 구성과 공개 현황, 핵심 경로(★)와 �
 | [논문 읽기 4](../../papers/p04-kirchner-fouque/) | Kirchner–Fouque, *Revisiting Lattice Attacks on Overstretched NTRU Parameters* (Eurocrypt 2017) — 부분체 없이 원래 격자로, 밀집 부분격자 충분조건과 uSVP 의 교차점 | 7, 10, 15, 19장, 논문 읽기 1 | ✅ |
 | [논문 읽기 5](../../papers/p05-ntru-fatigue/) | Ducas–van Woerden, *NTRU Fatigue: How Stretched is Overstretched?* (Asiacrypt 2021) — SKR 과 DSD 의 확률 예측, fatigue point, 공개 예측기 이식과 작은 n 실험 | 6, 10, 18, 19장, 논문 읽기 2·4 | ✅ |
 
+**읽는 순서.** 다섯 편은 두 갈래로 이어집니다. 번호 순서가 아니라 갈래를 따라 읽으세요.
+
+- **LWE 비용 추정 갈래**: 논문 읽기 2(보안 표를 세는 법) → 3(부분 정보가 그 표를 얼마나 깎나).
+- **NTRU 갈래**: 논문 읽기 1(MiNTRU, 충분조건의 유도를 가장 자세히) → 4(그 틀의 원본 KF17) → 5(정밀 모델 DvW21). 4편에서 8~10 비트 보수적이던 경계가 5편에서 맞춤식과 0.2 비트 안으로 맞아 가는 흐름입니다. 5편은 2편의 uSVP 추정도 씁니다.
+
+석사 지원용으로 하나만 깊게 판다면 NTRU 갈래의 끝, 논문 읽기 5 의 재현 과제 2(사건 판정 규칙을 원문대로 바꿔 작은 $n$ 실험의 경계가 예측기 쪽으로 움직이는지 보기)를 권합니다. 답이 정해져 있지 않은 작은 연구 질문이고, 필요한 코드(`src/lib/fatigue.ts`, `src/lib/dvw.ts`)가 이미 있습니다.
+
 ## 장 사이의 선수 관계 (핵심 경로)
 
 ```text
