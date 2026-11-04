@@ -65,6 +65,7 @@ export default defineConfig({
         ] },
         { label: '6부 · 주변 주제', items: [
           { label: '21장. 격자 기반 영지식 증명', slug: 'ch21-lattice-zk' },
+          { label: '22장. 동형암호와 문턱 동형암호', slug: 'ch22-fhe-threshold' },
         ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
