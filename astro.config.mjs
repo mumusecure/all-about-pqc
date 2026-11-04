@@ -63,6 +63,9 @@ export default defineConfig({
           { label: '19장. NTRU 공격', slug: 'ch19-ntru-attacks' },
           { label: '20장. 복호 실패 공격과 구현 공격', slug: 'ch20-failure-implementation-attacks' },
         ] },
+        { label: '6부 · 주변 주제', items: [
+          { label: '21장. 격자 기반 영지식 증명', slug: 'ch21-lattice-zk' },
+        ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
         ]},

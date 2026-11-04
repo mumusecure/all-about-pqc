@@ -1,0 +1,282 @@
+---
+title: 21장. 격자 기반 영지식 증명
+description: 짧은 비밀을 안다는 것을 증명하는 법. Stern 식 조합 프로토콜과 그 크기, Lyubashevsky 식 Σ-프로토콜과 완화된 건전성(추출되는 것은 c̄·s), 도전 차이의 가역성, Ajtai·BDLOP 커밋먼트, 정확한 증명과 근사 증명, JL 사영으로 노름 증명하기, 그리고 익명 인증·기밀 거래·간결한 증명까지.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import SternRounds from '../../components/SternRounds.tsx';
+import RelaxedExtract from '../../components/RelaxedExtract.tsx';
+import JLProjection from '../../components/JLProjection.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. 격자 영지식 증명의 기본 명제("$As = t$ 이고 $s$ 가 짧다")가 이산로그 증명보다 어려운 두 이유(모듈러로 감을 수 없음, 추출의 여유)를 설명할 수 있다.
+2. Stern 식 프로토콜의 구조와 건전성 오차 2/3, 그 결과인 큰 증명 크기를 설명할 수 있다.
+3. Lyubashevsky 식 Σ-프로토콜에서 되감기로 추출되는 것이 $(\bar s, \bar c)$, $A\bar s = \bar c\, t$ 임을 보이고, **완화된 건전성** 과 **여유(slack)** 의 의미, 도전 차이가 가역이어야 하는 이유를 말할 수 있다.
+4. Ajtai·BDLOP 커밋먼트의 결합성과 은닉성이 각각 어떤 가정에서 오는지 말할 수 있다.
+5. 정확한 증명(삼진, 노름 상한)을 만드는 두 기법(NTT 슬롯의 곱 관계, JL 사영)을 설명하고, 응용의 지형을 그릴 수 있다.
+
+**선수 지식**: [4장](../ch04-sigma-fiat-shamir/)(Σ-프로토콜, Fiat–Shamir, 거절 샘플링), [17장](../ch17-lattice-signatures/)(ML-DSA, FS with aborts), [12장](../ch12-ring-module-lwe/)(Module-SIS/LWE), [7장](../ch07-lattices/)(SIS), [6장](../ch06-linalg-prob/)(집중 부등식).
+
+</div>
+
+## 1. 직관: 무엇을, 왜 증명하나
+
+<span class="layer-tag">직관</span>
+
+격자 암호의 거의 모든 고급 기능(익명 인증, 그룹 서명, 기밀 거래, 검증 가능한 암호화, 문턱 암호)은 한 가지 명제를 영지식으로 증명하는 데서 시작합니다.
+
+$$
+\text{"나는 } As \equiv t \pmod q \text{ 이고 } \|s\| \le \beta \text{ 인 } s \text{ 를 안다."}
+$$
+
+4장의 Schnorr 증명은 $s = k + cx \bmod p$ 처럼 응답을 **모듈러로 감아** 비밀을 완전히 숨겼습니다. 격자에서는 두 가지가 다릅니다.
+
+1. **짧음은 감을 수 없다.** 응답 $z = y + cs$ 가 짧아야 검증이 의미 있으므로 $\bmod q$ 로 감을 수 없고, 그래서 거절 샘플링이 필요했습니다(4장, 17장).
+2. **추출되는 것이 원래 비밀이 아니다.** 두 응답을 빼면 $\bar c\, s$ ($\bar c = c - c'$)가 나오고, $\bar c$ 로 나누면 짧음이 깨질 수 있습니다. 증명이 보장하는 것은 원래보다 약한, "완화된" 명제입니다.
+
+이 장은 이 두 문제를 어떻게 다루는지, 그리고 그 위에 어떤 도구가 쌓였는지를 따라갑니다.
+
+## 2. Stern 식 프로토콜: 조합적이고 정확하지만 크다
+
+<span class="layer-tag">정식화</span>
+
+Stern(CRYPTO 1993)의 부호 기반 식별 프로토콜은 격자로 옮겨져(Ling–Nguyen–Stehlé–Wang, PKC 2013 등) "이진이고 무게 $w$ 인 $s$ 로 $As = t$"를 **정확히** 증명합니다.
+
+**한 라운드.** 증명자는 무작위 순열 $\pi$ 와 마스크 $r \in \mathbb{Z}_q^m$ 을 골라
+
+$$
+c_1 = H(\pi \,\|\, Ar), \quad c_2 = H(\pi(r)), \quad c_3 = H(\pi(r + s))
+$$
+
+를 커밋합니다. 검증자가 $\mathrm{ch} \in \{1, 2, 3\}$ 을 보내면
+
+- $\mathrm{ch} = 1$: $\pi(s)$, $\pi(r)$ 를 엽니다. 검증자는 $\pi(s)$ 가 이진이고 무게 $w$ 인지, $c_2, c_3$ 이 맞는지 봅니다.
+- $\mathrm{ch} = 2$: $\pi$, $r + s$ 를 엽니다. $c_1 = H(\pi \,\|\, A(r+s) - t)$, $c_3$ 을 확인합니다.
+- $\mathrm{ch} = 3$: $\pi$, $r$ 을 엽니다. $c_1, c_2$ 를 확인합니다.
+
+$\pi(s)$ 만 보면 $s$ 의 무게만 알 수 있고(순열이 위치를 숨김), $r + s$ 나 $r$ 만 보면 균등한 값이라 영지식입니다. 세 도전 **모두** 에 답할 수 있으면 $\pi(s)$ 와 $r + s$, $r$ 에서 $s$ 를 계산할 수 있으므로 특수 건전성(3-분기)이 성립합니다.
+
+<SternRounds client:visible />
+
+비밀을 모르는 증명자도 세 도전 중 둘에는 답할 수 있어 한 라운드의 건전성 오차는 2/3 입니다. $2^{-128}$ 을 얻으려면 $\lceil 128/\log_2 1.5 \rceil = 219$ 라운드가 필요하고, 실제 크기($m = 512$, $q = 3329$)에서 라운드마다 수 KB 씩, 합쳐서 **수백 KB** 의 증명이 됩니다. 장점은 명제를 정확히(이진, 무게) 증명한다는 것, 단점은 크기입니다.
+
+## 3. Lyubashevsky 식 Σ-프로토콜과 완화된 건전성
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 프로토콜
+
+17장 ML-DSA 의 뼈대입니다. $R_q$ 위에서 $t = As$ ($s$ 짧음), 도전 집합 $\mathcal{C}$ (예: $\pm1$ 이 $\tau$ 개인 희소 다항식)에 대해
+
+1. 증명자: $y$ (계수 $\le B$)를 뽑아 $w = Ay$ 를 보냄
+2. 검증자: $c \leftarrow \mathcal{C}$
+3. 증명자: $z = y + cs$. $\|z\|_\infty > B - \beta$ 이면 중단(거절 샘플링, $\beta \ge \|cs\|_\infty$)
+4. 검증자: $Az - ct = w$ 이고 $\|z\|_\infty \le B - \beta$ 인지 확인
+
+완전성은 $Az - ct = Ay + cAs - ct = Ay$ 이고, 영지식은 17장 보조정리 17.1(받아들인 $z$ 는 상자 위 균등)에서 옵니다. 한 라운드의 건전성 오차가 $1/|\mathcal{C}|$ 라 도전 공간을 $2^{\lambda}$ 이상으로 잡으면 **한 번** 으로 충분합니다. Stern 식과 비교하면 이것이 크기를 수백 배 줄이는 핵심입니다.
+
+### 3.2 무엇이 추출되는가
+
+같은 $w$ 에 대해 두 도전 $c \ne c'$ 에 답한 $z, z'$ 를 얻으면
+
+$$
+A(z - z') = (c - c')\, t \qquad \Longrightarrow \qquad A\bar s = \bar c\, t, \quad \bar s = z - z', \;\; \bar c = c - c'.
+$$
+
+$\|\bar s\|_\infty \le 2(B - \beta)$ 이고 $\bar c$ 는 작습니다. 그러나 **$\bar c^{-1}\bar s$ 가 짧다는 보장은 없습니다.** 즉 이 프로토콜이 증명하는 것은
+
+$$
+\text{"} A\bar s = \bar c\, t \text{ 인 짧은 } \bar s \text{ 와 작은 } \bar c \ne 0 \text{ 을 안다"}
+$$
+
+이고, 이것을 **완화된(relaxed) 건전성**, 원래 비밀의 크기 $\|s\|$ 와 보장되는 크기 $2(B - \beta)$ 의 비를 **여유(slack)** 라 부릅니다.
+
+<RelaxedExtract client:visible />
+
+**왜 이걸로 충분한 경우가 많은가.** 서명(ML-DSA)의 위조 불가성은 "위조자가 있으면 Module-SIS 해를 얻는다"로 증명되는데, $A\bar s = \bar c\, t$ 와 $t = As$ 를 합치면 $A(\bar s - \bar c s) = 0$ 이고, $\bar s - \bar c s$ 는 짧은 0 아닌 벡터(대개)라 SIS 해입니다. 완화된 명제만으로 환원이 됩니다. 반면 "이 암호문의 평문이 정확히 0 또는 1"처럼 **정확한** 명제가 필요한 응용에는 부족합니다.
+
+### 3.3 도전 차이의 가역성
+
+추출이 의미 있으려면 $\bar c$ 가 $R_q$ 에서 가역이어야 합니다(그래야 $t = \bar c^{-1} A\bar s$ 로 쓸 수 있음). $x^n + 1$ 이 $\mathbb{Z}_q$ 위에서 $n$ 개의 일차식으로 완전히 쪼개지면, 작은 $\bar c$ 도 어떤 근에서 0 이 될 확률이 약 $n/q$ 라 비가역이 흔합니다. **Lyubashevsky–Seiler(Eurocrypt 2018)** 는 $x^n+1$ 이 **적은 수의 인수** 로만 쪼개지는 $q$ (예: $q \equiv 5 \pmod 8$ 이면 2 개)를 고르면, 계수가 충분히 작은 0 아닌 원소는 **항상 가역** 임을 보였습니다. 위젯에서 $q = 257$ 은 약 23%, $q = 4093$ 은 0% 입니다. 그 대신 NTT 가 완전히 쪼개지지 않아 곱셈이 조금 느려지는 절충입니다(16장의 ML-KEM 과 같은 고민).
+
+<Quiz
+  client:visible
+  question="Lyubashevsky 식 Σ-프로토콜을 되감아 두 응답을 빼면 얻는 것으로 옳은 것은?"
+  options={[
+    '원래 비밀 s 그 자체',
+    'A·s̄ = c̄·t 인 짧은 s̄ 와 작은 c̄ = c − c′. c̄⁻¹·s̄ 가 짧다는 보장은 없다',
+    '마스크 y',
+    '아무것도 얻지 못한다 (영지식이므로)',
+  ]}
+  answer={1}
+  explanation="A(z − z′) = (c − c′)t 이므로 (s̄, c̄) = (z − z′, c − c′) 를 얻습니다. 정직한 증명자라면 s̄ = c̄·s 이지만, 증명 자체는 'A s̄ = c̄ t 인 짧은 s̄' 만 보장합니다. 이것이 완화된 건전성입니다. 영지식은 '증명을 보는 사람'에게 정보가 없다는 뜻이지, 되감을 수 있는 추출기에게까지 숨긴다는 뜻이 아닙니다."
+/>
+
+## 4. 커밋먼트와 정확한 증명
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 Ajtai 와 BDLOP 커밋먼트
+
+**Ajtai 커밋먼트.** $\mathrm{Com}(m; r) = A_1 r + A_2 m \bmod q$ ($r$, $m$ 짧음). 서로 다른 두 열기 $(m, r) \ne (m', r')$ 가 있으면 $[A_1 \; A_2](r - r', m - m') = 0$ 으로 짧은 SIS 해가 나오므로 **결합성 ← SIS**. $r$ 의 엔트로피가 충분하면 잔여 해시 보조정리로 통계적 **은닉성** 을 얻습니다.
+
+**BDLOP (Baum–Damgård–Lyubashevsky–Oechsner–Peikert, SCN 2018).** 모듈 위에서
+
+$$
+t_0 = B_0 r, \qquad t_i = \langle b_i, r \rangle + m_i \quad (i = 1, \dots, \ell),
+$$
+
+결합성은 Module-SIS, 은닉성은 Module-LWE ($r$ 짧은 무작위)에서 옵니다. 메시지 $m_i$ 가 $R_q$ 의 원소 하나씩이라, 커밋먼트에 대한 **선형 관계**($\sum \alpha_i m_i = \gamma$)는 3절과 같은 Σ-프로토콜로 자연스럽게 증명되고, 열기 증명은 역시 완화된 형태(짧은 $\bar r$ 와 $\bar c$)입니다.
+
+### 4.2 정확한 증명: 곱 관계와 NTT 슬롯
+
+"$s$ 의 계수가 정확히 $\{-1, 0, 1\}$" 같은 정확한 명제는 **곱 관계** 로 바꿉니다.
+
+$$
+s_i \in \{-1, 0, 1\} \iff s_i(s_i - 1)(s_i + 1) = 0.
+$$
+
+$R_q$ 가 NTT 로 $\mathbb{Z}_q^n$ (또는 작은 체들의 곱)으로 쪼개지면, 메시지 다항식의 NTT 슬롯에 $s$ 의 계수를 넣어 두면 **다항식 곱 한 번이 슬롯별 곱 $n$ 개** 가 됩니다. 따라서 커밋한 메시지들 사이의 곱 관계 하나를 증명하면 $n$ 개의 삼진 조건이 한꺼번에 증명됩니다. Bootle–Lyubashevsky–Seiler(CRYPTO 2019), Attema–Lyubashevsky–Seiler(CRYPTO 2020)가 이 길로 정확한 증명을 수십 KB 수준으로 줄였습니다. 여기서도 3.3 절의 가역성과 NTT 분해 사이의 긴장이 나타나고, 갈루아 자기동형으로 슬롯을 섞는 기법이 쓰입니다.
+
+### 4.3 근사 노름 증명: JL 사영
+
+$\|s\|_2 \le \beta$ 를 증명하는 다른 길은 **차원 축소** 입니다. 검증자가 무작위 $\Pi \in \{-1, 0, 1\}^{256 \times m}$ 을 보내면 증명자는 (마스크를 씌운) $\Pi s$ 를 보내고, 검증자는 그 길이를 봅니다. 존슨–린덴스트라우스 성질에 의해 $\|\Pi s\|$ 는 $\|s\|$ 를 일정한 비율로 거의 보존하므로, $\|\Pi s\|$ 가 짧으면 $\|s\|$ 도 (작은 여유를 두고) 짧습니다.
+
+<JLProjection client:visible />
+
+Lyubashevsky–Nguyen–Plançon(CRYPTO 2022)은 이 사영과 4.2 절의 기법을 결합해 근사·정확 노름 증명을 모두 짧게 만들었습니다. 핵심은 **$m$ 이 얼마나 크든 256 개의 수만 보낸다** 는 것입니다.
+
+## 5. 효율의 계보와 응용
+
+<span class="layer-tag">연구 관점</span>
+
+| 세대 | 대표 | 명제 | 크기의 감각 |
+|---|---|---|---|
+| 조합적 | Stern 식 (1993, LNSW13) | 정확 | 수백 KB (반복 때문) |
+| 대수적 Σ | Lyubashevsky (2009, 2012) | 완화 (slack 큼) | 수 KB 이하, 하지만 정확한 명제에는 부족 |
+| 커밋먼트 + 곱 관계 | BDLOP18, BLS19, ALS20 | 정확 | 수십 KB |
+| 사영·일회용 커밋먼트 | LNS21, LNP22 | 정확·근사 노름 | 십수 KB 안팎 |
+| 간결한 증명 | LaBRADOR (Beullens–Seiler, CRYPTO 2023) 등 | 큰 회로 (R1CS) | 명제 크기에 대해 로그 수준, 수십 KB |
+
+(크기는 명제와 파라미터에 따라 크게 달라 어림값입니다. 정확한 숫자는 각 논문의 표를 보세요.)
+
+**응용.**
+
+- **그룹 서명·링 서명·익명 인증**: "등록된 키 중 하나를 안다"를 공개키 목록이나 머클 트리에 대해 증명합니다.
+- **기밀 거래**: 금액을 커밋하고 "입력 합 = 출력 합, 각 금액은 0 이상"을 증명합니다(예: MatRiCT, Esgin 외 CCS 2019).
+- **검증 가능한 암호화·문턱 암호**: "이 암호문은 올바른 형태다", "이 복호 몫은 내 키 몫으로 올바르게 계산했다"(22장의 문턱 동형암호).
+- **올바른 키 생성 증명**: 공개키가 실제로 짧은 비밀에서 나왔다는 증명(인증서 발급, 키 등록).
+- **양자 내성 간결 증명(SNARK)**: 해시 기반 STARK 와 함께, 격자 기반 간결 증명과 다항식 커밋먼트가 빠르게 발전하고 있습니다.
+
+**연구 질문.** 여유(slack)를 줄이는 것, 정확한 증명의 크기, 다중 라운드 Fiat–Shamir 의 QROM 안전성, 그리고 응용별 최적화가 활발한 주제입니다. 증명 시스템은 구현 비중이 커서, 재현과 최적화로 연구에 들어가기 좋은 분야이기도 합니다.
+
+## 연습문제
+
+**★ 1.** Stern 식 프로토콜로 건전성 오차 $2^{-80}$, $2^{-128}$ 을 얻으려면 각각 몇 라운드가 필요한가요?
+
+<details>
+<summary>풀이</summary>
+
+$r \ge \lambda/\log_2(3/2) = \lambda / 0.585$. $\lambda = 80$: 137 라운드, $\lambda = 128$: 219 라운드.
+
+</details>
+
+**★ 2.** Lyubashevsky 식 Σ-프로토콜의 완전성 $Az - ct = w$ 를 확인하고, 거절 샘플링이 없으면 무엇이 새는지 한 문장으로 쓰세요.
+
+<details>
+<summary>풀이</summary>
+
+$Az - ct = A(y + cs) - cAs = Ay = w$. 거절이 없으면 $z = y + cs$ 의 분포가 $cs$ 쪽으로 밀려 있어, 많은 증명을 모으면 $s$ 가 통계적으로 드러납니다(4장 위젯).
+
+</details>
+
+**★ 3.** 완화된 증명이 보장하는 $\|\bar s\|_\infty \le 2(B - \beta)$ 와 실제 비밀의 $\|s\|_\infty = 1$ 을 비교해 여유를 계산하세요($B = 2000$, $\beta = 16$). 이 여유가 서명에서는 왜 문제가 되지 않나요?
+
+<details>
+<summary>풀이</summary>
+
+$2(2000 - 16) = 3968$ 이라 여유는 약 4000 배. 서명의 안전성 환원은 $\bar s - \bar c s$ 가 Module-SIS 의 해가 된다는 것만 쓰므로, SIS 파라미터를 이 길이($\approx 2(B - \beta) + \|\bar c s\|$)에 대해 어렵게 잡으면 충분합니다(ML-DSA 의 MSIS 파라미터가 그렇게 정해짐).
+
+</details>
+
+**★★ 4.** Stern 식 프로토콜의 특수 건전성: 같은 커밋 $(c_1, c_2, c_3)$ 에 대해 세 도전 모두에 올바른 응답이 있으면 (해시 충돌이 없는 한) "이진이고 무게 $w$ 이며 $As = t$ 인 $s$" 를 계산할 수 있음을 보이세요.
+
+<details>
+<summary>풀이</summary>
+
+도전 1 에서 $u = \pi(s')$, $v = \pi(r')$, 도전 2 에서 $(\pi_2, x)$, 도전 3 에서 $(\pi_3, r'')$. $c_1$ 이 같으므로 $\pi_2 = \pi_3$ 이고 $A x - t = A r''$; $c_2$ 가 같으므로 $\pi_3(r'') = v$; $c_3$ 이 같으므로 $\pi_2(x) = v + u$. 따라서 $\pi_2(x - r'') = u$ 이고 $s := x - r'' = \pi_2^{-1}(u)$ 는 이진이고 무게 $w$ 이며 $As = Ax - Ar'' = t$.
+
+</details>
+
+**★★ 5.** Lyubashevsky 식 Σ-프로토콜의 정직한 검증자 영지식 시뮬레이터를 쓰세요(거절이 일어나는 경우 포함).
+
+<details>
+<summary>풀이</summary>
+
+$c \leftarrow \mathcal{C}$ 를 먼저 뽑고, $z$ 를 상자 $\|z\|_\infty \le B - \beta$ 에서 균등하게 뽑아 $w := Az - ct$. 진짜 증명에서 받아들인 $z$ 도 그 상자에서 균등하고(17장 보조정리 17.1) $w$ 는 $z, c$ 로 정해지므로 같은 분포입니다. 거절된 시도는 공개하지 않으므로 시뮬레이션할 필요가 없고, 대화형에서 공개한다면 그 $w$ 는 $Ay$ 꼴의 균등에 가까운 값(Module-LWE)이라 따로 시뮬레이션합니다.
+
+</details>
+
+**★★ 6.** $\Pi$ 의 성분이 독립이고 $\Pr[\pm 1] = 1/4$, $\Pr[0] = 1/2$ 일 때 $\mathbb{E}\|\Pi w\|^2 = 128\|w\|^2$ ($\Pi$ 는 256 행)임을 보이고, 한 행의 분산을 $w$ 로 쓰세요. 고르게 퍼진 $w$ 와 한 좌표에 몰린 $w$ 중 어느 쪽이 더 잘 모이나요?
+
+<details>
+<summary>풀이</summary>
+
+한 행 $\pi$ 에 대해 $\mathbb{E}\langle\pi, w\rangle^2 = \sum_j w_j^2\, \mathbb{E}\pi_j^2 = \|w\|^2/2$ (교차항은 평균 0)이고, 256 행이면 $128\|w\|^2$. 4차 모멘트는 $\mathbb{E}\pi^4 = 1/2$, $(\mathbb{E}\pi^2)^2 = 1/4$ 에서 $\mathbb{E}\langle\pi,w\rangle^4 = \tfrac12\sum_j w_j^4 + \tfrac34\big(\|w\|^4 - \sum_j w_j^4\big)$, 따라서 분산은 $\tfrac12\|w\|^4 - \tfrac14\sum_j w_j^4$. 고르게 퍼지면 $\sum w_j^4 \ll \|w\|^4$ 라 분산이 $\tfrac12\|w\|^4$, 한 좌표에 몰리면 $\tfrac14\|w\|^4$ 로 오히려 작습니다. 어느 경우든 256 행의 합은 평균 주위에 잘 모이고(위젯), 아래쪽 꼬리는 지수적으로 작습니다.
+
+</details>
+
+**★★ 7.** Ajtai 커밋먼트 $\mathrm{Com}(m; r) = A_1 r + A_2 m$ 의 결합성이 SIS 에서 나옴을 보이고, 은닉성을 위해 $r$ 의 분포에 어떤 조건이 필요한지 쓰세요.
+
+<details>
+<summary>풀이</summary>
+
+$A_1 r + A_2 m = A_1 r' + A_2 m'$ 이고 $(m, r) \ne (m', r')$ 이면 $[A_1 \; A_2]\,(r - r', m - m')^T = 0$, 짧은 0 아닌 해이므로 SIS 를 깹니다(길이는 열기 길이의 2 배). 은닉성: $A_1 r$ 이 $\mathbb{Z}_q^n$ 위에서 균등에 통계적으로 가까우려면 $r$ 의 최소 엔트로피가 $n\log q$ 보다 충분히 커야 합니다(잔여 해시 보조정리). 그렇지 않으면 LWE 기반 은닉(BDLOP)을 씁니다.
+
+</details>
+
+**★★ 8.** 4.2 절에서, 계수 벡터 $s \in \mathbb{Z}_q^n$ 을 메시지 다항식 $\hat m$ 의 NTT 슬롯에 넣으면($\mathrm{NTT}(\hat m) = s$) $\hat m(\hat m - 1)(\hat m + 1) = 0$ 이 "$s$ 의 모든 성분이 삼진"과 동치임을 보이세요. $x^n + 1$ 이 완전히 쪼개지지 않으면 무엇이 바뀌나요?
+
+<details>
+<summary>풀이</summary>
+
+NTT 는 환 동형 $R_q \cong \mathbb{Z}_q^n$ 이라 곱이 슬롯별 곱이 되고, $\hat m(\hat m-1)(\hat m+1)$ 의 NTT 는 $(s_i(s_i-1)(s_i+1))_i$ 입니다. 이것이 0 다항식 ⇔ 모든 슬롯이 0. 부분적으로만 쪼개지면 슬롯이 작은 확대체 $\mathbb{F}_{q^d}$ 의 원소가 되어, 슬롯 하나에 $d$ 개의 계수가 들어가고 곱이 성분별 곱이 아니게 됩니다. 그래서 갈루아 자기동형으로 성분을 분리하는 추가 기법이 필요합니다(3.3 절의 가역성과의 절충).
+
+</details>
+
+**★★★ 9. (읽기)** Lyubashevsky–Nguyen–Plançon(CRYPTO 2022) 또는 LaBRADOR(CRYPTO 2023) 중 하나를 골라, (a) 증명하는 명제, (b) 핵심 기법(사영, 재귀적 접기 등), (c) 보고된 증명 크기와 그 비교 대상을 정리하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+LNP22 는 JL 사영으로 노름 증명을 짧게 하고 이를 일반 선형·이차 관계와 결합합니다. LaBRADOR 는 이차 관계를 재귀적으로 접어 간결한 증명을 만듭니다. 크기 표는 원문을 보고, 해시 기반 STARK 나 고전 SNARK 와 무엇을 비교했는지 함께 적으세요.
+
+</details>
+
+## 요약
+
+- 기본 명제는 "$As = t$ 이고 $s$ 가 짧다". 짧음은 감을 수 없어 거절 샘플링이 필요하고, 추출에는 여유가 생긴다.
+- Stern 식: 순열과 세 커밋, 건전성 오차 2/3, 정확하지만 219 라운드·수백 KB.
+- Lyubashevsky 식: 한 번이면 되지만 **완화된 건전성** — 추출되는 것은 $A\bar s = \bar c\, t$. 서명엔 충분, 정확한 명제엔 부족. 도전 차이가 가역이도록 $q$ 를 고른다(Lyubashevsky–Seiler).
+- 커밋먼트: Ajtai(결합 ← SIS), BDLOP(결합 ← MSIS, 은닉 ← MLWE). 정확한 증명은 NTT 슬롯의 곱 관계로, 노름 증명은 JL 사영으로.
+- 응용: 그룹·링 서명, 익명 인증, 기밀 거래, 검증 가능한 암호화, 간결 증명.
+- 다음: [22장](../guide/curriculum/)에서 동형암호와 문턱 동형암호를 다룬다.
+
+## 참고문헌
+
+1. J. Stern, *A New Identification Scheme Based on Syndrome Decoding*, CRYPTO 1993.
+2. S. Ling, K. Nguyen, D. Stehlé, H. Wang, *Improved Zero-Knowledge Proofs of Knowledge for the ISIS Problem, and Applications*, PKC 2013.
+3. V. Lyubashevsky, *Fiat–Shamir with Aborts*, Asiacrypt 2009; *Lattice Signatures without Trapdoors*, Eurocrypt 2012.
+4. V. Lyubashevsky, G. Seiler, *Short, Invertible Elements in Partially Splitting Cyclotomic Rings and Applications to Lattice-Based Zero-Knowledge Proofs*, Eurocrypt 2018.
+5. M. Ajtai, *Generating Hard Instances of Lattice Problems*, STOC 1996.
+6. C. Baum, I. Damgård, V. Lyubashevsky, S. Oechsner, C. Peikert, *More Efficient Commitments from Structured Lattice Assumptions*, SCN 2018. (BDLOP)
+7. J. Bootle, V. Lyubashevsky, G. Seiler, *Algebraic Techniques for Short(er) Exact Lattice-Based Zero-Knowledge Proofs*, CRYPTO 2019.
+8. T. Attema, V. Lyubashevsky, G. Seiler, *Practical Product Proofs for Lattice Commitments*, CRYPTO 2020.
+9. V. Lyubashevsky, N. K. Nguyen, G. Seiler, *Shorter Lattice-Based Zero-Knowledge Proofs via One-Time Commitments*, PKC 2021.
+10. V. Lyubashevsky, N. K. Nguyen, M. Plançon, *Lattice-Based Zero-Knowledge Proofs and Applications: Shorter, Simpler, and More General*, CRYPTO 2022.
+11. W. Beullens, G. Seiler, *LaBRADOR: Compact Proofs for R1CS from Module-SIS*, CRYPTO 2023.
+12. M. F. Esgin, R. K. Zhao, R. Steinfeld, J. K. Liu, D. Liu, *MatRiCT: Efficient, Scalable and Post-Quantum Blockchain Confidential Transactions Protocol*, CCS 2019.
