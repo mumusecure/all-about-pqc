@@ -67,6 +67,7 @@ export default defineConfig({
           { label: '21장. 격자 기반 영지식 증명', slug: 'ch21-lattice-zk' },
           { label: '22장. 동형암호와 문턱 동형암호', slug: 'ch22-fhe-threshold' },
           { label: '23장. 동종사상과 SQIsign', slug: 'ch23-isogenies-sqisign' },
+          { label: '24장. 다른 가문 개관과 표준화 현황', slug: 'ch24-other-families' },
         ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },

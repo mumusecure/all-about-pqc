@@ -1,0 +1,450 @@
+---
+title: 24장. 다른 가문 개관과 표준화 현황
+description: 격자 밖의 양자 내성 가문들. Lamport·Winternitz·Merkle 트리에서 SLH-DSA 까지의 해시 기반 서명, 신드롬 복호와 정보 집합 복호(ISD)·Classic McEliece·HQC 의 부호 기반 암호, MQ 문제와 UOV·Rainbow 의 붕괴·MAYO 의 다변수 서명, MPC-in-the-head 서명, 그리고 2026년 11월 기준 NIST·KpqC·각국의 표준화 현황.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import HashSigLab from '../../components/HashSigLab.tsx';
+import PrangeCalc from '../../components/PrangeCalc.tsx';
+import UOVToy from '../../components/UOVToy.tsx';
+import StandardsBoard from '../../components/StandardsBoard.tsx';
+import Quiz from '../../components/Quiz.tsx';
+
+<div class="goals">
+
+**학습 목표**
+
+1. Lamport·Winternitz 일회용 서명과 Merkle 트리로 해시 함수만으로 서명을 만들고, 상태(state)가 왜 위험한지, SLH-DSA 가 어떻게 상태를 없앴는지 설명할 수 있다.
+2. 신드롬 복호 문제와 Prange 정보 집합 복호의 비용을 계산하고, Classic McEliece·HQC·BIKE 의 크기 절충을 비교할 수 있다.
+3. MQ 문제와 UOV 의 함정문(기름·식초)을 설명하고, 균형 Oil–Vinegar 와 Rainbow 가 깨진 이유를 말할 수 있다.
+4. MPC-in-the-head 로 일방향 함수만에서 서명을 만드는 원리와 건전성 $(1/N)^\tau$ 를 설명할 수 있다.
+5. 2026년 11월 기준 NIST·KpqC 표준과 후보, 각국 이행 일정을 정리하고, "가정의 다양성"이 왜 필요한지 논할 수 있다.
+
+**선수 지식**: [1장](../ch01-definitions/)(해시 함수 성질, EUF-CMA), [4장](../ch04-sigma-fiat-shamir/)(Σ-프로토콜, Fiat–Shamir), [16장](../ch16-mlkem/)·[17장](../ch17-lattice-signatures/)(비교 대상인 격자 표준), [20장](../ch20-failure-implementation-attacks/)(복호 실패 공격).
+
+</div>
+
+## 1. 직관: 왜 달걀을 여러 바구니에
+
+<span class="layer-tag">직관</span>
+
+지금까지 이 교재의 대부분은 격자였습니다. NIST 의 첫 표준 셋 중 둘(ML-KEM, ML-DSA)이 격자이고, 효율도 가장 좋습니다. 그런데 표준을 만드는 사람들이 가장 두려워하는 것은 "모든 것이 한 가정에 기대는 상황"입니다. 2022년에 SIKE(동종사상)와 Rainbow(다변수)가 몇 달 사이에 노트북 한 대로 깨졌던 일(23장, 이 장 4절)은 "결선까지 간 후보도 갑자기 무너질 수 있다"는 교훈을 남겼습니다.
+
+그래서 양자 내성 암호는 **서로 다른 수학**에 기대는 여러 가문을 함께 키웁니다.
+
+| 가문 | 어려운 문제 | 대표 | 장점 | 단점 |
+|---|---|---|---|---|
+| 격자 | LWE, SIS, NTRU | ML-KEM, ML-DSA, FN-DSA | 빠르고 작음 | 구조(환·모듈)에 대한 불안 |
+| 해시 | 해시 함수의 역상·충돌 저항 | SLH-DSA, XMSS, LMS | 가정이 가장 보수적 | 서명이 큼, 서명만 가능 |
+| 부호 | 무작위 선형 부호의 복호 | Classic McEliece, HQC | 1978년 이후 견고 | 공개키가 큼(McEliece) |
+| 다변수 | 연립 이차식 풀이(MQ) | UOV, MAYO | 서명이 아주 작음 | 공개키가 큼, 깨진 역사 |
+| MPCitH | 대칭 원시(AES 등)의 일방향성 | FAEST, AIMer, SDitH | 가정이 보수적 | 서명 수 KB, 느림 |
+| 동종사상 | 초특이 곡선 사이 경로 찾기 | SQIsign | 가장 작음 | 느리고 복잡(23장) |
+
+이 장은 격자 밖의 가문들을 한 번씩 훑고, 마지막에 표준화의 지형을 정리합니다. 각 가문을 깊게 다루려면 책 한 권씩이 필요하니, 여기서는 **어려운 문제, 함정문(또는 구성), 대표 공격, 크기** 네 가지에 집중합니다.
+
+## 2. 해시 기반 서명
+
+<span class="layer-tag">정식화</span>
+
+### 2.1 Lamport 일회용 서명
+
+**Lamport (1979)**: 해시 함수 $H : \{0,1\}^* \to \{0,1\}^{n}$ 하나로 서명을 만듭니다($n = 256$).
+
+- **키.** 비밀키 $sk[i][b]$ ($i = 0..n-1$, $b \in \{0, 1\}$) 를 무작위로 $2n$ 개 고르고, 공개키 $pk[i][b] = H(sk[i][b])$.
+- **서명.** 메시지 해시 $h = H(m)$ 의 각 비트 $h_i$ 에 대해 $\sigma_i = sk[i][h_i]$ 를 공개.
+- **검증.** 모든 $i$ 에서 $H(\sigma_i) = pk[i][h_i]$.
+
+위조하려면 공개되지 않은 $sk[i][1 - h_i]$ 하나라도 알아야 하는데, 그것은 $H$ 의 역상입니다. 그래서 **한 번** 서명은 $H$ 가 일방향이면 안전합니다. 하지만 같은 키로 두 번 서명하면 해시 비트가 다른 위치(평균 $n/2$ 개)에서 두 비밀이 모두 드러나고, $k$ 번이면 한쪽만 드러난 위치가 평균 $n \cdot 2^{1-k}$ 개로 줄어듭니다. 무작위 메시지가 위조 가능할 확률은 $2^{-(\text{한쪽만 드러난 위치 수})}$ 이므로 작업량은
+
+$$
+W(k) \approx 2^{\,n \cdot 2^{1-k}}, \qquad W(1) = 2^{256},\; W(2) \approx 2^{128},\; W(5) \approx 2^{16}.
+$$
+
+<HashSigLab client:visible />
+
+### 2.2 Winternitz: 비트 대신 자릿수
+
+Lamport 서명은 $n$ 개의 해시값($n = 256$ 이면 8 KB)이라 큽니다. **Winternitz (W-OTS)** 는 메시지를 밑 $w$ 의 자릿수 $d_1, \dots, d_{\ell_1}$ ($\ell_1 = \lceil n / \log_2 w \rceil$) 로 쓰고, 자리마다 **해시 체인** 하나를 씁니다.
+
+$$
+sk_i \xrightarrow{H} H(sk_i) \xrightarrow{H} \cdots \xrightarrow{H} H^{w-1}(sk_i) = pk_i, \qquad \sigma_i = H^{d_i}(sk_i).
+$$
+
+검증자는 $\sigma_i$ 에 $H$ 를 $w - 1 - d_i$ 번 더 적용해 $pk_i$ 가 나오는지 봅니다. 문제는 공격자도 체인을 **앞으로** 진행할 수 있다는 것입니다. $d_i$ 의 서명에서 $d_i + 1$ 의 서명은 해시 한 번이면 됩니다. 그래서 **체크섬** $C = \sum_i (w - 1 - d_i)$ 을 밑 $w$ 로 $\ell_2$ 자리 더 서명합니다. 어떤 $d_i$ 를 키우면 $C$ 가 줄어야 하는데, 체크섬 자리는 거꾸로 갈 수 없으니 위조가 막힙니다.
+
+$$
+\ell_2 = \left\lfloor \frac{\log_2(\ell_1 (w-1))}{\log_2 w} \right\rfloor + 1, \qquad \ell = \ell_1 + \ell_2 .
+$$
+
+$w = 16$, $n = 256$ 이면 $\ell = 64 + 3 = 67$, 서명 2,144 바이트로 Lamport 의 약 4분의 1 이고, 대신 해시 계산이 $\ell (w - 1)$ 로 늘어납니다. 위젯의 표가 이 절충을 보여 줍니다.
+
+### 2.3 Merkle 트리와 상태: XMSS, LMS
+
+일회용 키를 여러 번 쓰려면 **Merkle (1979)** 의 방법으로 $2^h$ 개의 일회용 공개키를 이진 해시 트리의 잎으로 묶고, 루트 하나를 공개키로 씁니다. 서명은 (몇 번째 잎인지, 그 잎의 일회용 서명, 루트까지의 형제 노드 $h$ 개 = **인증 경로**)입니다.
+
+- **XMSS** (RFC 8391)와 **LMS/HSS** (RFC 8554)가 이 방식을 표준화했고, NIST SP 800-208 (2020)이 승인했습니다. 가정은 해시 함수뿐이고 서명은 2~3 KB 수준입니다.
+- 대가는 **상태**입니다. 서명자는 "다음에 쓸 잎의 번호"를 반드시 기억하고 절대 되돌리면 안 됩니다. 가상 머신 스냅샷 복원, 백업에서 키 복원, 여러 서버에 같은 키 복제는 모두 같은 잎을 두 번 쓰게 만들고, 위젯에서 본 것처럼 두세 번의 재사용으로 위조가 가능해집니다.
+
+그래서 SP 800-208 은 상태 기반 서명을 **하드웨어 모듈 안에서 키를 생성하고 내보내지 않는** 환경으로 제한합니다. 펌웨어 서명처럼 서명 횟수가 적고 서명자가 한 곳인 용도에 맞고, 미국 CNSA 2.0 도 펌웨어·소프트웨어 서명에 LMS/XMSS 를 지정합니다.
+
+### 2.4 상태 없는 서명: SPHINCS+ 와 SLH-DSA
+
+**SPHINCS+ (Bernstein–Hülsing–Kölbl–Niederhagen–Rijneveld–Schwabe, CCS 2019)** 는 상태를 없앴습니다. 핵심 아이디어 두 가지:
+
+1. **하이퍼트리.** 높이 $h$ 의 트리를 $d$ 층으로 쪼개 (층마다 높이 $h' = h/d$) 각 층의 트리 루트를 위층의 W-OTS⁺ 로 서명합니다. 전체로는 $2^h$ 개의 잎이 있지만 서명에는 층마다 인증 경로 하나만 들어갑니다. 키 생성도 맨 위 트리 하나만 계산하면 됩니다.
+2. **FORS (few-time signature).** 맨 아래 잎은 일회용이 아니라 "몇 번 써도 되는" 서명입니다. 잎을 메시지 해시로 **무작위로** 고르므로 같은 잎이 우연히 몇 번 겹쳐도 안전성이 서서히만 떨어집니다. 서명자는 상태를 기억할 필요가 없습니다.
+
+NIST 는 이것을 **SLH-DSA (FIPS 205, 2024-08)** 로 표준화했습니다. 서명 크기는 $n(1 + k(a+1) + h + d\,\ell)$ 바이트입니다($k, a$ 는 FORS 파라미터).
+
+| 파라미터 | $n$ | $h$ | $d$ | FORS $k$, $a$ | 공개키 | 서명 | 성격 |
+|---|---|---|---|---|---|---|---|
+| SLH-DSA-128s | 16 | 63 | 7 | 14, 12 | 32 | 7,856 | 작게(s), 서명 느림 |
+| SLH-DSA-128f | 16 | 66 | 22 | 33, 6 | 32 | 17,088 | 빠르게(f) |
+| SLH-DSA-192s / f | 24 | | | | 48 | 16,224 / 35,664 | |
+| SLH-DSA-256s / f | 32 | | | | 64 | 29,792 / 49,856 | |
+
+(바이트, FIPS 205.) 공개키 32 바이트는 모든 PQC 서명 중 가장 작고, 가정은 "해시 함수가 해시 함수답다"는 것뿐입니다. 서명이 크고 느린 것이 대가라, 루트 인증서처럼 **오래 살아야 하고 자주 서명하지 않는** 곳의 보수적 선택지입니다.
+
+<Quiz
+  client:visible
+  question="SLH-DSA 가 XMSS·LMS 와 달리 상태를 관리하지 않아도 되는 이유로 가장 정확한 것은?"
+  options={[
+    '일회용 서명 대신 격자 서명을 쓰기 때문',
+    '잎을 메시지 해시로 무작위로 고르고, 맨 아래에 몇 번 겹쳐 써도 안전성이 서서히만 떨어지는 FORS 를 두며, 잎이 2^60 개 이상으로 아주 많아 겹칠 확률이 작기 때문',
+    '서명할 때마다 새 키를 만들어 공개하기 때문',
+    '서명자가 서명 횟수를 서버에 기록하기 때문',
+  ]}
+  answer={1}
+  explanation="상태가 필요한 이유는 같은 일회용 키를 두 번 쓰면 안 되기 때문입니다. SPHINCS+ 는 잎을 무작위로 고르고(겹칠 확률을 잎 개수로 낮춤), 겹치더라도 맨 아래가 few-time 서명 FORS 라 몇 번의 재사용은 견딥니다. 그래서 '몇 번째 잎인지' 기억할 필요가 없습니다."
+/>
+
+## 3. 부호 기반 암호
+
+<span class="layer-tag">정식화</span>
+
+### 3.1 신드롬 복호 문제
+
+이진 선형 부호 $C \subset \mathbb{F}_2^n$ 는 차원 $k$ 인 부분공간이고, 패리티 검사 행렬 $H \in \mathbb{F}_2^{(n-k) \times n}$ 의 영공간입니다. 오류 $e$ 가 섞인 단어 $y = c + e$ 의 **신드롬**은 $Hy = He$ 입니다.
+
+> **신드롬 복호 (SD).** $H$ 와 $s$ 가 주어졌을 때 무게(1 의 개수) $\mathrm{wt}(e) = t$ 이고 $He = s$ 인 $e$ 를 찾아라.
+
+Berlekamp–McEliece–van Tilborg (1978) 가 이 문제의 결정 버전이 NP-완전임을 보였습니다. 격자의 LWE 가 "작은 오류"를 유클리드 노름으로 재듯, 부호는 **해밍 무게**로 잽니다. 무작위 $H$ 에 대해서는 양자 컴퓨터로도 지수 시간 알고리즘만 알려져 있습니다.
+
+### 3.2 McEliece 와 Classic McEliece
+
+**McEliece (1978)** 는 효율적인 복호 알고리즘이 있는 부호(이진 **Goppa 부호**, Patterson 복호로 오류 $t$ 개 정정)를 무작위 부호처럼 **위장**합니다.
+
+- **키.** Goppa 부호의 생성 행렬 $G$, 무작위 가역 $S$, 치환 $P$. 공개키 $G' = SGP$.
+- **암호화.** $c = mG' + e$, $\mathrm{wt}(e) = t$.
+- **복호.** $cP^{-1} = (mS)G + eP^{-1}$ 에서 Goppa 복호로 오류를 지우고 $S^{-1}$ 을 곱함.
+
+**Niederreiter** 변형은 패리티 검사 행렬을 공개하고 오류 $e$ 자체를 메시지로 써서 암호문을 신드롬 $s = H'e$ 로 만듭니다. NIST 4라운드 후보였던 **Classic McEliece** 는 이 방식에 공개키를 체계적 형태 $H' = [I_{n-k} \mid T]$ 로 두고 KEM 변환을 얹은 것입니다. 공개키는 $T$ 의 $(n-k)k$ 비트, 암호문은 신드롬 $n - k$ 비트입니다.
+
+| 파라미터 | $n$ | $k$ | $t$ | 공개키 | 암호문 |
+|---|---|---|---|---|---|
+| mceliece348864 (I) | 3488 | 2720 | 64 | 261,120 | 96 |
+| mceliece460896 (III) | 4608 | 3360 | 96 | 524,160 | 156 |
+| mceliece6960119 (V) | 6960 | 5413 | 119 | 1,047,319 | 194 |
+| mceliece8192128 (V) | 8192 | 6528 | 128 | 1,357,824 | 208 |
+
+(바이트.) ML-KEM-512 의 공개키 800 바이트와 비교하면 300 배 이상 크지만, 암호문은 가장 작고, 1978년 원 제안 이후 45년 넘게 **구조 공격 없이** 살아남았습니다. Goppa 부호를 무작위 부호와 구별하는 알고리즘은 부호율이 1 에 아주 가까운 경우에만 알려져 있습니다(Faugère–Gauthier–Otmani–Perret–Tillich 2011).
+
+### 3.3 정보 집합 복호 (ISD)
+
+일반 부호에 대한 최선의 공격은 **정보 집합 복호**입니다.
+
+- **Prange (1962).** 좌표 $n - k$ 개를 무작위로 고르고, 나머지 $k$ 개(정보 집합)에 오류가 없다고 가정합니다. 그러면 $He = s$ 가 고른 $n - k$ 좌표에 대한 정사각 선형계가 되어 가우스 소거로 풀립니다. 성공 확률은 $\binom{n-k}{t} / \binom{n}{t}$ 이므로 시도 횟수는
+$$
+W_{\text{Prange}} = \binom{n}{t} \Big/ \binom{n-k}{t} \;\approx\; (1 - R)^{-t} \quad (t \ll n, \; R = k/n).
+$$
+- **Lee–Brickell (1988), Stern (1989).** 정보 집합에 오류가 몇 개($p$) 있는 것을 허용하고 생일 역설로 짝을 맞춥니다.
+- **MMT (2011), BJMM (2012), May–Ozerov (2015), Both–May (2018).** 오류를 여러 조각의 합으로 나누는 표현 기법(representation)과 근접 쌍 찾기로 지수를 더 줄입니다.
+
+<PrangeCalc client:visible />
+
+연구 관점에서 흥미로운 사실: Classic McEliece 처럼 $t = o(n)$ 인 **희소 오류**에서는 모든 개선 ISD 의 지수가 Prange 와 **같은 $(1-R)^{-t(1+o(1))}$** 로 수렴합니다(Canto Torres–Sendrier 2016). 개선은 낮은 차수 항에서만 일어나므로 파라미터가 안정적입니다. 양자 컴퓨터는 Grover 로 Prange 의 시도 횟수를 대략 제곱근으로 줄입니다(Bernstein 2010).
+
+### 3.4 준순환 부호: BIKE 와 HQC
+
+McEliece 의 큰 공개키는 무작위 행렬을 통째로 보내기 때문입니다. 격자에서 환 구조로 키를 줄였듯(12장), 부호에서도 **준순환(quasi-cyclic)** 행렬, 즉 $\mathbb{F}_2[x]/(x^r - 1)$ 의 원소로 행렬을 표현해 키를 수 KB 로 줄입니다.
+
+- **BIKE.** QC-MDPC 부호(희소한 패리티 검사 행렬이 비밀). 반복 비트 뒤집기(bit-flipping)로 복호하는데 **복호 실패**가 확률적으로 일어나고, 실패 여부가 비밀의 구조를 흘린다는 **반응 공격(Guo–Johansson–Stankovski, Asiacrypt 2016)** 이 있었습니다. 20장의 복호 실패 공격과 같은 이야기로, 실패율 $2^{-128}$ 을 보장하는 복호기 설계와 분석이 BIKE 의 핵심 과제였습니다.
+- **HQC (Hamming Quasi-Cyclic).** 구조가 LWE 와 닮았습니다. 공개키 $(h, s = x + hy)$ ($x, y$ 는 희소), 암호문 $(u = r_1 + h r_2,\; v = \mathrm{Enc}(m) + s r_2 + e)$, 복호는 $v - u y$ 의 오류를 공개된 효율적 부호(연접 Reed–Muller·Reed–Solomon)로 정정합니다. "작은 오류를 더해 숨기고, 비밀을 아는 사람만 오류를 작게 만든다"는 LWE 의 문법을 해밍 거리로 옮긴 셈입니다.
+
+**NIST 는 2025년 3월 11일 HQC 를 ML-KEM 의 백업 KEM 으로 선정**했습니다(BIKE·Classic McEliece 미선정). 이유는 "격자와 다른 수학"이라는 다양성, 그리고 BIKE 보다 정리된 복호 실패 분석입니다. 표준 문서는 FIPS 207 로 준비되고 있으며 최종본은 2027년을 목표로 합니다(일정은 바뀔 수 있으니 확인하세요). HQC-128 은 공개키 약 2.2 KB, 암호문 약 4.4 KB 입니다.
+
+<Quiz
+  client:visible
+  question="Classic McEliece 에서 Prange ISD 의 시도 횟수가 약 (1 − R)^(−t) 인 이유로 맞는 것은? (R = k/n)"
+  options={[
+    '가우스 소거의 비용이 n³ 이기 때문',
+    '무작위로 고른 정보 집합 k 개 좌표에 t 개의 오류가 하나도 없어야 하고, 오류가 희소하면 각 오류가 나머지 n − k 좌표에 들어갈 확률이 대략 1 − R 로 독립에 가깝기 때문',
+    'Goppa 부호의 구조 때문',
+    '생일 역설 때문',
+  ]}
+  answer={1}
+  explanation="성공 확률은 C(n−k, t)/C(n, t) 이고, t 가 n 에 비해 작으면 ≈ ((n−k)/n)^t = (1−R)^t 입니다. mceliece348864 는 R ≈ 0.78, t = 64 라 (1/0.22)^64 ≈ 2^140 (정확한 이항계수로는 2^142.8). Goppa 구조는 공격에 쓰이지 않는다는 것이 이 가문의 믿음이고, 생일 역설은 Stern 이후의 개선에서 쓰입니다."
+/>
+
+## 4. 다변수 서명
+
+<span class="layer-tag">정식화</span>
+
+### 4.1 MQ 문제
+
+> **MQ.** 유한체 $\mathbb{F}_q$ 위에서 $n$ 변수 이차 다항식 $m$ 개 $P = (p_1, \dots, p_m)$ 과 $t \in \mathbb{F}_q^m$ 이 주어질 때 $P(x) = t$ 인 $x$ 를 찾아라.
+
+임의의 유한체에서 NP-완전이고, 일반적인 풀이(Gröbner 기저의 F4/F5, XL, 일부 변수를 추측하는 혼합 방법)는 $n \approx m$ 에서 지수 시간입니다. 다변수 **서명**은 $P$ 를 공개키로 두고, 서명 = $P(x) = H(m)$ 의 해 $x$ 로 정의합니다. 검증은 이차식 $m$ 개를 계산하는 것뿐이라 아주 빠르고, 서명은 $n$ 개의 체 원소라 아주 작습니다. 문제는 함정문, 즉 비밀을 아는 사람만 풀 수 있게 하는 구조입니다.
+
+### 4.2 UOV: 기름과 식초
+
+**Oil and Vinegar (Patarin 1997)** 와 그 불균형 버전 **UOV (Kipnis–Patarin–Goubin, Eurocrypt 1999)**:
+
+- 변수를 **식초** $v$ 개와 **기름** $o = m$ 개로 나누고, 중심 사상 $F$ 의 각 식에 **기름×기름 항이 없게** 만듭니다.
+$$
+f_k(y) = \sum_{i,j \in V} \alpha^{(k)}_{ij} y_i y_j + \sum_{i \in V, j \in O} \beta^{(k)}_{ij} y_i y_j + (\text{일차항}).
+$$
+- 공개키는 $P = F \circ T$ ($T$ 는 비밀 가역 선형 변환). $T$ 가 변수를 섞어 구조를 감춥니다.
+- **서명.** 식초 $y_V$ 를 무작위로 고르면 $F(y_V, y_O) = t$ 는 $y_O$ 에 대한 $o \times o$ **선형** 연립방정식. 풀어서 $x = T^{-1} y$.
+
+기하적으로 보면, 공개키 $P$ 는 $o$ 차원 부분공간 $\mathcal{O} = T^{-1}(\{0\}^v \times \mathbb{F}_q^o)$ 위에서 **완전히 0** 입니다. 비밀키는 사실상 이 "기름 공간" $\mathcal{O}$ 이고, 키 복구 = $\mathcal{O}$ 찾기입니다.
+
+<UOVToy client:visible />
+
+- **균형 OV ($v = o$) 의 붕괴.** Kipnis–Shamir (Crypto 1998) 는 이차형식 행렬 $M_i M_j^{-1}$ 의 불변 부분공간이 기름 공간임을 이용해 다항 시간에 깼습니다. $v > o$ 이면 이 공격의 비용이 대략 $q^{v-o}$ 배로 커지므로 **불균형**이 필요합니다.
+- **크기.** 공개키는 이차식 $o$ 개의 계수 $o \cdot n(n+1)/2$ 개라 큽니다. NIST 후보 uov-Ip ($q = 256$, $n = 112$, $o = 44$) 는 공개키 278,432 바이트(시드로 일부를 생성하는 압축형 43,576), 서명 128 바이트입니다.
+
+### 4.3 Rainbow 의 붕괴와 그 후
+
+**Rainbow (Ding–Schmidt 2005)** 는 UOV 를 여러 층으로 쌓아 키를 줄였고 NIST 3라운드 **결선** 후보였습니다. 그런데 층 구조가 추가 정보가 되어 2020년 Beullens 의 교차 공격(intersection attack)과 직사각 MinRank 공격으로 안전성이 깎였고, 마침내 **Beullens, "Breaking Rainbow Takes a Weekend on a Laptop" (Crypto 2022)** 이 1단계 파라미터의 키를 노트북으로 약 53 시간에 복구했습니다. Rainbow 는 탈락했고, UOV 자체는 이 공격에 영향을 받지 않았습니다.
+
+이후 다변수 서명은 "구조를 최소한으로, 대신 키 크기를 다른 방법으로 줄이자"로 정리되었습니다.
+
+- **MAYO (Beullens, SAC 2021).** 기름 공간을 일부러 작게($o < m$) 잡아 공개키를 줄이고, 공개 사상 $k$ 개 사본을 섞는 **whipping** 으로 서명할 수 있을 만큼의 기름을 되찾습니다. MAYO₁ 은 공개키 약 1.4 KB, 서명 약 0.45 KB 입니다.
+- **SNOVA** (비가환 행렬 환 위 UOV), **QR-UOV** (확대체·몫환 구조로 공개키 압축).
+- 2026년 5월 NIST 추가 서명 3라운드에 UOV, MAYO, SNOVA, QR-UOV 넷이 모두 올랐습니다. 공격 측에서는 MinRank 와 Gröbner 기저의 복잡도 분석이 계속 파라미터를 다듬고 있습니다.
+
+<Quiz
+  client:visible
+  question="UOV 서명자가 이차 연립방정식을 쉽게 풀 수 있는 이유는?"
+  options={[
+    'q 가 작아서 전수 조사가 가능하기 때문',
+    '비밀 좌표에서 기름×기름 항이 없으므로, 식초를 고정하면 기름 변수에 대해 선형 연립방정식이 되기 때문',
+    '공개키가 선형 사상이기 때문',
+    'Gröbner 기저를 미리 계산해 두었기 때문',
+  ]}
+  answer={1}
+  explanation="F 의 각 식은 식초×식초, 식초×기름 항만 가집니다. 식초 값을 정하면 식초×식초는 상수, 식초×기름은 기름에 대한 일차항이 되어 o×o 선형계가 남습니다. 공격자는 T 를 몰라 꽉 찬 이차식 P 를 마주합니다."
+/>
+
+## 5. MPC-in-the-head 서명
+
+<span class="layer-tag">정식화</span>
+
+4장에서 Σ-프로토콜에 Fiat–Shamir 를 적용하면 서명이 된다고 했습니다. 그렇다면 **임의의 일방향 함수 $f$** 에 대해 "$y = f(x)$ 인 $x$ 를 안다"는 영지식 증명을 만들면, 비밀키 $x$, 공개키 $y$ 인 서명이 됩니다. 가정은 $f$ 의 일방향성뿐이라 해시 기반만큼 보수적입니다.
+
+**MPC-in-the-head (Ishai–Kushilevitz–Ostrovsky–Sahai, STOC 2007)** 가 그 증명을 만드는 일반적 방법입니다.
+
+1. 증명자는 $x$ 를 $N$ 개 몫으로 나누고($x = x_1 + \cdots + x_N$), $N$ 명의 가상 참가자가 $f(x) = y$ 를 함께 계산하는 MPC 를 **머릿속에서** 실행합니다.
+2. 각 참가자의 관점(입력 몫, 난수, 받은 메시지)에 약속(commit)합니다.
+3. 검증자가 참가자 하나 $i^*$ 를 고르면 나머지 $N - 1$ 명의 관점을 엽니다. MPC 가 $N - 1$ 명까지의 결탁에 안전하므로 $x$ 에 대한 정보는 새지 않습니다(영지식).
+4. 검증자는 열린 관점들이 서로 일관되고 출력이 $y$ 인지 확인합니다.
+
+부정직한 증명자는 적어도 한 참가자의 관점을 속여야 하고, 검증자가 바로 그 참가자를 숨겨 줄 확률은 $1/N$ 입니다. $\tau$ 번 반복하면 건전성 오류는 $(1/N)^\tau$, 예를 들어 $N = 256$, $\tau = 16$ 이면 $2^{-128}$ 입니다. 서명 크기는 대략 $\tau \times (\text{참가자 하나의 통신량} + \lambda \log_2 N)$ 이라, **$f$ 를 MPC 로 계산하기 쉬운(곱셈이 적은) 함수**로 고르는 것이 설계의 핵심입니다.
+
+| 방식 | $f$ | 비고 |
+|---|---|---|
+| Picnic | LowMC (곱셈이 적은 블록 암호) | NIST 3라운드 대안 후보, 이후 후속 연구의 출발점 |
+| AIMer | AIM (MPC 친화 일방향 함수) | **KpqC 최종 선정 (2025-01)** |
+| FAEST | AES | VOLE-in-the-head (Baum et al., Crypto 2023), NIST 3라운드 |
+| SDitH | 신드롬 복호 (부호) | 가정은 3절의 SD, NIST 3라운드 |
+| MQOM | MQ (다변수) | 가정은 4절의 MQ, NIST 3라운드 |
+
+공개키는 수십 바이트로 작고, 서명은 대략 **3~6 KB** 로 SLH-DSA-128s 보다 작거나 비슷하며, 서명·검증은 수 ms 수준입니다(파라미터마다 다르니 각 명세로 확인하세요). 구조적으로 흥미로운 점은 **같은 틀에 서로 다른 어려운 문제를 꽂을 수 있다**는 것입니다. AES 를 꽂으면 "AES 가 안전하면 안전한" 서명이 됩니다.
+
+<Aside type="caution" title="Fiat–Shamir 의 함정">
+다섯 라운드 이상의 증명에 Fiat–Shamir 를 적용하면, 공격자가 앞쪽 도전을 여러 번 다시 뽑아 보는(grinding) 공격으로 단순 계산한 $(1/N)^\tau$ 보다 건전성이 약해질 수 있습니다(Kales–Zaverucha, CANS 2020). 그래서 실제 파라미터는 이 공격을 고려해 $\tau$ 를 더 키웁니다. 21장에서 본 "Fiat–Shamir 는 라운드 수에 민감하다"는 교훈과 같습니다.
+</Aside>
+
+<Quiz
+  client:visible
+  question="MPC-in-the-head 에서 N = 16 명 가상 참가자로 128 비트 건전성을 얻으려면 (grinding 공격을 무시할 때) 몇 번 반복해야 하나?"
+  options={['8 번', '16 번', '32 번', '128 번']}
+  answer={2}
+  explanation="한 번의 건전성 오류는 1/N = 2^{-4} 이므로 (2^{-4})^τ ≤ 2^{-128} 에서 τ = 32. N 을 키우면 반복은 줄지만 증명자가 시뮬레이션할 참가자가 늘어 계산이 늘어납니다. 실제 설계는 이 절충과 grinding 여유분을 함께 고릅니다."
+/>
+
+## 6. 한눈에 보는 크기
+
+<span class="layer-tag">정식화</span>
+
+**KEM (NIST 범주 I)**
+
+| | 가문 | 공개키 | 암호문 | 상태 |
+|---|---|---|---|---|
+| ML-KEM-512 | 격자 | 800 | 768 | FIPS 203 |
+| FrodoKEM-640 | 격자 (비구조 LWE) | 9,616 | 9,720 | NIST 미선정, BSI 권고 |
+| HQC-128 | 부호 (준순환) | 약 2,250 | 약 4,430 | 2025 선정, FIPS 207 준비 |
+| BIKE-L1 | 부호 (QC-MDPC) | 1,541 | 1,573 | 미선정 |
+| mceliece348864 | 부호 (Goppa) | 261,120 | 96 | NIST 미선정, ISO 작업·BSI 권고 |
+
+**서명 (NIST 범주 I 근처)**
+
+| | 가문 | 공개키 | 서명 | 상태 |
+|---|---|---|---|---|
+| ML-DSA-44 | 격자 | 1,312 | 2,420 | FIPS 204 |
+| FN-DSA-512 | 격자 | 897 | 666 | FIPS 206 초안 |
+| SLH-DSA-128s | 해시 | 32 | 7,856 | FIPS 205 |
+| uov-Ip | 다변수 | 278,432 (압축 43,576) | 128 | NIST 3라운드 |
+| MAYO₁ | 다변수 | 약 1,400 | 약 450 | NIST 3라운드 |
+| FAEST·SDitH·AIMer 계열 | MPCitH | 수십 | 약 3,000~6,000 | NIST 3라운드 / KpqC |
+| SQIsign-I | 동종사상 | 83 | 200 | NIST 3라운드 |
+
+(바이트. 후보들의 수치는 라운드마다 바뀌므로 대략값입니다.) 공개키와 서명의 **합**을 보면 격자·MAYO·SQIsign 이 작고, **서명만** 보면 UOV·SQIsign 이, **공개키만** 보면 SLH-DSA·MPCitH 가 작습니다. 인증서 체인(공개키 + 서명이 여러 번), 펌웨어(서명 한 번, 공개키는 기기에 내장), 블록체인(서명이 쌓임)처럼 용도마다 최적이 다릅니다.
+
+## 7. 표준화 현황 (2026년 11월 기준)
+
+<span class="layer-tag">정식화</span>
+
+### 7.1 NIST
+
+| 시기 | 사건 |
+|---|---|
+| 2016-12 | PQC 공모 시작. 2017-11 마감, 1라운드 69 개 |
+| 2019-01 / 2020-07 | 2라운드 26 개 / 3라운드 결선 7 개 + 대안 8 개 |
+| 2022-07 | Kyber, Dilithium, Falcon, SPHINCS+ 선정. KEM 4라운드 (BIKE, Classic McEliece, HQC, SIKE) |
+| 2022 | Rainbow 붕괴 (2월, 4절), SIKE 붕괴 (7~8월, 23장) |
+| 2023-06 | 추가 서명 공모 마감, 1라운드 40 개 (2023-07) |
+| 2024-08-13 | **FIPS 203 (ML-KEM), 204 (ML-DSA), 205 (SLH-DSA)** 최종 |
+| 2024-10 | 추가 서명 2라운드 14 개 |
+| 2024-11 | NIST IR 8547 초안: 양자 취약 알고리즘 이행 일정 |
+| 2025-03-11 | **HQC** 를 추가 KEM 으로 선정 |
+| 2026-05 | 추가 서명 3라운드: FAEST, HAWK, MAYO, MQOM, QR-UOV, SDitH, SNOVA, SQIsign, UOV (2라운드 보고서 NIST IR 8610). 이후 HAWK 는 키 복구 공격 발표로 철회 |
+| 진행 중 | FIPS 206 (FN-DSA) 초안, FIPS 207 (HQC) 준비 |
+
+**NIST IR 8547** 의 일정은 RSA·ECC 등 양자 취약 알고리즘을 112 비트 안전성 기준으로 **2030 년 이후 비권장(deprecated), 2035 년 이후 금지(disallowed)** 하는 것입니다. 미국 NSA 의 **CNSA 2.0** 은 국가 안보 시스템에 ML-KEM-1024, ML-DSA-87, 펌웨어용 LMS/XMSS 를 지정하고 2030~2033 년 전후로 전환을 요구합니다.
+
+### 7.2 한국과 그 밖의 나라
+
+- **KpqC (한국).** 2022년 시작, 2025년 1월 최종 선정: KEM **SMAUG-T**, **NTRU+** (15장), 서명 **HAETAE** (17장), **AIMer** (5절). 격자 셋과 MPCitH 하나로, 서명에서도 격자가 아닌 가정을 하나 남겼습니다.
+- **유럽.** 독일 BSI 는 ML-KEM 외에 보수적 선택지로 **FrodoKEM** 과 **Classic McEliece** 를 권고하고, 프랑스 ANSSI 와 BSI 모두 당분간 고전 알고리즘과의 **하이브리드**를 요구·권고합니다. FrodoKEM 과 Classic McEliece 는 ISO/IEC 국제 표준화 작업이 진행 중입니다.
+- **인터넷.** IETF 는 TLS 의 하이브리드 키 교환(X25519 + ML-KEM-768)을 표준화하고 있고, 주요 브라우저와 CDN 은 이미 기본으로 켜 두었습니다. 서명 전환(인증서)은 크기 문제 때문에 훨씬 느리게 진행됩니다.
+
+<StandardsBoard client:visible />
+
+<Aside type="note" title="이 절의 날짜에 대해">
+표준화는 계속 움직입니다. 위 내용은 2026년 11월에 공개 자료로 정리한 것이고, FIPS 206·207 의 정확한 공개 시점, ISO 표준의 진행 단계, 각국 일정은 바뀔 수 있습니다. 논문이나 보고서에 인용할 때는 NIST CSRC 의 PQC 페이지, KpqC 공식 사이트, 각 제출팀 사이트의 최신 문서를 직접 확인하세요.
+</Aside>
+
+## 8. 연구 관점
+
+<span class="layer-tag">연구 관점</span>
+
+- **해시 기반.** 서명 크기를 줄이는 새 few-time 서명과 트리 구조, 해시 호출 수를 줄이는 파라미터 탐색, 상태 기반 서명의 안전한 상태 관리(하드웨어, 분산 서명).
+- **부호 기반.** 희소 오류 ISD 의 정밀한 비용 모델(메모리 비용 포함, 18장의 격자 추정과 같은 문제), 준순환 구조가 주는 추가 공격 가능성, 복호 실패율의 엄밀한 상한(20장과 연결), 계량을 바꾼 부호(랭크 계량, 제한 오류: CROSS, RYDE).
+- **다변수.** MinRank·Gröbner 기저 공격의 복잡도 분석과 그에 따른 파라미터 재조정, UOV 변형(MAYO, SNOVA)의 추가 구조가 공격 표면을 넓히는지 여부.
+- **MPCitH / VOLEitH.** 증명 크기를 줄이는 새 프레임워크(threshold MPCitH, VOLE-in-the-head), 대칭 원시 설계(AIM 같은 MPC 친화 함수)의 암호해석.
+- **교차 주제.** 격자 암호해석의 도구(격자 축소, 체)는 부호의 ISD 와 근접 쌍 찾기(Nearest Neighbor) 기법을 공유합니다. 한 가문의 공격 기법이 다른 가문으로 넘어가는 일이 잦아, 여러 가문을 아는 것이 격자 연구자에게도 무기가 됩니다.
+- **이행(migration).** 하이브리드 설계, 프로토콜의 크기 예산, 암호 민첩성(crypto agility)은 수학보다 공학의 문제지만 산업에서 가장 수요가 큰 분야입니다.
+
+## 연습문제
+
+**★ 1.** $n = 256$ 비트 해시로 만든 Lamport 서명의 비밀키·공개키·서명 크기(바이트)를 구하세요. 해시 출력도 32 바이트라고 합니다.
+
+<details>
+<summary>풀이</summary>
+
+비밀키는 $2 \times 256$ 개의 32 바이트 값이라 16,384 바이트, 공개키도 같은 개수의 해시값이라 16,384 바이트, 서명은 256 개라 8,192 바이트입니다. (비밀키는 시드 하나에서 유도하면 32 바이트로 줄일 수 있습니다. HashSigLab 의 구현이 그렇게 합니다.)
+
+</details>
+
+**★ 2.** SLH-DSA-128 계열은 $n = 16$ 바이트 해시와 $w = 16$ 을 씁니다. W-OTS⁺ 의 체인 개수 $\ell = \ell_1 + \ell_2$ 와 W-OTS⁺ 서명 하나의 크기를 구하세요.
+
+<details>
+<summary>풀이</summary>
+
+$\ell_1 = \lceil 128 / 4 \rceil = 32$, $\ell_2 = \lfloor \log_2(32 \cdot 15) / 4 \rfloor + 1 = \lfloor 8.91/4 \rfloor + 1 = 3$, $\ell = 35$. 서명은 $35 \times 16 = 560$ 바이트입니다.
+
+</details>
+
+**★ 3.** 2.4절의 공식 $n(1 + k(a+1) + h + d\,\ell)$ 으로 SLH-DSA-128s ($n = 16$, $h = 63$, $d = 7$, $k = 14$, $a = 12$, $\ell = 35$) 와 128f ($h = 66$, $d = 22$, $k = 33$, $a = 6$) 의 서명 크기를 계산하고 FIPS 205 의 값과 비교하세요. 각 항이 무엇인지도 말하세요.
+
+<details>
+<summary>풀이</summary>
+
+128s: $16(1 + 14 \cdot 13 + 63 + 7 \cdot 35) = 16 \cdot 491 = 7{,}856$. 128f: $16(1 + 33 \cdot 7 + 66 + 22 \cdot 35) = 16 \cdot 1{,}068 = 17{,}088$. 둘 다 FIPS 205 와 일치합니다. 항은 차례로 무작위값 $R$ (1), FORS 서명($k$ 개 트리마다 비밀 하나 + 인증 경로 $a$), 하이퍼트리의 인증 경로 전체($h$), 층마다 W-OTS⁺ 서명($d\,\ell$). 'f' 는 층을 많이 나눠($d = 22$) 트리가 작아 서명이 빠르지만 W-OTS⁺ 서명이 22 개라 큽니다.
+
+</details>
+
+**★★ 4.** W-OTS 에서 체크섬이 없다면 공격자가 서명 하나로 어떻게 위조하는지 구체적으로 보이고, 체크섬이 그것을 막는 이유를 쓰세요.
+
+<details>
+<summary>풀이</summary>
+
+메시지 자릿수 $(d_1, \dots, d_{\ell_1})$ 의 서명 $\sigma_i = H^{d_i}(sk_i)$ 를 보면, 공격자는 각 $\sigma_i$ 에 해시를 더 적용해 $H^{d_i'}(sk_i)$ ($d_i' \ge d_i$) 를 만들 수 있습니다. 따라서 모든 자리가 원래 메시지 이상인 메시지 $(d_1', \dots)$ 에 대한 서명이 됩니다. 체크섬 $C = \sum (w - 1 - d_i)$ 는 자릿수가 커지면 **작아지므로**, 위조 메시지의 체크섬 자리 중 적어도 하나는 원래보다 작아야 하고, 그 체인을 거꾸로 가는 것은 $H$ 의 역상을 구하는 일입니다.
+
+</details>
+
+**★★ 5.** mceliece348864 ($n = 3488$, $k = 2720$, $t = 64$) 에 대해 근사 $(1 - R)^{-t}$ 로 Prange 비용의 $\log_2$ 를 구하고, PrangeCalc 의 정확한 값(약 142.8)과 비교하세요. 근사가 작게 나오는 이유는?
+
+<details>
+<summary>풀이</summary>
+
+$1 - R = 768/3488 \approx 0.2202$, $\log_2(1/0.2202) \approx 2.183$, $64 \times 2.183 \approx 139.7$. 정확한 값은 $\binom{n}{t}/\binom{n-k}{t} = \prod_{i<t} \frac{n-i}{n-k-i}$ 이고, 각 인수 $\frac{n-i}{n-k-i}$ 는 $i$ 가 커질수록 $\frac{n}{n-k}$ 보다 커지므로(분모가 상대적으로 더 빨리 줄어서) 정확한 값이 근사보다 큽니다.
+
+</details>
+
+**★★ 6.** UOV 공개키 $P = F \circ T$ 가 기름 공간 $\mathcal{O} = T^{-1}(\{0\}^v \times \mathbb{F}_q^o)$ 위에서 0 임을 보이세요(일차항과 상수항은 없다고 가정). 또 uov-Ip ($n = 112$, $o = 44$, $q = 256$) 의 공개키 바이트 수를 $o \cdot n(n+1)/2$ 로 계산하세요.
+
+<details>
+<summary>풀이</summary>
+
+$x \in \mathcal{O}$ 이면 $y = Tx = (0, y_O)$. $F$ 의 각 식은 식초×식초, 식초×기름 항뿐이라 식초가 모두 0 이면 값이 0 입니다. 따라서 $P(x) = F(Tx) = 0$. 공개키는 $44 \cdot 112 \cdot 113 / 2 = 278{,}432$ 개의 $\mathbb{F}_{256}$ 원소, 즉 278,432 바이트입니다. 키 복구 공격은 "모든 $p_k$ 가 사라지는 $o$ 차원 부분공간"을 찾는 문제가 됩니다.
+
+</details>
+
+**★★ 7.** MPC-in-the-head 서명에서 $N$ 을 키우면 서명 크기와 서명 시간이 각각 어떻게 변하는지 설명하세요. $N = 256$ 과 $N = 16$ 에서 128 비트 건전성에 필요한 반복 횟수는?
+
+<details>
+<summary>풀이 방향</summary>
+
+반복 횟수는 $\tau = 128 / \log_2 N$: $N = 256$ 이면 16, $N = 16$ 이면 32 (grinding 여유분 제외). 서명 크기는 대략 $\tau$ 에 비례하므로 $N$ 이 클수록 작아지지만, 증명자는 반복마다 $N$ 명의 참가자를 시뮬레이션하므로 계산은 $\tau N$ 에 비례해 커집니다($16 \times 256 = 4096$ 대 $32 \times 16 = 512$). 그래서 각 방식은 '짧은 서명(s)'과 '빠른 서명(f)' 파라미터를 따로 둡니다. 관점 일부를 트리로 압축하는 기법이 $\lambda \log_2 N$ 항을 만듭니다.
+
+</details>
+
+**★★★ 8. (읽기)** 다음 중 하나를 읽고 요약하세요. (a) Beullens, *Breaking Rainbow Takes a Weekend on a Laptop* (Crypto 2022): 공격이 이용한 Rainbow 의 추가 구조는 무엇이고 왜 UOV 에는 해당하지 않는가. (b) Canto Torres–Sendrier (PQCrypto 2016): 희소 오류에서 ISD 개선이 사라지는 이유. (c) NIST IR 8610 (추가 서명 2라운드 보고서): 각 후보가 3라운드에 진출한 이유와 남은 우려.
+
+<details>
+<summary>풀이 방향</summary>
+
+(a) Rainbow 의 층 구조 때문에 비밀 부분공간들이 겹치는 방식이 정해져 있어, 이를 이용한 간단한 공격(simple attack)으로 MinRank 인스턴스의 크기를 줄일 수 있습니다. UOV 에는 그 층이 없어 같은 축약이 일어나지 않습니다. (b) $t = o(n)$ 이면 표현 기법이 늘리는 해의 개수가 지수의 낮은 차수에만 기여합니다. (c) 원문을 확인하세요.
+
+</details>
+
+## 요약
+
+- **해시 기반**: Lamport → W-OTS (체크섬) → Merkle 트리(XMSS·LMS, 상태 필요) → SPHINCS+/SLH-DSA (하이퍼트리 + FORS, 상태 없음). 공개키 32 바이트, 서명 8~50 KB, 가정은 해시 함수뿐. 일회용 키를 재사용하면 위조 작업량이 $2^{n 2^{1-k}}$ 로 무너진다.
+- **부호 기반**: 신드롬 복호(NP-완전), 최선의 공격은 ISD. Classic McEliece 는 공개키 261 KB~1.3 MB 대신 45년 넘게 견고하고, 희소 오류에서 ISD 개선은 지수의 낮은 차수뿐. 준순환 HQC 가 2025년 NIST 백업 KEM 으로 선정.
+- **다변수**: MQ 문제, UOV 의 기름×기름 항이 없는 함정문, 균형 OV 와 Rainbow 의 붕괴. 남은 후보는 UOV, MAYO, SNOVA, QR-UOV.
+- **MPCitH**: 일방향 함수만으로 서명. 건전성 $(1/N)^\tau$, 서명 3~6 KB. AIMer (KpqC), FAEST·SDitH·MQOM (NIST 3라운드).
+- **표준**: NIST FIPS 203/204/205 (2024), FIPS 206·207 진행, 추가 서명 3라운드 (2026-05, HAWK 철회). KpqC 2025-01 최종 (SMAUG-T, NTRU+, HAETAE, AIMer). 양자 취약 알고리즘은 2030 비권장, 2035 금지 (IR 8547).
+- 다음: [25장](../guide/curriculum/)에서 지금까지 배운 것을 바탕으로 학부연구생·대학원 진학을 준비하는 로드맵을 다룬다.
+
+## 참고문헌
+
+1. L. Lamport, *Constructing Digital Signatures from a One Way Function*, SRI Tech. Report CSL-98, 1979.
+2. R. Merkle, *A Certified Digital Signature*, Crypto 1989 (원고 1979).
+3. A. Hülsing, *W-OTS+ – Shorter Signatures for Hash-Based Signature Schemes*, Africacrypt 2013.
+4. RFC 8391 (XMSS, 2018), RFC 8554 (LMS, 2019), NIST SP 800-208 (2020).
+5. D. J. Bernstein, A. Hülsing, S. Kölbl, R. Niederhagen, J. Rijneveld, P. Schwabe, *The SPHINCS+ Signature Framework*, ACM CCS 2019; NIST FIPS 205 (2024).
+6. R. J. McEliece, *A Public-Key Cryptosystem Based on Algebraic Coding Theory*, DSN Progress Report 42-44, 1978; H. Niederreiter, *Knapsack-type Cryptosystems and Algebraic Coding Theory*, 1986.
+7. E. Berlekamp, R. McEliece, H. van Tilborg, *On the Inherent Intractability of Certain Coding Problems*, IEEE Trans. IT 1978.
+8. E. Prange, *The Use of Information Sets in Decoding Cyclic Codes*, IRE Trans. IT 1962; J. Stern, *A Method for Finding Codewords of Small Weight*, 1989; A. Becker, A. Joux, A. May, A. Meurer, *Decoding Random Binary Linear Codes in 2^(n/20)*, Eurocrypt 2012.
+9. R. Canto Torres, N. Sendrier, *Analysis of Information Set Decoding for a Sub-linear Error Weight*, PQCrypto 2016; D. J. Bernstein, *Grover vs. McEliece*, PQCrypto 2010.
+10. Classic McEliece, BIKE, HQC 제출 문서 (NIST 4라운드); Q. Guo, T. Johansson, P. Stankovski, *A Key Recovery Attack on MDPC with CCA Security Using Decoding Errors*, Asiacrypt 2016; NIST IR 8545 (4라운드 보고서, 2025).
+11. A. Kipnis, J. Patarin, L. Goubin, *Unbalanced Oil and Vinegar Signature Schemes*, Eurocrypt 1999; A. Kipnis, A. Shamir, *Cryptanalysis of the Oil and Vinegar Signature Scheme*, Crypto 1998.
+12. W. Beullens, *Breaking Rainbow Takes a Weekend on a Laptop*, Crypto 2022; W. Beullens, *MAYO: Practical Post-Quantum Signatures from Oil-and-Vinegar Maps*, SAC 2021.
+13. Y. Ishai, E. Kushilevitz, R. Ostrovsky, A. Sahai, *Zero-Knowledge from Secure Multiparty Computation*, STOC 2007; C. Baum et al., *Publicly Verifiable Zero-Knowledge and Post-Quantum Signatures from VOLE-in-the-Head*, Crypto 2023; D. Kales, G. Zaverucha, *An Attack on Some Signature Schemes Constructed from Five-Pass Identification Schemes*, CANS 2020.
+14. NIST IR 8610, *Status Report on the Second Round of the Additional Digital Signature Schemes* (2026); NIST IR 8547 (초안, 2024); NSA CNSA 2.0 (2022).
+15. KpqC 공모전 최종 결과 (2025-01); BSI TR-02102-1; ANSSI PQC 전환 권고.

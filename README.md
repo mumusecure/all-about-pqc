@@ -39,6 +39,7 @@
 | 21장 | 격자 기반 영지식 증명 — Stern 식, 완화된 건전성, 커밋먼트, JL 사영, 응용 |
 | 22장 | 동형암호와 문턱 동형암호 — BFV 잡음 예산, CKKS 와 IND-CPA^D, TFHE, 부트스트래핑, smudging |
 | 23장 | 동종사상과 SQIsign — 초특이 그래프, Deuring 대응, SIDH 의 붕괴, CSIDH, SQIsign |
+| 24장 | 다른 가문 개관과 표준화 현황 — 해시 서명, 부호 기반(ISD, McEliece, HQC), 다변수(UOV, MAYO), MPCitH, NIST·KpqC 현황 |
 | Lab 1 | LLL 로 토이 LWE 공격하기 |
 | 논문 읽기 1 | Lee–Wallet, *Lattice analysis on MiNTRU problem* — 밀집 부분격자 공격 해설·재계산·재현 (Lab 2) |
 | Lab 3 | ML-KEM 을 바닥부터 구현하기 — FIPS 203 구현, 실패 확률 계산, 상수 시간 압축 |
