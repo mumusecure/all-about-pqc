@@ -184,7 +184,7 @@ $$
 
 **성질.** (1) 삼각부등식. 이로부터 **하이브리드 논법**: $X = H_0, H_1, \dots, H_k = Y$ 이면 $\Delta(X, Y) \le \sum_i \Delta(H_{i-1}, H_i)$. (2) **데이터 처리 부등식**: 임의의 함수 $f$ 에 대해 $\Delta(f(X), f(Y)) \le \Delta(X, Y)$. (3) 독립 곱에 대해 $\Delta((X_1, X_2), (Y_1, Y_2)) \le \Delta(X_1, Y_1) + \Delta(X_2, Y_2)$.
 
-**무시 가능(negligible).** 함수 $\varepsilon(\lambda)$ 가 모든 다항식 $p$ 에 대해 충분히 큰 $\lambda$ 에서 $\varepsilon(\lambda) < 1/p(\lambda)$ 이면 무시 가능하다고 합니다(예: $2^{-\lambda}$). 두 분포족의 통계적 거리가 무시 가능하면 **통계적으로 구별 불가능** 하다고 합니다. 14장 Regev 암호 증명의 "잔여 해시 보조정리" 단계가 바로 이 개념이었고, 1장에서 계산적 구별 불가능성으로 일반화합니다.
+**무시 가능(negligible).** 함수 $\varepsilon(\lambda)$ 가 모든 다항식 $p$ 에 대해 충분히 큰 $\lambda$ 에서 $\varepsilon(\lambda) < 1/p(\lambda)$ 이면 무시 가능하다고 합니다(예: $2^{-\lambda}$). 두 분포족의 통계적 거리가 무시 가능하면 **통계적으로 구별 불가능** 하다고 합니다. [14장](../ch14-lwe/) Regev 암호 증명의 "잔여 해시 보조정리" 단계가 바로 이 개념이었고, 1장에서 계산적 구별 불가능성으로 일반화합니다.
 
 ## 6. 이산 가우시안
 
@@ -341,7 +341,7 @@ $e^{\lambda x}$ 의 볼록성으로 $e^{\lambda X} \le \frac{b - X}{b - a}e^{\la
 
 </details>
 
-**★★★ 10. (구현 · ML-KEM 미리보기)** `src/lib/prob.ts` 의 `convolvePower`, `pmfProduct` 를 이용해 ($\eta = 2$, $q = 3329$ 일 때) "$\mathrm{CBD}_2 \times \mathrm{CBD}_2$ 곱 $2kn$ 개의 합"이 $q/4$ 를 넘을 확률을 $k = 2, 3, 4$, $n = 256$ 에 대해 계산하세요. ML-KEM 명세의 실제 실패 확률(예: ML-KEM-768 은 약 $2^{-164}$)보다 훨씬 작게 나올 것입니다. 무엇이 빠졌을까요? (힌트: 16장의 **압축(rounding) 오차**)
+**★★★ 10. (구현 · ML-KEM 미리보기)** `src/lib/prob.ts` 의 `convolvePower`, `pmfProduct` 를 이용해 ($\eta = 2$, $q = 3329$ 일 때) "$\mathrm{CBD}_2 \times \mathrm{CBD}_2$ 곱 $2kn$ 개의 합"이 $q/4$ 를 넘을 확률을 $k = 2, 3, 4$, $n = 256$ 에 대해 계산하세요. ML-KEM 명세의 실제 실패 확률(예: ML-KEM-768 은 약 $2^{-164.8}$, $k = 3$)보다 훨씬 작게 나올 것입니다. 무엇이 빠졌을까요? (힌트: 16장의 **압축(rounding) 오차**)
 
 ## 요약
 

@@ -294,7 +294,7 @@ $$
 | | 가문 | 공개키 | 서명 | 상태 |
 |---|---|---|---|---|
 | ML-DSA-44 | 격자 | 1,312 | 2,420 | FIPS 204 |
-| FN-DSA-512 | 격자 | 897 | 666 | FIPS 206 초안 |
+| FN-DSA-512 | 격자 | 897 | 666 | FIPS 206 작업 중 |
 | SLH-DSA-128s | 해시 | 32 | 7,856 | FIPS 205 |
 | uov-Ip | 다변수 | 278,432 (압축 43,576) | 128 | NIST 3라운드 |
 | MAYO₁ | 다변수 | 약 1,400 | 약 450 | NIST 3라운드 |
@@ -314,14 +314,14 @@ $$
 | 2016-12 | PQC 공모 시작. 2017-11 마감, 1라운드 69 개 |
 | 2019-01 / 2020-07 | 2라운드 26 개 / 3라운드 결선 7 개 + 대안 8 개 |
 | 2022-07 | Kyber, Dilithium, Falcon, SPHINCS+ 선정. KEM 4라운드 (BIKE, Classic McEliece, HQC, SIKE) |
-| 2022 | Rainbow 붕괴 (2월, 4절), SIKE 붕괴 (7~8월, 23장) |
+| 2022 | Rainbow 붕괴 (2월, 4절), SIKE 붕괴 (7~8월, [23장](../ch23-isogenies-sqisign/)) |
 | 2023-06 | 추가 서명 공모 마감, 1라운드 40 개 (2023-07) |
 | 2024-08-13 | **FIPS 203 (ML-KEM), 204 (ML-DSA), 205 (SLH-DSA)** 최종 |
 | 2024-10 | 추가 서명 2라운드 14 개 |
 | 2024-11 | NIST IR 8547 초안: 양자 취약 알고리즘 이행 일정 |
 | 2025-03-11 | **HQC** 를 추가 KEM 으로 선정 |
-| 2026-05 | 추가 서명 3라운드: FAEST, HAWK, MAYO, MQOM, QR-UOV, SDitH, SNOVA, SQIsign, UOV (2라운드 보고서 NIST IR 8610). 이후 HAWK 는 키 복구 공격 발표로 철회 |
-| 진행 중 | FIPS 206 (FN-DSA) 초안, FIPS 207 (HQC) 준비 |
+| 2026-05 | 추가 서명 3라운드: FAEST, HAWK, MAYO, MQOM, QR-UOV, SDitH, SNOVA, SQIsign, UOV (2라운드 보고서 NIST IR 8610). 이후 HAWK 는 키 복구 공격 발표로 철회 (2026-07) |
+| 진행 중 | FIPS 206 (FN-DSA), FIPS 207 (HQC) 작업 중. 2026년 11월 현재 둘 다 최종본은 없고, FIPS 207 은 공개 초안도 아직 없다는 보도가 있다 |
 
 **NIST IR 8547** 의 일정은 RSA·ECC 등 양자 취약 알고리즘을 112 비트 안전성 기준으로 **2030 년 이후 비권장(deprecated), 2035 년 이후 금지(disallowed)** 하는 것입니다. 미국 NSA 의 **CNSA 2.0** 은 국가 안보 시스템에 ML-KEM-1024, ML-DSA-87, 펌웨어용 LMS/XMSS 를 지정하고 2030~2033 년 전후로 전환을 요구합니다.
 
