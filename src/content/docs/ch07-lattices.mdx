@@ -123,7 +123,7 @@ $n \ge 5$ 에서 $\mathcal{L} = \mathbb{Z}^n + \mathbb{Z}\cdot(\tfrac12, \dots, 
 Minkowski: $\lambda_1 \le 2(\operatorname{vol}/V_n)^{1/n}$ (모든 격자에서 성립하는 **정리**). GH: $\lambda_1 \approx (\operatorname{vol}/V_n)^{1/n}$ (무작위 격자에서의 **예측**). 위젯의 빨간 원(넓이 $4\cdot\operatorname{vol}$)과 회색 원(넓이 $\operatorname{vol}$)이 각각이며, 2차원에서 반지름 비가 정확히 2 입니다. 최단 벡터는 늘 빨간 원 안에 있고, "보통의" 격자에서는 회색 원 근처에 있습니다.
 </Aside>
 
-**Hermite 상수.** $\gamma_n = \sup_{\mathcal{L}} \lambda_1(\mathcal{L})^2/\operatorname{vol}(\mathcal{L})^{2/n}$. 따름정리 7.7 에 의해 $\gamma_n \le n$ 이고, 정확한 값은 $n \le 8$ 과 $n = 24$ 에서만 알려져 있습니다. 2차원의 최적은 **육각 격자** 로 $\gamma_2 = 2/\sqrt3$ 입니다. 위젯에서 '육각 격자'를 골라 $\lambda_1^2/\operatorname{vol}$ 을 확인해 보세요. 9장의 "제곱근 Hermite 인자 $\delta_0$"라는 이름이 여기서 왔습니다.
+**Hermite 상수.** $\gamma_n = \sup_{\mathcal{L}} \lambda_1(\mathcal{L})^2/\operatorname{vol}(\mathcal{L})^{2/n}$. 따름정리 7.7 에 의해 $\gamma_n \le n$ 이고, 정확한 값은 $n \le 8$ 과 $n = 24$ 에서만 알려져 있습니다. 2차원의 최적은 **육각 격자** 로 $\gamma_2 = 2/\sqrt3$ 입니다. 위젯에서 '육각 격자'를 골라 $\lambda_1^2/\operatorname{vol}$ 을 확인해 보세요. 9장의 "근 Hermite 인자 $\delta_0$"라는 이름이 여기서 왔습니다.
 
 **정리 7.8 (Minkowski 제2정리, 증명 생략).** $\prod_{i=1}^n\lambda_i(\mathcal{L}) \le 2^n\operatorname{vol}(\mathcal{L})/V_n$. 즉 연속 최소값의 기하평균도 $\operatorname{vol}^{1/n}$ 수준으로 제한됩니다.
 
@@ -288,6 +288,13 @@ $\langle b_i, d_j\rangle = \delta_{ij}$ 를 쓰면 $d_n$ 은 $b_1, \dots, b_{n-1
 </details>
 
 **★★★ 10. (구현)** 2×2, 3×3 정수 기저를 받아 **Hermite 정규형(HNF)** 을 계산하는 함수를 구현하세요. 같은 격자의 서로 다른 기저 두 개가 같은 HNF 를 내는지 확인하고, 이를 이용해 `sameLattice` 를 정확한 정수 연산만으로 다시 구현하세요. (HNF 는 정수 격자마다 유일한 표준 기저라서, Micciancio 는 GGH 류 암호에서 "공개키로 가장 정보가 적은 기저"로 HNF 를 쓰자고 제안했습니다.)
+
+<details>
+<summary>풀이 방향</summary>
+
+행 기준 HNF 는 정수 행 연산(교환, 부호 바꾸기, 한 행에 다른 행의 정수배 더하기)만으로 기저를 위삼각(또는 하삼각) 꼴로 만들고, 대각 성분을 양수로, 각 대각 성분 위(또는 옆)의 성분을 $[0, \text{대각 성분})$ 으로 줄인 것입니다. 열마다 확장 유클리드 알고리즘으로 두 행의 해당 성분을 $\gcd$ 와 0 으로 바꾸는 $2 \times 2$ 유니모듈러 변환을 쓰면 됩니다. 행 연산은 모두 유니모듈러(연습문제 4)이므로 격자가 바뀌지 않고, 정수 격자마다 HNF 가 유일하므로 "두 기저가 같은 격자인가"는 "HNF 가 같은가"로 정확히 판정됩니다. 3×3 에서는 중간 값이 커지는 것을 관찰해 보세요(모듈러 HNF 알고리즘이 필요한 이유).
+
+</details>
 
 ## 요약
 

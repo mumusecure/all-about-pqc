@@ -29,7 +29,7 @@ import OverstretchedCalc from '../../../components/OverstretchedCalc.tsx';
 ## 0. 왜 이 논문을 읽나
 
 - **짧고 완결적.** 본문 8쪽 안에 암호해석 논문의 전형적인 구조가 모두 들어 있습니다.
-- **핵심 경로와 정확히 겹침.** q-ary 격자와 부피([7장](../../ch07-lattices/)), uSVP 와 Gaussian heuristic([6장](../../ch06-linalg-prob/)·[8장](../../ch08-lattice-problems/)), LLL·GSA·제곱근 Hermite 인자([9장](../../ch09-lll/))를 실제 공격에 씁니다.
+- **핵심 경로와 정확히 겹침.** q-ary 격자와 부피([7장](../../ch07-lattices/)), uSVP 와 Gaussian heuristic([6장](../../ch06-linalg-prob/)·[8장](../../ch08-lattice-problems/)), LLL·GSA·근 Hermite 인자([9장](../../ch09-lll/))를 실제 공격에 씁니다.
 - **연구 흐름의 한 지점.** overstretched NTRU 에 대한 부분체 공격(Cheon–Jeong–Lee 2016, Albrecht–Bai–Ducas 2016) → 이를 순수 격자 축소로 재해석한 Kirchner–Fouque(2017) → 그 렌즈를 **구조가 없는 행렬 버전** NTRU 에 적용한 이 논문 → 예측 모델을 정밀화한 *NTRU Fatigue*(2021). "대수 구조가 아니라 기하가 핵심"이라는 메시지가 한 줄로 이어집니다.
 
 ## 1. 선수 지식 체크리스트
@@ -39,7 +39,7 @@ import OverstretchedCalc from '../../../components/OverstretchedCalc.tsx';
 | q-ary 격자, 부피, 부분격자 | §3.1–3.2 의 $\Lambda_q(C_0)$ | [7장](../../ch07-lattices/) 3절 | $\Lambda_q$ 의 부피가 왜 $q^n$ 인가? |
 | Gram-Schmidt, $\operatorname{vol} = \prod\|b_i^*\|$, Hadamard | Lemma 2.1–2.3 | [6장](../../ch06-linalg-prob/) 2절 | Lemma 2.3 증명에 Hadamard 가 어떻게 쓰이나? |
 | Gaussian heuristic | Heuristic 1, 식 (3.1) | [6장](../../ch06-linalg-prob/) 7절 | GH 를 사영 격자 $L^\perp$ 에 적용하는 근거는? |
-| LLL, GSA, 제곱근 Hermite 인자 $\delta$ | Heuristic 2, Lemma 2.1 | [9장](../../ch09-lll/) 3·5절 | GSA 아래 $\|b_i^*\|/\|b_{i+1}^*\|$ 은? |
+| LLL, GSA, 근 Hermite 인자 $\delta$ | Heuristic 2, Lemma 2.1 | [9장](../../ch09-lll/) 3·5절 | GSA 아래 $\|b_i^*\|/\|b_{i+1}^*\|$ 은? |
 | uSVP 와 "유난히 짧은 벡터" | §1 의 KF17 직관 | [8장](../../ch08-lattice-problems/) 3절, [14장](../../ch14-lwe/) 4절 | 임베딩 공격의 gap 과 이 논문의 "부피 gap" 의 공통점은? |
 | 사영, 직교 여공간 | §3.2 의 $L^\perp$ | [6장](../../ch06-linalg-prob/) 2절, [7장](../../ch07-lattices/) 5절 | $\operatorname{Vol}(L^\perp) = \operatorname{Vol}(L(B'))/\operatorname{Vol}(L(X'))$ 인 이유는? |
 | Hermite 정규형(HNF) | §3.2 의 $X'$ 구성 | [7장](../../ch07-lattices/) 연습문제 10 | HNF 의 마지막 블록이 단위행렬이면 무엇을 할 수 있나? |
@@ -156,7 +156,7 @@ $$
 \log q \;\ge\; \sqrt{12\,n\,\log\delta\,\log(n/2)}.
 $$
 
-$\log q = \alpha\sqrt n$ 이면 $\log\delta \le \alpha^2/(12\log(n/2))$ 로 충분합니다. 필요한 제곱근 Hermite 인자가 $1 + O(1/\log n)$ 이면 되므로, **블록 크기가 차원에 비해 아주 천천히 커져도 된다** 는 뜻입니다. (마지막 해석은 가이드의 것: $\log\delta_\beta \approx \frac{\log\beta}{2\beta}$ 로 보면 $\beta$ 가 대략 $\log n$ 규모면 충분합니다.)
+$\log q = \alpha\sqrt n$ 이면 $\log\delta \le \alpha^2/(12\log(n/2))$ 로 충분합니다. 필요한 근 Hermite 인자가 $1 + O(1/\log n)$ 이면 되므로, **블록 크기가 차원에 비해 아주 천천히 커져도 된다** 는 뜻입니다. (마지막 해석은 가이드의 것: $\log\delta_\beta \approx \frac{\log\beta}{2\beta}$ 로 보면 $\beta$ 가 대략 $\log n$ 규모면 충분합니다.)
 
 ### E. 비밀키 복구 (§3.3)
 

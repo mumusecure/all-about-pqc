@@ -16,7 +16,7 @@ import Quiz from '../../components/Quiz.tsx';
 2. 2차원 Lagrange–Gauss 축소를 손으로 수행하고 그 정확성을 증명할 수 있다.
 3. LLL 축소 기저의 정의(크기 축소 + Lovász 조건)를 쓰고, 근사 보장 $\|b_1\| \le \alpha^{(n-1)/2}\lambda_1$ 을 증명할 수 있다.
 4. 잠재함수(potential) 논법으로 LLL 의 종료성과 다항 시간성을 설명할 수 있다.
-5. 이론 보장과 실제 성능의 차이(제곱근 Hermite 인자 $\delta_0 \approx 1.02$, GSA)를 실험으로 확인하고, 모듈 격자 LLL 등 연구 동향을 안다.
+5. 이론 보장과 실제 성능의 차이(근 Hermite 인자 $\delta_0 \approx 1.02$, GSA)를 실험으로 확인하고, 모듈 격자 LLL 등 연구 동향을 안다.
 
 **선수 지식**: [6장](../ch06-linalg-prob/)(행렬식, Gram-Schmidt), [7장](../ch07-lattices/)(격자, 기저, 부피, 연속 최소값). [8장](../ch08-lattice-problems/)(SVP, 근사 인자, Babai 알고리즘). 아래 "빠른 복습"은 9장에 필요한 부분만 다시 모은 것입니다.
 
@@ -148,8 +148,8 @@ $$
 
 $\delta = \tfrac34$ 이면 $\|b_1\| \le 2^{(n-1)/2}\lambda_1$ 입니다. 차원에 대해 **지수적인** 근사 인자라서 약해 보이지만, (1) 이것이 *다항 시간* 에 보장되고, (2) 수많은 응용에서 이 정도면 충분하며, (3) 실제로는 훨씬 잘 동작합니다(5절).
 
-<Aside type="tip" title="암호해석의 언어: 제곱근 Hermite 인자">
-(b) 를 $\|b_1\| = \delta_0^{\,n}\operatorname{vol}^{1/n}$ 꼴로 쓸 때의 $\delta_0$ 를 **제곱근 Hermite 인자(root Hermite factor)** 라고 합니다. 축소 알고리즘의 "강도"를 비교하는 표준 척도입니다. LLL 의 최악 보장은 $\delta \to 1$ 일 때 $\delta_0 \le (4/3)^{1/4} \approx 1.075$ 입니다. [18장](../ch18-parameter-estimation/)에서 BKZ 의 블록 크기 $\beta$ 에 따른 $\delta_0(\beta)$ 로 실제 파라미터의 안전성을 추정하게 됩니다.
+<Aside type="tip" title="암호해석의 언어: 근 Hermite 인자">
+(b) 를 $\|b_1\| = \delta_0^{\,n}\operatorname{vol}^{1/n}$ 꼴로 쓸 때의 $\delta_0$ 를 **근 Hermite 인자(root Hermite factor)** 라고 합니다("근"은 $\delta_0^n$ 의 $n$제곱근이라는 뜻). 축소 알고리즘의 "강도"를 비교하는 표준 척도입니다. LLL 의 최악 보장은 $\delta \to 1$ 일 때 $\delta_0 \le (4/3)^{1/4} \approx 1.075$ 입니다. [18장](../ch18-parameter-estimation/)에서 BKZ 의 블록 크기 $\beta$ 에 따른 $\delta_0(\beta)$ 로 실제 파라미터의 안전성을 추정하게 됩니다.
 </Aside>
 
 ## 4. 알고리즘과 종료성
@@ -199,7 +199,7 @@ LLL(b_1, ..., b_n; δ):
 
 <span class="layer-tag">정식화</span>
 
-정리 9.4 는 *최악의 경우* 보장입니다. 실제로 무작위 격자에 LLL 을 돌리면 어떻게 될까요? Gama–Nguyen(2008)의 대규모 실험에 따르면 LLL 의 평균 제곱근 Hermite 인자는 약 $\delta_0 \approx 1.0219$ 로, 최악 보장 $1.075$ 보다 훨씬 작습니다. 그리고 축소 후 $\log\|b_i^*\|$ 가 $i$ 에 대해 거의 **직선** 으로 떨어집니다. 이를 **기하급수 가정(Geometric Series Assumption, GSA)** 이라 하며, 암호해석의 비용 모델 대부분이 이 가정 위에 서 있습니다.
+정리 9.4 는 *최악의 경우* 보장입니다. 실제로 무작위 격자에 LLL 을 돌리면 어떻게 될까요? Gama–Nguyen(2008)의 대규모 실험에 따르면 LLL 의 평균 근 Hermite 인자는 약 $\delta_0 \approx 1.0219$ 로, 최악 보장 $1.075$ 보다 훨씬 작습니다. 그리고 축소 후 $\log\|b_i^*\|$ 가 $i$ 에 대해 거의 **직선** 으로 떨어집니다. 이를 **기하급수 가정(Geometric Series Assumption, GSA)** 이라 하며, 암호해석의 비용 모델 대부분이 이 가정 위에 서 있습니다.
 
 <GSAProfile client:visible />
 

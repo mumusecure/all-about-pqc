@@ -74,7 +74,7 @@ export default function BKZTour() {
       </svg>
       <div className="stats">
         <div className="stat"><span>단계</span><b>{last.label}</b></div>
-        <div className="stat"><span>제곱근 Hermite 인자 δ (LLL → 지금)</span><b>{first.delta.toFixed(4)} → {last.delta.toFixed(4)}</b></div>
+        <div className="stat"><span>근 Hermite 인자 δ (LLL → 지금)</span><b>{first.delta.toFixed(4)} → {last.delta.toFixed(4)}</b></div>
         <div className="stat"><span>‖b₁‖ / GH</span><b>{last.b1.toFixed(0)} / {gh.toFixed(0)} = {(last.b1 / gh).toFixed(2)}</b></div>
         <div className="stat"><span>이번 바퀴: 삽입 · 열거 노드 · 시간</span><b>{state.steps.length > 1 ? `${last.insertions} · ${last.nodes.toLocaleString()} · ${last.ms.toFixed(0)}ms` : '—'}</b></div>
       </div>

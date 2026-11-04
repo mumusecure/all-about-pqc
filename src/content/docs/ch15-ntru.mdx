@@ -246,9 +246,36 @@ $a \equiv fm \pmod 3$ 이므로 $f_p = f^{-1} \bmod 3$ 을 곱해 $m = f_p a \bm
 
 **★★★ 7.** $\varphi = x^n + 1$ 일 때 $\operatorname{rot}(f)$ 가 정칙 $\iff$ $f$ 가 $\mathbb{Q}[x]/(x^n+1)$ 에서 가역임을 보이고, $|\det\operatorname{rot}(f)| = \prod_{\zeta} |f(\zeta)|$ ($\zeta$ 는 $x^n + 1$ 의 복소근)임을 보이세요. 이로부터 $\operatorname{vol}(L_{\mathrm{key}})$ 를 $(g, f)$ 의 "켤레 크기"로 표현해 보세요. (2장의 CRT 관점과 11장의 canonical embedding 을 미리 보는 연습입니다.)
 
+<details>
+<summary>해설</summary>
+
+$\operatorname{rot}(f)$ 는 "$f$ 를 곱하는 선형사상"의 행렬입니다. $\mathbb{C}$ 위에서 $x^n + 1$ 은 서로 다른 근 $\zeta$ ($2n$차 원시근들) $n$ 개로 쪼개지므로, CRT 로 $\mathbb{C}[x]/(x^n+1) \cong \mathbb{C}^n$, $p \mapsto (p(\zeta))_\zeta$ 이고 곱하기 $f$ 는 이 좌표에서 대각행렬 $\operatorname{diag}(f(\zeta))$ 가 됩니다. 따라서 $\det\operatorname{rot}(f) = \prod_\zeta f(\zeta)$ (실수이고, 이것이 노름 $N(f)$). 정칙 $\iff$ 어떤 $f(\zeta)$ 도 0 이 아님 $\iff \gcd(f, x^n + 1) = 1$ ($\mathbb{Q}$ 위) $\iff$ $f$ 가 $\mathbb{Q}[x]/(x^n+1)$ 에서 가역. $L_{\mathrm{key}}$ 의 기저는 $[\operatorname{rot}(g) \mid \operatorname{rot}(f)]$ 이고, negacyclic 에서는 $\operatorname{rot}(f)^\top = \operatorname{rot}(\bar f)$ ($\bar f(x) = f(x^{-1})$)이므로 Gram 행렬은 $\operatorname{rot}(g\bar g + f\bar f)$, 고유값은 $|g(\zeta)|^2 + |f(\zeta)|^2$ 입니다. 따라서
+
+$$
+\operatorname{vol}(L_{\mathrm{key}}) = \prod_{\zeta}\sqrt{|f(\zeta)|^2 + |g(\zeta)|^2}.
+$$
+
+각 인수는 대략 $\|(g,f)\|$ 크기이므로 $\operatorname{vol}(L_{\mathrm{key}}) \approx \|(g, f)\|^n$ 이고, 3.2절의 "부피가 아주 작은 부분격자"가 이 식입니다.
+
+</details>
+
 **★★★ 8. (구현 · 포트폴리오)** `src/lib/ntru.ts` 를 Python 으로 옮기거나 fpylll 을 써서, $q \in \{257, 3329, 12289\}$ 각각에 대해 LLL 과 BKZ-10, 20 으로 키 복구가 50% 성공하는 최대 $n$ 을 찾으세요. "gap 은 $n$ 에 무관하지만 필요한 블록 크기는 $n$ 에 따라 커진다"를 그래프로 보이는 1쪽 보고서를 만드세요.
 
+<details>
+<summary>풀이 방향</summary>
+
+gap $\approx 0.13\sqrt q$ 는 $n$ 에 무관하므로, 같은 $q$ 에서 $n$ 을 키우면 필요한 축소 강도가 올라갑니다. $q$ 가 클수록(gap 이 클수록) 같은 알고리즘으로 풀리는 최대 $n$ 이 커지고, BKZ 블록 크기를 키울수록 그 경계가 오른쪽으로 갑니다. 세 $q$ 와 세 알고리즘의 "최대 $n$" 을 표와 그래프로 보이고, 필요한 블록 크기를 [19장](../ch19-ntru-attacks/) 2절의 uSVP 모델 예측과 비교하세요. 큰 $q$ 에서 예측보다 쉽게 풀리면 밀집 부분격자 효과(3.2절)를 의심해 보세요.
+
+</details>
+
 **★★★ 9. (읽기)** Stehlé–Steinfeld(2011)를 읽고, $f, g$ 의 분포 폭이 어느 정도여야 $h$ 가 통계적으로 균등에 가까워지는지, 그 증명에 6장의 평활 파라미터가 어떻게 쓰이는지 요약하세요.
+
+<details>
+<summary>풀이 방향</summary>
+
+핵심 결과는 $f, g$ 를 폭 $s \approx \sqrt{q}\cdot\mathrm{poly}(n)$ 정도의 이산 가우시안에서 뽑으면 $h = g/f$ 가 $R_q^\times$ 위 균등분포에 통계적으로 가깝다는 것입니다. 증명은 "$f$ 가 고정될 때 $(f, g)$ 와 같은 격자 coset 에 있는 쌍들"을 세는 문제로 바꾸고, 그 격자(NTRU 격자의 쌍대 쪽)의 평활 파라미터보다 $s$ 가 크면 가우시안이 coset 위에서 거의 균등해진다는 6장의 성질을 씁니다. 실제 NTRU 의 삼진 계수는 이 폭보다 훨씬 좁아서 이 정리가 적용되지 않습니다. 정확한 폭과 조건은 원문으로 확인하세요.
+
+</details>
 
 ## 요약
 

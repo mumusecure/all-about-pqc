@@ -29,6 +29,8 @@ jobs:
       - run: npm run build
       - name: Internal link check
         run: python3 scripts/check_links.py dist
+      - name: No control characters in content
+        run: "! grep -rnP '[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]' src/content src/components"
       - name: Python lab smoke test
         run: |
           python3 labs/lab01_lll_lwe_attack.py --n 12
