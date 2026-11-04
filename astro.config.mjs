@@ -69,6 +69,9 @@ export default defineConfig({
           { label: '23장. 동종사상과 SQIsign', slug: 'ch23-isogenies-sqisign' },
           { label: '24장. 다른 가문 개관과 표준화 현황', slug: 'ch24-other-families' },
         ] },
+        { label: '7부 · 진로', items: [
+          { label: '25장. 학부연구생·대학원 로드맵', slug: 'ch25-roadmap' },
+        ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
         ]},
