@@ -1,0 +1,224 @@
+---
+title: "논문 읽기 2. Post-quantum key exchange — a new hope"
+description: Alkim–Ducas–Pöppelmann–Schwabe (USENIX Security 2016)의 보안 분석을 읽는다. core-SVP 방법론의 탄생, primal 성공 조건(2016 추정), dual 공격의 반복 횟수, 세 가지 비용 상수, 그리고 NewHope·JarJar·ML-KEM 의 표를 직접 다시 만들기.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import CoreSVPTable from '../../../components/CoreSVPTable.tsx';
+
+<div class="goals">
+
+**대상 논문**: E. Alkim, L. Ducas, T. Pöppelmann, P. Schwabe, *Post-quantum key exchange — a new hope*, USENIX Security 2016. [Cryptology ePrint Archive 2015/1092](https://eprint.iacr.org/2015/1092).
+
+**한 문장 요약**: Ring-LWE 키 교환 NewHope($n = 1024$, $q = 12289$)를 제안하면서, 공격 비용을 "블록 크기 $\beta$ 의 SVP 한 번"으로만 세는 보수적 방법(**core-SVP**)과 BKZ 로 숨은 짧은 벡터가 언제 나오는지에 대한 새 조건(**2016 추정**)을 함께 내놓았고, 이 방법이 이후 Kyber·Saber·Dilithium 등 거의 모든 격자 표준 후보의 안전성 분석 표준이 되었다.
+
+**이 가이드로 얻는 것**: 18장에서 쓴 추정 방법의 원 논문을 읽고, 논문의 보안 표를 이 교과서의 추정기로 다시 만들어 보는 경험. "왜 이렇게 세는가"를 설명할 수 있게 됩니다.
+
+**예상 소요**: 1회독 2시간(보안 분석 부분 중심), 정독과 재계산 4~6시간, 재현 과제(8절) 4~8시간.
+
+</div>
+
+## 이 가이드의 사용법
+
+1. **1절(선수 지식)** 을 체크합니다. 18장과 Lab 5 를 먼저 보면 훨씬 수월합니다.
+2. **2절(미니 입문)** 으로 프로토콜과 2015년 무렵의 추정 지형을 잡습니다.
+3. **3절(논문 지도)** 을 옆에 두고 원문을 읽습니다. 처음에는 서론과 보안 분석 부분만, 두 번째에 프로토콜과 오차 분포 부분을 읽습니다.
+4. **4절** 에서 핵심 논증 네 가지를 따라가고, **5절** 위젯으로 표를 다시 만듭니다.
+5. **7절** 질문에 답할 수 있으면 "읽었다"고 말할 수 있습니다.
+
+<Aside type="note" title="이 가이드를 쓴 방식">
+이 가이드는 원문의 구조와 결론을 요약하고, 보안 표의 수치는 이 교과서의 추정기(`src/lib/estimator.ts`)로 다시 계산한 값으로 대조합니다. 절 번호는 판본(ePrint, 학회본)마다 달라 **내용 덩어리의 제목** 으로 안내합니다. 원문과 다른 점이 있으면 원문이 우선이고, 차이를 찾는 것 자체가 좋은 연습입니다(6절).
+</Aside>
+
+## 0. 왜 이 논문을 읽나
+
+- **방법론의 원점.** 18장의 primal 조건 $\sigma\sqrt\beta \le \delta_\beta^{2\beta - d}\operatorname{vol}^{1/d}$ 과 core-SVP 비용 $0.292\beta$ 는 이 논문에서 왔습니다. ML-KEM(16장)의 "core-SVP 118 비트"도 이 방법으로 센 값입니다.
+- **설계와 분석이 한 논문에.** 파라미터를 고르는 사람이 어떤 공격 모델로 자기 스킴을 평가하는지, 그리고 **얼마나 보수적으로** 평가하는지 보여 주는 교과서적 예입니다.
+- **현실에 간 첫 PQC.** 2016년 Google Chrome 의 실험(CECPQ1)에서 X25519 와 함께 쓰였습니다. 실제 배포를 염두에 둔 파라미터 선택의 감각을 배울 수 있습니다.
+- **짧은 분석, 긴 영향.** 보안 분석 부분은 몇 쪽이지만, 이후 수많은 논문(실험 검증, 확률적 정밀화, dual 공격 논쟁)이 이 몇 쪽을 출발점으로 삼습니다(9절).
+
+## 1. 선수 지식 체크리스트
+
+| 개념 | 논문에서 쓰는 곳 | 교과서 | 점검 질문 |
+|---|---|---|---|
+| Ring-LWE, 원분환 $\mathbb{Z}_q[x]/(x^n+1)$ | 프로토콜 전체 | [12장](../../ch12-ring-module-lwe/) | 왜 $q \equiv 1 \pmod{2n}$ 이면 NTT 가 되나? |
+| 중심 이항 분포 $\psi_k$ | 오차 분포 | [6장](../../ch06-linalg-prob/), [16장](../../ch16-mlkem/) | $\psi_k$ 의 분산이 $k/2$ 인 이유는? |
+| Kannan 임베딩과 uSVP | primal 공격 | [8장](../../ch08-lattice-problems/), [18장](../../ch18-parameter-estimation/) | 임베딩 격자의 차원과 부피는? |
+| BKZ, $\delta_\beta$, GSA | 두 공격 모두 | [10장](../../ch10-bkz-sieving/) | BKZ-$\beta$ 후 $\|b_i^*\|$ 의 기울기는? |
+| 체(sieve)의 비용과 목록 크기 | core-SVP 상수 | 10장 | 체가 다루는 목록이 왜 약 $(4/3)^{\beta/2}$ 개인가? |
+| 쌍대 격자, 구별 공격 | dual 공격 | [7장](../../ch07-lattices/), 18장 | 짧은 쌍대 벡터가 왜 LWE 를 구별하게 해 주나? |
+
+## 2. 미니 입문
+
+### 2.1 NewHope 한 쪽 요약
+
+- **틀.** Ring-LWE 위의 Diffie–Hellman 꼴 키 교환입니다. 앨리스가 $b = as + e$, 밥이 $u = as' + e'$ 를 보내면 둘은 $us \approx bs' \approx ass'$ 를 계산하는데, 작은 잡음만큼 다르므로 **화해(reconciliation)** 정보를 덧붙여 같은 비트를 뽑습니다. 이후의 ML-KEM 은 화해 대신 암호화(KEM) 방식을 씁니다(16장).
+- **파라미터.** $n = 1024$, $q = 12289$ ($= 12 \cdot 1024 + 1$, 그래서 NTT 가 됨), 오차는 중심 이항 분포 $\psi_{16}$ (표준편차 $\sqrt 8 \approx 2.83$). 1024 개 계수에서 256 비트 키를 뽑기 위해 4 개씩 묶어 4차원 격자 $\tilde D_4$ 로 화해합니다.
+- **새 $a$.** 공개 다항식 $a$ 를 고정하지 않고 매번 32 바이트 시드에서 SHAKE-128 로 생성합니다. 고정된 $a$ 는 백도어를 심을 여지와, 한 번의 큰 사전 계산으로 모든 사용자를 공격하는 "all-for-the-price-of-one" 공격(Logjam 과 같은 발상)을 허용하기 때문입니다.
+- **오차 분포의 정당화.** 안전성 환원은 가우시안 오차를 전제하지만 구현은 이항 분포가 쉽습니다. 논문은 두 분포가 가깝다는 것을 Rényi 발산으로 보여, 이항 분포로 바꿔도 안전성 손실이 작다고 논증합니다.
+
+### 2.2 2015년의 추정 지형
+
+이 논문 이전에는 같은 LWE 파라미터에 대해 문헌마다 추정이 크게 달랐습니다.
+
+- **2008 추정.** Gama–Nguyen 의 실험에서 나온 경험칙으로, uSVP 는 $\lambda_2/\lambda_1 \ge \tau\,\delta^d$ ($\tau$ 는 실험 상수, 대략 0.3 대)일 때 풀린다고 봤습니다. 상수 $\tau$ 를 작은 차원의 실험에서 정해 큰 차원으로 외삽하는 방식입니다.
+- **비용 모델의 난립.** BKZ 의 비용을 "열거 기반 BKZ 2.0 시뮬레이션"으로 셀지, 체의 점근 비용으로 셀지, 투어 수와 차원 인자를 넣을지에 따라 수십 비트가 달라졌습니다. Albrecht–Player–Scott(2015)의 추정기가 이 모델들을 정리하기 시작한 시점입니다.
+
+ADPS16 은 이 혼란에 대해 **"모든 모델의 가장 약한 고리만 남긴다"** 는 답을 냅니다.
+
+### 2.3 BKZ 비용의 두 층
+
+BKZ-$\beta$ 의 실제 비용 ≈ (투어 수) × (블록 수 ≈ $d$) × (블록 하나의 SVP 비용). core-SVP 는 이 중 **마지막 인자 하나** 만 셉니다. 앞의 인자들은 다항식이고, 구현 기법(점진적 BKZ, 체의 "공짜 차원", 한 번의 체로 여러 블록 처리)으로 줄어들 수 있기 때문에, 그것을 빼면 **공격자에게 유리한(즉 설계자에게 보수적인)** 하한에 가까운 값이 됩니다. [18장](../../ch18-parameter-estimation/) 5절에서 본 "ML-KEM-512 의 core-SVP 118.6 비트가 반복을 넣은 모델로는 147.9 비트"라는 차이가 바로 이 생략된 인자들입니다.
+
+## 3. 논문 지도
+
+| 내용 덩어리 | 무엇이 있나 | 읽는 법 |
+|---|---|---|
+| 서론 | BCNS15(Bos–Costello–Naehrig–Stebila)의 Ring-LWE 키 교환과 비교, 기여 목록 | 1회독 필수. "더 빠르고 더 안전하게"의 두 축을 잡습니다. |
+| 프로토콜 | 메시지 흐름, 시드로 $a$ 생성, 화해 | 2.1절과 대조. 화해의 세부($\tilde D_4$)는 두 번째에. |
+| 오차 분포와 화해 분석 | $\psi_{16}$, Rényi 발산 논증, 실패 확률 | 실패 확률 계산을 16장의 방식과 비교합니다. |
+| **보안 분석: 방법론** | core-SVP 정의, 세 비용 상수 | **논문의 심장 1.** 4절 A, D. |
+| **보안 분석: primal 공격** | 임베딩, 2016 성공 조건 | **논문의 심장 2.** 4절 B. 18장 휴리스틱 18.1 과 같은 식인지 확인. |
+| **보안 분석: dual 공격** | 짧은 쌍대 벡터, 구별 이점, 반복 | 4절 C. 반복 횟수 식의 $2^{0.2075\beta}$ 에 밑줄. |
+| 보안 표 | NewHope·JarJar 의 $m$, $\beta$, 세 비용 | 5절 위젯으로 다시 만듭니다. |
+| 구현과 성능 | AVX2·Cortex-M 구현, 속도 | 이 가이드의 범위 밖. 1회독 때는 표만 봅니다. |
+
+## 4. 핵심 논증 단계별 해설
+
+### A. core-SVP: 무엇을 세고 무엇을 버리나
+
+공격에 BKZ-$\beta$ 가 필요하면, 그 비용을 **$\beta$ 차원 SVP 한 번의 비용** 으로 정의합니다. 상수는 셋입니다.
+
+| 이름 | 지수 | 근거 |
+|---|---|---|
+| 알려진 최선, 고전 | $0.292\beta$ | Becker–Ducas–Gama–Laarhoven (SODA 2016) 의 체 |
+| 알려진 최선, 양자 | $0.265\beta$ | 같은 체의 근접 쌍 찾기에 Grover 류 탐색을 쓴 변형 |
+| 가장 보수적(그럴듯한 하한) | $0.2075\beta$ | 체가 다뤄야 하는 목록 크기 $\sqrt{4/3}^{\,\beta}$, $\log_2\sqrt{4/3} \approx 0.2075$ |
+
+세 번째 줄의 논리가 특히 중요합니다. "앞으로 체 알고리즘이 아무리 좋아져도 목록을 한 번은 만들어야 한다"는 가정 아래, 목록 크기 자체를 비용의 하한으로 씁니다. 설계자가 이 값까지 넉넉하게 잡으면 미래의 알고리즘 개선에도 여유가 남습니다.
+
+### B. primal 공격과 2016 추정
+
+LWE 표본 $m$ 개로 Kannan 임베딩 격자(차원 $d = m + n + 1$)를 만들면, 숨은 짧은 벡터 $v = (e, s, 1)$ 의 길이는 약 $\sigma\sqrt d$ 입니다. 논문의 관찰은 다음과 같습니다.
+
+1. BKZ-$\beta$ 는 마지막 블록(마지막 $\beta$ 개의 GSO 방향이 펼치는 사영 격자)에서 SVP 를 풉니다.
+2. $v$ 를 그 $\beta$ 차원 공간에 사영하면 길이는 약 $\sigma\sqrt\beta$ 입니다(무작위 방향으로의 사영은 길이를 $\sqrt{\beta/d}$ 배로 줄임).
+3. GSA 아래에서 그 블록의 첫 GSO 벡터 길이는 $\delta_\beta^{2\beta - d}\operatorname{vol}^{1/d}$ 입니다.
+4. 사영된 $v$ 가 그보다 짧으면, 블록의 SVP 가 $v$ 의 사영을 찾고, 크기 축소로 $v$ 자체가 복원됩니다.
+
+$$
+\sigma\sqrt\beta \;\le\; \delta_\beta^{\,2\beta - d}\cdot \operatorname{vol}(L)^{1/d}.
+$$
+
+2008 추정과의 차이는 **실험 상수 $\tau$ 가 없다** 는 것입니다. 기하적 논증에서 직접 나온 조건이라 큰 차원으로의 외삽이 덜 자의적입니다. 이 조건은 이듬해 실험으로 검증되었고(Albrecht–Göpfert–Virdia–Wunderer, Asiacrypt 2017), 이후 확률적 성공 모델로 다듬어졌습니다(9절).
+
+표본 수 $m$ 은 공격자가 고르는 변수입니다. $m$ 을 늘리면 차원이 커져 $\delta^{2\beta - d}$ 항이 불리해지고, 줄이면 부피 항이 불리해집니다. 그래서 최적 $m$ 이 존재하고, 위젯과 18장 추정기는 $m$ 을 훑어 최소 $\beta$ 를 찾습니다.
+
+### C. dual 공격과 반복 횟수
+
+dual 공격은 $\{x : xA \equiv 0 \pmod q\}$ 꼴 격자의 짧은 벡터 $x$ 로 $\langle x, b\rangle = \langle x, e\rangle \pmod q$ 를 계산합니다. LWE 표본이면 이 값이 작은 쪽으로 치우치고, 균등 분포면 치우침이 없습니다.
+
+- BKZ-$\beta$ 가 주는 쌍대 벡터 길이를 $\ell$ 이라 하면, $\langle x, e\rangle$ 은 표준편차 약 $\ell\sigma$ 인 가우시안이고, 구별 이점은 $\varepsilon \approx \exp(-2\pi^2 (\ell\sigma/q)^2)$ (상수 인자 생략) 입니다.
+- 이점이 $\varepsilon$ 이면 약 $1/\varepsilon^2$ 개의 표본(짧은 벡터)이 필요합니다.
+- 논문의 핵심 가정: **체 한 번이 짧은 벡터를 약 $2^{0.2075\beta}$ 개 준다.** 그래서 필요한 BKZ 반복 횟수는 $R = \max(1, 1/(\varepsilon^2\, 2^{0.2075\beta}))$ 이고, 비용은 $0.292\beta + \log_2 R$ 입니다.
+
+이 "체가 주는 많은 벡터를 공짜로 쓴다"는 가정은 공격자에게 유리하게 잡은 것으로, 나중에 dual 공격의 개선(MATZOV 2022)과 그 분석의 독립성 가정에 대한 반론(Ducas–Pulles, Crypto 2023)으로 이어지는 논쟁의 출발점이 됩니다(18장).
+
+### D. 왜 이렇게 보수적인가
+
+NewHope 의 양자 core-SVP 는 약 255 비트로, 목표로 내건 128 비트보다 한참 큽니다. 이것은 실수가 아니라 설계 철학입니다.
+
+- 비용에서 다항 인자와 반복을 버렸고(A), 가장 보수적인 상수 $0.2075$ 로도 약 200 비트가 남게 했습니다.
+- $n$ 을 2의 거듭제곱으로 써야 하는 환의 제약 때문에 $n = 512$ 와 $1024$ 사이가 없었습니다. 512 (JarJar) 는 보수적 기준으로 부족하다고 봤고, 그래서 1024 를 골랐습니다. 이 "중간이 없다"는 문제가 뒤에 **모듈 격자** 로 차원을 256 단위로 조절하는 ML-KEM 설계로 이어집니다(12장).
+
+## 5. 재계산: 보안 표 다시 만들기
+
+<CoreSVPTable client:visible />
+
+이 교과서의 추정기로 계산한 값입니다($m$ 은 8 간격으로 탐색. JarJar 는 원문의 $n = 512$, $\psi_{24}$ 변형으로 넣었으니 원문 파라미터를 확인하세요).
+
+| 파라미터 | 공격 | $\beta$ | $m$ | 고전 | 양자 | 보수적 |
+|---|---|---|---|---|---|---|
+| NewHope ($m \le 2n$) | primal | 968 | 1080 | 282.7 | 256.5 | 200.9 |
+| | dual | 962 | 1104 | 280.9 | 254.9 | 199.6 |
+| JarJar ($m \le 2n$) | primal | 450 | 608 | 131.4 | 119.3 | 93.4 |
+| | dual | 448 | 608 | 130.8 | 118.7 | 93.0 |
+| ML-KEM-512 ($m \le n$) | primal | 406 | 472 | 118.6 | 107.6 | 84.2 |
+| | dual | 404 | 488 | 118.0 | 107.1 | 83.8 |
+
+원문 표와 비교해 보세요. NewHope 는 두 공격 모두 $\beta$ 가 960 대, 양자 core-SVP 약 255 비트, 가장 보수적 기준 약 200 비트라는 그림이 같아야 합니다. 차이가 1~2 비트라면 $\delta_\beta$ 공식(이 교과서는 10장의 점근식), $m$·$\beta$ 의 탐색 간격, dual 이점의 상수 인자 같은 세부 때문입니다.
+
+<Aside type="tip" title="ML-KEM 과의 연결">
+위젯에서 ML-KEM-512 를 고르고 "m ≤ 2n" 을 끄면 Lab 5 의 core-SVP 118.6 이 그대로 나옵니다. ML-KEM 명세의 118 비트는 바로 이 논문의 방법을 모듈 격자에 적용한 값입니다.
+</Aside>
+
+## 6. 읽을 때 주의할 표기 (검산 연습)
+
+1. **$\sigma$ 의 의미.** $\psi_k$ 의 표준편차는 $\sqrt{k/2}$ 입니다. $\psi_{16}$ 이면 $\sqrt 8$. 원문이 $k$ 와 $\sigma$ 중 무엇으로 쓰는지 확인하세요.
+2. **차원 $d$.** 임베딩에 상수 좌표 1 을 넣으면 $d = m + n + 1$, 넣지 않고 세면 $m + n$. 이 차이는 결과에 거의 영향이 없지만 식을 옮길 때 혼동의 원인입니다.
+3. **$b$ 와 $\beta$.** 원문은 블록 크기를 $b$ 로 쓰는 경우가 있습니다. 이 교과서는 $\beta$.
+4. **"비트 안전성"과 core-SVP.** core-SVP 값은 비용 모델의 한 단면입니다. "128 비트 안전"이라는 주장은 보통 더 큰 core-SVP 여유를 두고 하는 말이고, NIST 범주는 AES 키 탐색 비용과의 비교로 정의됩니다(18장 5절).
+5. **양자 비용의 단위.** $0.265\beta$ 는 양자 연산 수의 점근 지수이고, 회로 깊이 제한(MAXDEPTH)이나 QRAM 비용을 넣으면 더 커집니다.
+
+## 7. 자가 점검 질문
+
+<details>
+<summary>Q1. core-SVP 가 "보수적"인 이유를 두 가지 대세요.</summary>
+
+(1) BKZ 의 투어 수와 블록 수 같은 다항 인자를 버려서 실제 비용보다 작게 셉니다. (2) 가장 보수적인 상수 $0.2075\beta$ 는 미래의 어떤 체도 목록을 만들어야 한다는 하한 논리라, 알고리즘이 더 좋아져도 넘기 어렵습니다. 둘 다 설계자가 안전성을 과대평가하지 않게 만듭니다.
+
+</details>
+
+<details>
+<summary>Q2. primal 조건의 왼쪽이 $\sigma\sqrt d$ 가 아니라 $\sigma\sqrt\beta$ 인 이유는?</summary>
+
+BKZ 는 마지막 $\beta$ 차원 블록에서 SVP 를 풀고, 그 블록에서 보이는 것은 $v$ 의 $\beta$ 차원 사영입니다. 무작위 방향의 사영은 제곱 길이를 $\beta/d$ 배로 줄이므로 $\sigma\sqrt d \cdot \sqrt{\beta/d} = \sigma\sqrt\beta$.
+
+</details>
+
+<details>
+<summary>Q3. 표본 수 m 을 무작정 늘리면 왜 공격이 오히려 어려워지나?</summary>
+
+$\operatorname{vol}^{1/d} = q^{m/d}$ 는 $m$ 이 커질수록 커지지만, $\delta^{2\beta - d}$ 의 지수 $2\beta - d$ 가 더 음수가 되어 오른쪽 전체가 줄어듭니다. 두 효과가 균형을 이루는 최적 $m$ 이 있고, NewHope 에서는 그것이 $2n$ 보다 작습니다($m \approx 1080$).
+
+</details>
+
+<details>
+<summary>Q4. dual 공격에서 "체 한 번이 2^0.2075β 개의 벡터를 준다"는 가정을 빼면 비용은 어떻게 되나?</summary>
+
+짧은 벡터 하나마다 BKZ 를 다시 돌려야 하므로 반복 횟수가 $1/\varepsilon^2$ 로 커지고, 비용이 $0.292\beta + 2\log_2(1/\varepsilon)$ 가 되어 primal 보다 훨씬 비싸집니다. 이 가정은 공격자에게 유리한 쪽이고, 그 덕분에 dual 이 primal 과 비슷한 비용이 됩니다.
+
+</details>
+
+<details>
+<summary>Q5. 왜 공개 다항식 a 를 매번 새로 만드나? 격자 공격 비용과 관계가 있나?</summary>
+
+고정된 $a$ 에 대해서는 한 번의 큰 사전 계산(예: 그 격자의 좋은 기저)을 모든 세션에 재사용할 수 있고, 설계자가 약한 $a$ 를 골라 백도어를 심을 수도 있습니다. 격자 공격의 **한 인스턴스 비용** 은 바뀌지 않지만, 공격 비용을 사용자 수로 나눠 갖는(amortize) 것을 막습니다.
+
+</details>
+
+<details>
+<summary>Q6. 이 논문 뒤에 ML-KEM 이 Ring 대신 Module-LWE 를 쓴 이유를 이 논문의 표와 연결해 설명하세요.</summary>
+
+Ring-LWE 에서 $n$ 은 2의 거듭제곱이라 512 (core-SVP 약 131, 보수적 약 93) 와 1024 (약 283, 약 201) 사이에 선택지가 없습니다. 모듈 격자는 $n = 256$ 짜리 환을 $k$ 개 쌓아 차원을 512, 768, 1024 로 조절하고, 같은 NTT 코드를 재사용합니다(12장, 16장).
+
+</details>
+
+## 8. 재현 과제
+
+1. **표 재현.** 위젯 또는 `src/lib/estimator.ts` 로 5절 표를 만들고, 원문 표와 나란히 놓아 차이를 기록합니다.
+2. **$\delta_\beta$ 공식의 영향.** 10장의 점근식 대신 작은 $\beta$ 에서 쓰는 실측 $\delta$ 표(예: Chen–Nguyen 의 시뮬레이터 값)를 넣으면 $\beta$ 가 얼마나 바뀌는지 봅니다.
+3. **작은 차원 검증.** [Lab 1](../../labs/lab01-lll-lwe-attack/)·[Lab 4](../../labs/lab04-bkz-sieve/)로 $n = 30 \sim 50$ 의 LWE 를 실제로 풀어, 예측 $\beta$ 와 실제로 성공한 $\beta$ 를 비교합니다(AGVW17 의 실험을 아주 작게 따라 하기).
+4. **보고서(1쪽).** 설정 → 표(예측 대 원문 대 실측) → 관찰 → 한계(작은 차원에서 GSA 가 어긋나는 점 등).
+
+## 9. 함께 읽을 논문 (순서대로)
+
+1. N. Gama, P. Q. Nguyen, *Predicting Lattice Reduction*, Eurocrypt 2008. 2008 추정과 $\delta$ 의 실험값.
+2. M. Albrecht, R. Player, S. Scott, *On the Concrete Hardness of Learning with Errors*, J. Math. Cryptol. 2015. 당시 공격 모델의 총정리와 추정기.
+3. A. Becker, L. Ducas, N. Gama, T. Laarhoven, *New Directions in Nearest Neighbor Searching with Applications to Lattice Sieving*, SODA 2016. $0.292\beta$ 의 출처.
+4. M. Albrecht, F. Göpfert, F. Virdia, T. Wunderer, *Revisiting the Expected Cost of Solving uSVP and Applications to LWE*, Asiacrypt 2017. 2016 추정의 실험 검증.
+5. D. Dachman-Soled, L. Ducas, H. Gong, M. Rossi, *LWE with Side Information*, Crypto 2020. 확률적 성공 모델과 힌트 → [논문 읽기 3](../p03-lwe-side-information/).
+6. MATZOV, *Report on the Security of LWE: Improved Dual Lattice Attack* (2022); L. Ducas, L. Pulles, *Does the Dual-Sieve Attack on LWE Even Work?*, Crypto 2023. dual 공격 논쟁.
+7. J. Bos et al., *CRYSTALS-Kyber: a CCA-secure module-lattice-based KEM*, EuroS&P 2018. 이 방법을 모듈 격자에 적용한 후속.
+
+<p style="font-size:0.85rem;color:var(--sl-color-gray-3)">5절의 수치와 7절의 계산은 이 가이드의 재계산이며 원문 저자의 수치가 아닙니다. 원문 표와 대조해 읽으세요.</p>

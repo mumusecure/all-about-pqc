@@ -74,6 +74,8 @@ export default defineConfig({
         ] },
         { label: '논문 읽기', items: [
           { label: '1. MiNTRU 격자 분석 (overstretched)', slug: 'papers/p01-mintru' },
+          { label: '2. NewHope 와 core-SVP (ADPS16)', slug: 'papers/p02-newhope-coresvp' },
+          { label: '3. LWE with Side Information', slug: 'papers/p03-lwe-side-information' },
         ]},
         { label: '실습', items: [
           { label: 'Lab 1. LLL로 토이 LWE 공격하기', slug: 'labs/lab01-lll-lwe-attack' },
